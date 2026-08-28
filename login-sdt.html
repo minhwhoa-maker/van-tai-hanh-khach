@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập Tài xế</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg);
+            padding: 16px;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 32px 24px;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        }
+        .login-title {
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .login-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .error-message {
+            color: var(--danger);
+            font-size: 13px;
+            margin-top: 8px;
+            min-height: 18px;
+            display: none;
+            font-weight: 500;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .back-link:hover {
+            color: var(--primary-hover);
+        }
+        /* Step transition classes */
+        .step-container {
+            display: none;
+        }
+        .step-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2 class="login-title">🚛 ĐĂNG NHẬP</h2>
+        
+        <!-- Step 1: Nhập SĐT -->
+        <div id="step1" class="step-container active">
+            <p class="login-desc">Nhập số điện thoại đã đăng ký để nhận mã OTP đăng nhập.</p>
+            <div class="form-group">
+                <label for="sdt-input">Số điện thoại</label>
+                <input type="tel" id="sdt-input" placeholder="0901234567" autocomplete="tel">
+                <div id="step1-error" class="error-message"></div>
+            </div>
+            <button id="btn-send" class="btn btn-full">Gửi mã OTP</button>
+            <a id="link-other" class="back-link">Đăng nhập bằng phương thức khác</a>
+        </div>
+
+        <!-- Step 2: Nhập OTP -->
+        <div id="step2" class="step-container">
+            <p class="login-desc">Nhập mã 6 số đã gửi đến <strong id="display-sdt" class="text-primary"></strong></p>
+            <div class="form-group">
+                <label for="otp-input">Mã OTP</label>
+                <input type="text" id="otp-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                <div id="step2-error" class="error-message"></div>
+            </div>
+            <button id="btn-verify" class="btn btn-full">Xác nhận</button>
+            <a id="link-back" class="back-link">← Đổi số điện thoại</a>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Module level state
+        let currentSdt = '';
+
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const sdtInput = document.getElementById('sdt-input');
+        const otpInput = document.getElementById('otp-input');
+        const displaySdt = document.getElementById('display-sdt');
+        const step1Error = document.getElementById('step1-error');
+        const step2Error = document.getElementById('step2-error');
+        
+        const btnSend = document.getElementById('btn-send');
+        const btnVerify = document.getElementById('btn-verify');
+        const linkBack = document.getElementById('link-back');
+        const toast = document.getElementById('toast');
+
+        function showToast(msg, type = '') {
+            toast.textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.className = 'toast', 3000);
+        }
+
+        function showInputError(element, message) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        function clearInputErrors() {
+            step1Error.textContent = '';
+            step1Error.style.display = 'none';
+            step2Error.textContent = '';
+            step2Error.style.display = 'none';
+        }
+
+        // Bước 1: Gửi mã OTP
+        btnSend.addEventListener('click', async () => {
+            clearInputErrors();
+            
+            // #4 - Sanitize input SĐT
+            const sdt = sdtInput.value.replace(/\D/g, '').trim();
+            if (!sdt) {
+                showInputError(step1Error, 'Vui lòng nhập số điện thoại');
+                return;
+            }
+            if (sdt.length < 9 || sdt.length > 11) {
+                showInputError(step1Error, 'Số điện thoại không hợp lệ (phải từ 9-11 số)');
+                return;
+            }
+
+            // Set state
+            currentSdt = sdt;
+
+            // Loading state
+            btnSend.disabled = true;
+            btnSend.textContent = 'Đang gửi...';
+
+            try {
+                const response = await fetch('/api/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdt: currentSdt })
+                });
+
+                const result = await response.json();
+                
+                if (response.ok && result.ok) {
+                    showToast('Đã gửi mã OTP thành công', 'success');
+                    displaySdt.textContent = currentSdt;
+                    
+                    // Chuyển sang bước 2
+                    step1.classList.remove('active');
+                    step2.classList.add('active');
+                    otpInput.value = '';
+                    otpInput.focus();
+                } else {
+                    showInputError(step1Error, result.error || 'Có lỗi xảy ra, vui lòng thử lại');
+                }
+            } catch (err) {
+                showInputError(step1Error, 'Lỗi kết nối server. Vui lòng thử lại sau.');
+            } finally {
+                btnSend.disabled = false;
+                btnSend.textContent = 'Gửi mã OTP';
+            }
+        });
+
+        // Bước 2: Xác nhận OTP
+        btnVerify.addEventListener('click', async () => {
+            clearInputErrors();
+            
+            const code = otpInput.value.replace(/\s/g, '').trim();
+            if (!code) {
+                showInputError(step2Error, 'Vui lòng nhập mã OTP');
+                return;
+            }
+            if (!/^\d{6}$/.test(code)) {
+                showInputError(step2Error, 'Mã OTP phải có đúng 6 chữ số');
+                return;
+            }
+
+            btnVerify.disabled = true;
+            btnVerify.textContent = 'Đang xác nhận...';
+
+            try {
+                const response = await fetch('/api/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdt: currentSdt, code })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.ok && result.token) {
+                    showToast('Đăng nhập thành công!', 'success');
+                    localStorage.setItem('driver_token', result.token);
+
+                    const dest = 'manifest-hang.html';
+                    setTimeout(() => {
+                        window.location.href = dest;
+                    }, 1000);
+                } else {
+                    showInputError(step2Error, result.error || 'Mã OTP không chính xác');
+                }
+            } catch (err) {
+                showInputError(step2Error, 'Lỗi kết nối server. Vui lòng thử lại sau.');
+            } finally {
+                btnVerify.disabled = false;
+                btnVerify.textContent = 'Xác nhận';
+            }
+        });
+
+        // Quay về trang chủ
+        document.getElementById('link-other').addEventListener('click', () => {
+            window.location.href = 'login-sdt.html';
+        });
+
+        // Quay lại bước 1
+        linkBack.addEventListener('click', () => {
+            clearInputErrors();
+            step2.classList.remove('active');
+            step1.classList.add('active');
+            sdtInput.focus();
+        });
+
+        // Hỗ trợ nhấn Enter
+        sdtInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') btnSend.click();
+        });
+        otpInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') btnVerify.click();
+        });
+    </script>
+</body>
+</html>

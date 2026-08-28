@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhập kiện hàng</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: var(--bg); padding-bottom: 40px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .chip-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px; }
+        .chip {
+            padding: 10px 16px; border-radius: 20px; border: 1.5px solid var(--border);
+            background: var(--white); cursor: pointer; font-size: 15px; color: var(--text);
+        }
+        .chip.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .diem-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+        .diem-item {
+            padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--white); cursor: pointer;
+        }
+        .diem-item.selected { border-color: var(--primary); background: #eaf2fc; }
+        .camera-box {
+            margin: 16px; padding: 24px; border: 2px dashed var(--border); border-radius: var(--radius);
+            text-align: center; background: var(--white); cursor: pointer;
+        }
+        #kien-preview { display: none; margin: 0 16px 16px; }
+        #kien-preview img { width: 100%; border-radius: var(--radius-sm); }
+        .form-actions { padding: 16px; display: flex; gap: 8px; }
+        #queue-status { padding: 8px 16px; font-size: 13px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <div class="header-nav-desktop"><a href="manifest-hang.html" style="color:inherit;text-decoration:none;">← Danh sách kiện</a></div>
+        </div>
+        <h2 style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
+            <span class="header-text">📦 Nhập kiện hàng</span>
+        </h2>
+        <div style="display:flex; align-items:center; gap:8px;"></div>
+    </div>
+
+    <div id="queue-status"></div>
+
+    <!-- Step 1: chọn tỉnh -->
+    <div class="step active" id="step-tinh">
+        <p style="padding:16px 16px 0; font-weight:600;">1. Chọn tỉnh</p>
+        <div class="chip-row" id="tinh-chips"></div>
+    </div>
+
+    <!-- Step 2: chọn / tạo điểm -->
+    <div class="step" id="step-diem">
+        <p style="padding:16px 16px 0; font-weight:600;">2. Chọn điểm nhận/giao</p>
+        <div style="padding:8px 16px;">
+            <input type="text" id="diem-search" placeholder="Gõ tên điểm..." style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+        </div>
+        <div class="diem-list" id="diem-list"></div>
+        <div style="padding:8px 16px;">
+            <button class="btn btn-full" id="btn-new-diem" type="button">+ Tạo điểm mới</button>
+        </div>
+    </div>
+
+    <!-- Step 3: ảnh + mô tả -->
+    <div class="step" id="step-anh">
+        <p style="padding:16px 16px 0; font-weight:600;">3. Chụp ảnh kiện hàng</p>
+        <div class="camera-box" id="camera-box">
+            <input type="file" accept="image/*" capture="environment" id="kien-camera-input" style="display:none;">
+            <div>📷 Chạm để chụp ảnh</div>
+        </div>
+        <div id="kien-preview"><img id="kien-preview-img" alt=""></div>
+        <div style="padding:0 16px;">
+            <textarea id="kien-mota" placeholder="Mô tả kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-full btn-success" id="btn-save-kien" type="button">Lưu kiện hàng</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script src="point-match.js"></script>
+    <script src="idb-queue.js"></script>
+    <script>
+        const sb = createSb()
+        let currentProfile = null
+        let selectedTinh = null   // { id, ten, thu_tu }
+        let selectedDiem = null   // { id, ten, tinh_id }
+        let allDiemInTinh = []
+        let activePhotoBlob = null
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        function goToStep(id) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'))
+            document.getElementById(id).classList.add('active')
+        }
+
+        // GIẢ ĐỊNH SCHEMA: bảng tinh_tuyen(id, ten, thu_tu). Đối chiếu eakar_hang_v1.sql.
+        async function loadTinh() {
+            const { data, error } = await sb.from('tinh_tuyen').select('id, ten, thu_tu').order('thu_tu', { ascending: true })
+            if (error) { showToast('Lỗi tải danh sách tỉnh: ' + error.message, 'error'); return }
+            const wrap = document.getElementById('tinh-chips')
+            wrap.textContent = ''
+            data.forEach(t => {
+                const chip = document.createElement('div')
+                chip.className = 'chip'
+                chip.textContent = t.ten
+                chip.addEventListener('click', () => selectTinh(t, chip))
+                wrap.appendChild(chip)
+            })
+        }
+
+        function selectTinh(tinh, chipEl) {
+            document.querySelectorAll('#tinh-chips .chip').forEach(c => c.classList.remove('selected'))
+            chipEl.classList.add('selected')
+            selectedTinh = tinh
+            loadDiem(tinh.id)
+            goToStep('step-diem')
+        }
+
+        // GIẢ ĐỊNH SCHEMA: bảng diem(id, tinh_id, ten). Đối chiếu eakar_hang_v1.sql.
+        async function loadDiem(tinhId) {
+            const { data, error } = await sb.from('diem').select('id, ten, tinh_id').eq('tinh_id', tinhId).order('ten')
+            if (error) { showToast('Lỗi tải điểm: ' + error.message, 'error'); return }
+            allDiemInTinh = data || []
+            renderDiemList(allDiemInTinh)
+        }
+
+        function renderDiemList(list) {
+            const wrap = document.getElementById('diem-list')
+            wrap.textContent = ''
+            list.forEach(d => {
+                const item = document.createElement('div')
+                item.className = 'diem-item'
+                item.textContent = d.ten
+                item.addEventListener('click', () => selectDiem(d, item))
+                wrap.appendChild(item)
+            })
+        }
+
+        function selectDiem(diem, itemEl) {
+            document.querySelectorAll('#diem-list .diem-item').forEach(i => i.classList.remove('selected'))
+            itemEl.classList.add('selected')
+            selectedDiem = diem
+            goToStep('step-anh')
+        }
+
+        document.getElementById('diem-search').addEventListener('input', e => {
+            const q = e.target.value
+            if (!q) { renderDiemList(allDiemInTinh); return }
+            renderDiemList(timDiemTrung(allDiemInTinh, q))
+        })
+
+        document.getElementById('btn-new-diem').addEventListener('click', async () => {
+            const ten = document.getElementById('diem-search').value.trim()
+            if (!ten) { showToast('Nhập tên điểm trước', 'error'); return }
+            const trung = timDiemTrung(allDiemInTinh, ten)
+            if (trung.length && !confirm(`Đã có điểm gần giống: "${trung[0].ten}". Vẫn tạo điểm mới?`)) return
+            const { data, error } = await sb.from('diem').insert({ tinh_id: selectedTinh.id, ten }).select().single()
+            if (error) { showToast('Lỗi tạo điểm: ' + error.message, 'error'); return }
+            allDiemInTinh.push(data)
+            selectedDiem = data
+            goToStep('step-anh')
+        })
+
+        document.getElementById('camera-box').addEventListener('click', () => {
+            document.getElementById('kien-camera-input').click()
+        })
+        document.getElementById('kien-camera-input').addEventListener('change', function () {
+            if (!this.files || !this.files[0]) return
+            activePhotoBlob = this.files[0]
+            const reader = new FileReader()
+            reader.onload = e => {
+                document.getElementById('kien-preview-img').src = e.target.result
+                document.getElementById('kien-preview').style.display = 'block'
+            }
+            reader.readAsDataURL(activePhotoBlob)
+        })
+
+        document.getElementById('btn-save-kien').addEventListener('click', async () => {
+            if (!selectedTinh || !selectedDiem) { showToast('Thiếu tỉnh/điểm', 'error'); return }
+            const record = {
+                id: crypto.randomUUID(),
+                tinh_id: selectedTinh.id,
+                diem_id: selectedDiem.id,
+                mo_ta: document.getElementById('kien-mota').value.trim(),
+                nguoi_nhap: currentProfile ? currentProfile.full_name : null,
+                anh_blob: activePhotoBlob || null,
+                created_at: new Date().toISOString(),
+                da_sync: false
+            }
+            await queueKien(record)
+            showToast('Đã lưu kiện hàng' + (navigator.onLine ? '' : ' (offline, sẽ tự đồng bộ)'), 'success')
+            trySyncQueue(sb).then(updateQueueStatus)
+
+            // reset về bước 1 để nhập kiện tiếp theo
+            activePhotoBlob = null
+            document.getElementById('kien-preview').style.display = 'none'
+            document.getElementById('kien-mota').value = ''
+            goToStep('step-tinh')
+        })
+
+        async function updateQueueStatus() {
+            const pending = await getUnsyncedKien()
+            const el = document.getElementById('queue-status')
+            el.textContent = pending.length ? `⏳ ${pending.length} kiện chưa đồng bộ` : ''
+        }
+
+        async function initPage() {
+            const auth = await requireRole(sb, ['driver', 'owner'])
+            if (!auth) return
+            currentProfile = auth.profile
+            await loadTinh()
+            setupQueueAutoSync(sb)
+            updateQueueStatus()
+            setInterval(updateQueueStatus, 5000)
+        }
+
+        setupLogoutListener(sb)
+        initPage()
+    </script>
+</body>
+</html>
