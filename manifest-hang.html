@@ -8,12 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <style>
         body { background: var(--bg); padding-bottom: 40px; }
-        .dir-toggle { display: flex; gap: 8px; padding: 16px; }
-        .dir-btn {
-            flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
-            background: var(--white); cursor: pointer; font-size: 15px; text-align: center;
-        }
-        .dir-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .chuyen-select-wrap { padding: 16px; }
         .tinh-group { margin: 0 16px 16px; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
         .tinh-group h3 { margin: 0; padding: 12px 16px; background: var(--bg); font-size: 16px; }
         .kien-row {
@@ -24,6 +19,9 @@
         .kien-row .info { flex: 1; }
         .kien-row .diem { font-weight: 600; }
         .kien-row .mota { color: var(--text-muted); font-size: 13px; }
+        .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+        .badge.chua_giao { background: #fdecea; color: var(--danger); }
+        .badge.da_giao { background: #eafaf1; color: var(--success); }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
     </style>
 </head>
@@ -40,9 +38,8 @@
         </div>
     </div>
 
-    <div class="dir-toggle">
-        <div class="dir-btn active" id="dir-bac" data-dir="bac">⬆️ Chiều Bắc (ĐL → HD)</div>
-        <div class="dir-btn" id="dir-nam" data-dir="nam">⬇️ Chiều Nam (HD → ĐL)</div>
+    <div class="chuyen-select-wrap">
+        <select id="chuyen-select" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white"></select>
     </div>
 
     <div id="list-wrap"></div>
@@ -53,7 +50,7 @@
     <script src="shared.js"></script>
     <script>
         const sb = createSb()
-        let currentDir = 'bac'
+        let chuyenList = []
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -62,30 +59,61 @@
             setTimeout(() => toast.className = 'toast', 3000)
         }
 
-        // GIẢ ĐỊNH SCHEMA: kien(id, tinh_id, diem_id, mo_ta, anh_url, created_at),
-        // diem(id, tinh_id, ten), tinh_tuyen(id, ten, thu_tu).
-        // Chiều bắc = ASC thu_tu, chiều nam = DESC thu_tu — đối chiếu eakar_hang_v1.sql khi có.
-        async function loadManifest() {
+        // chuyen(id, chieu, khoi_hanh, trang_thai, ghi_chu, tao_boi, created_at)
+        async function loadChuyenOptions() {
+            const { data, error } = await sb
+                .from('chuyen')
+                .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .order('created_at', { ascending: false })
+                .limit(50)
+            if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
+            chuyenList = data || []
+            const sel = document.getElementById('chuyen-select')
+            sel.textContent = ''
+            if (!chuyenList.length) {
+                sel.innerHTML = '<option value="">Chưa có chuyến nào</option>'
+                document.getElementById('list-wrap').innerHTML = '<div class="empty">Chưa có chuyến nào</div>'
+                return
+            }
+            chuyenList.forEach(c => {
+                const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+                const opt = document.createElement('option')
+                opt.value = c.id
+                opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : ''}`
+                sel.appendChild(opt)
+            })
+            sel.value = chuyenList[0].id
+            loadManifest(chuyenList[0])
+        }
+
+        document.getElementById('chuyen-select').addEventListener('change', e => {
+            const chuyen = chuyenList.find(c => c.id === e.target.value)
+            if (chuyen) loadManifest(chuyen)
+        })
+
+        // tinh_tuyen(ma PK, ten, thu_tu). diem(id, ten, tinh_ma). kien(id, chuyen_id, diem_id,
+        // anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at).
+        // Chiều bac = ASC thu_tu, nam = DESC thu_tu.
+        async function loadManifest(chuyen) {
             const wrap = document.getElementById('list-wrap')
             wrap.textContent = ''
 
             const { data: tinhList, error: tinhErr } = await sb
                 .from('tinh_tuyen')
-                .select('id, ten, thu_tu')
-                .order('thu_tu', { ascending: currentDir === 'bac' })
+                .select('ma, ten, thu_tu')
+                .order('thu_tu', { ascending: chuyen.chieu === 'bac' })
             if (tinhErr) { showToast('Lỗi tải tỉnh: ' + tinhErr.message, 'error'); return }
-
-            if (!tinhList.length) { wrap.innerHTML = '<div class="empty">Chưa có dữ liệu tỉnh/tuyến</div>'; return }
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, tinh_id, diem_id, mo_ta, anh_url, created_at, diem(ten)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma)')
+                .eq('chuyen_id', chuyen.id)
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
             let any = false
             tinhList.forEach(tinh => {
-                const kiensCuaTinh = kienList.filter(k => k.tinh_id === tinh.id)
+                const kiensCuaTinh = kienList.filter(k => k.diem?.tinh_ma === tinh.ma)
                 if (!kiensCuaTinh.length) return
                 any = true
 
@@ -102,26 +130,18 @@
                         ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                         <div class="info">
                             <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
-                            ${k.mo_ta ? `<div class="mota">${k.mo_ta}</div>` : ''}
+                            ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
+                            ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                         </div>
-                        <div class="mota">${formatDate(k.created_at)}</div>
+                        <span class="badge ${k.trang_thai}">${k.trang_thai === 'da_giao' ? 'Đã giao' : 'Chưa giao'}</span>
                     `
                     group.appendChild(row)
                 })
                 wrap.appendChild(group)
             })
 
-            if (!any) wrap.innerHTML = '<div class="empty">Chưa có kiện hàng nào</div>'
+            if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
         }
-
-        document.querySelectorAll('.dir-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'))
-                btn.classList.add('active')
-                currentDir = btn.dataset.dir
-                loadManifest()
-            })
-        })
 
         document.getElementById('btn-logout').addEventListener('click', async (e) => {
             e.preventDefault()
@@ -133,7 +153,7 @@
         async function initPage() {
             const auth = await requireRole(sb, ['driver', 'owner'])
             if (!auth) return
-            await loadManifest()
+            await loadChuyenOptions()
         }
 
         setupLogoutListener(sb)

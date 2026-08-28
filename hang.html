@@ -16,12 +16,13 @@
             background: var(--white); cursor: pointer; font-size: 15px; color: var(--text);
         }
         .chip.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .diem-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
-        .diem-item {
+        .diem-list, .chuyen-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
+        .diem-item, .chuyen-item {
             padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
             background: var(--white); cursor: pointer;
         }
-        .diem-item.selected { border-color: var(--primary); background: #eaf2fc; }
+        .diem-item.selected, .chuyen-item.selected { border-color: var(--primary); background: #eaf2fc; }
+        .chuyen-item .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
         .camera-box {
             margin: 16px; padding: 24px; border: 2px dashed var(--border); border-radius: var(--radius);
             text-align: center; background: var(--white); cursor: pointer;
@@ -30,6 +31,10 @@
         #kien-preview img { width: 100%; border-radius: var(--radius-sm); }
         .form-actions { padding: 16px; display: flex; gap: 8px; }
         #queue-status { padding: 8px 16px; font-size: 13px; color: var(--text-muted); }
+        .current-chuyen-bar {
+            padding: 10px 16px; background: var(--white); border-bottom: 1px solid var(--border);
+            font-size: 13px; color: var(--text-muted); display: none;
+        }
     </style>
 </head>
 <body>
@@ -43,10 +48,38 @@
         <div style="display:flex; align-items:center; gap:8px;"></div>
     </div>
 
+    <div class="current-chuyen-bar" id="current-chuyen-bar"></div>
     <div id="queue-status"></div>
 
+    <!-- Step 0: chọn / tạo chuyến -->
+    <div class="step active" id="step-chuyen">
+        <p style="padding:16px 16px 0; font-weight:600;">0. Chọn chuyến đang chạy</p>
+        <div class="chuyen-list" id="chuyen-list"></div>
+        <div style="padding:8px 16px;">
+            <button class="btn btn-full" id="btn-toggle-new-chuyen" type="button">+ Tạo chuyến mới</button>
+        </div>
+        <div id="new-chuyen-form" style="display:none; padding:0 16px;">
+            <div class="form-group">
+                <label>Chiều</label>
+                <select id="new-chuyen-chieu" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white">
+                    <option value="bac">Bắc (Đắk Lắk → Hải Dương)</option>
+                    <option value="nam">Nam (Hải Dương → Đắk Lắk)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Giờ khởi hành</label>
+                <input type="datetime-local" id="new-chuyen-khoihanh">
+            </div>
+            <div class="form-group">
+                <label>Ghi chú</label>
+                <input type="text" id="new-chuyen-ghichu" placeholder="Ghi chú (tùy chọn)">
+            </div>
+            <button class="btn btn-full btn-success" id="btn-save-chuyen" type="button">Tạo chuyến</button>
+        </div>
+    </div>
+
     <!-- Step 1: chọn tỉnh -->
-    <div class="step active" id="step-tinh">
+    <div class="step" id="step-tinh">
         <p style="padding:16px 16px 0; font-weight:600;">1. Chọn tỉnh</p>
         <div class="chip-row" id="tinh-chips"></div>
     </div>
@@ -63,7 +96,7 @@
         </div>
     </div>
 
-    <!-- Step 3: ảnh + mô tả -->
+    <!-- Step 3: ảnh + thông tin kiện -->
     <div class="step" id="step-anh">
         <p style="padding:16px 16px 0; font-weight:600;">3. Chụp ảnh kiện hàng</p>
         <div class="camera-box" id="camera-box">
@@ -72,7 +105,14 @@
         </div>
         <div id="kien-preview"><img id="kien-preview-img" alt=""></div>
         <div style="padding:0 16px;">
-            <textarea id="kien-mota" placeholder="Mô tả kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;"></textarea>
+            <div class="form-group">
+                <label>SĐT người nhận</label>
+                <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)">
+            </div>
+            <div class="form-group">
+                <label>Ghi chú</label>
+                <textarea id="kien-ghichu" placeholder="Ghi chú kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;"></textarea>
+            </div>
         </div>
         <div class="form-actions">
             <button class="btn btn-full btn-success" id="btn-save-kien" type="button">Lưu kiện hàng</button>
@@ -88,8 +128,9 @@
     <script>
         const sb = createSb()
         let currentProfile = null
-        let selectedTinh = null   // { id, ten, thu_tu }
-        let selectedDiem = null   // { id, ten, tinh_id }
+        let currentChuyen = null  // { id, chieu, khoi_hanh, ghi_chu }
+        let selectedTinh = null   // { ma, ten, thu_tu }
+        let selectedDiem = null   // { id, ten, tinh_ma }
         let allDiemInTinh = []
         let activePhotoBlob = null
 
@@ -105,9 +146,73 @@
             document.getElementById(id).classList.add('active')
         }
 
-        // GIẢ ĐỊNH SCHEMA: bảng tinh_tuyen(id, ten, thu_tu). Đối chiếu eakar_hang_v1.sql.
+        function updateChuyenBar() {
+            const bar = document.getElementById('current-chuyen-bar')
+            if (!currentChuyen) { bar.style.display = 'none'; return }
+            const chieuLabel = currentChuyen.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+            bar.textContent = `Chuyến: ${chieuLabel}${currentChuyen.ghi_chu ? ' — ' + currentChuyen.ghi_chu : ''}`
+            bar.style.display = 'block'
+        }
+
+        async function loadChuyenList() {
+            const { data, error } = await sb
+                .from('chuyen')
+                .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .eq('trang_thai', 'dang_chay')
+                .order('created_at', { ascending: false })
+            if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
+            const wrap = document.getElementById('chuyen-list')
+            wrap.textContent = ''
+            if (!data.length) {
+                wrap.innerHTML = '<div style="color:var(--text-muted); font-size:14px;">Chưa có chuyến nào đang chạy, tạo chuyến mới bên dưới.</div>'
+                return
+            }
+            data.forEach(c => {
+                const item = document.createElement('div')
+                item.className = 'chuyen-item'
+                const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+                item.innerHTML = `<div>${chieuLabel}</div><div class="sub">${formatDate(c.khoi_hanh)}${c.ghi_chu ? ' — ' + c.ghi_chu : ''}</div>`
+                item.addEventListener('click', () => selectChuyen(c, item))
+                wrap.appendChild(item)
+            })
+        }
+
+        function selectChuyen(chuyen, itemEl) {
+            document.querySelectorAll('#chuyen-list .chuyen-item').forEach(i => i.classList.remove('selected'))
+            if (itemEl) itemEl.classList.add('selected')
+            currentChuyen = chuyen
+            updateChuyenBar()
+            loadTinh()
+            goToStep('step-tinh')
+        }
+
+        document.getElementById('btn-toggle-new-chuyen').addEventListener('click', () => {
+            const form = document.getElementById('new-chuyen-form')
+            form.style.display = form.style.display === 'none' ? 'block' : 'none'
+        })
+
+        document.getElementById('btn-save-chuyen').addEventListener('click', async () => {
+            const chieu = document.getElementById('new-chuyen-chieu').value
+            const khoiHanhRaw = document.getElementById('new-chuyen-khoihanh').value
+            const ghiChu = document.getElementById('new-chuyen-ghichu').value.trim()
+            const { data, error } = await sb.from('chuyen').insert({
+                chieu,
+                khoi_hanh: khoiHanhRaw ? new Date(khoiHanhRaw).toISOString() : new Date().toISOString(),
+                trang_thai: 'dang_chay',
+                ghi_chu: ghiChu || null,
+                tao_boi: currentProfile ? (currentProfile.full_name || currentProfile.id) : null
+            }).select().single()
+            if (error) { showToast('Lỗi tạo chuyến: ' + error.message, 'error'); return }
+            showToast('Đã tạo chuyến mới', 'success')
+            selectChuyen(data, null)
+        })
+
+        // tinh_tuyen(ma PK, ten, ten_moi, thu_tu). Chiều bac = ASC thu_tu, nam = DESC thu_tu.
         async function loadTinh() {
-            const { data, error } = await sb.from('tinh_tuyen').select('id, ten, thu_tu').order('thu_tu', { ascending: true })
+            const { data, error } = await sb
+                .from('tinh_tuyen')
+                .select('ma, ten, thu_tu')
+                .order('thu_tu', { ascending: currentChuyen.chieu === 'bac' })
             if (error) { showToast('Lỗi tải danh sách tỉnh: ' + error.message, 'error'); return }
             const wrap = document.getElementById('tinh-chips')
             wrap.textContent = ''
@@ -124,13 +229,14 @@
             document.querySelectorAll('#tinh-chips .chip').forEach(c => c.classList.remove('selected'))
             chipEl.classList.add('selected')
             selectedTinh = tinh
-            loadDiem(tinh.id)
+            loadDiem(tinh.ma)
             goToStep('step-diem')
         }
 
-        // GIẢ ĐỊNH SCHEMA: bảng diem(id, tinh_id, ten). Đối chiếu eakar_hang_v1.sql.
-        async function loadDiem(tinhId) {
-            const { data, error } = await sb.from('diem').select('id, ten, tinh_id').eq('tinh_id', tinhId).order('ten')
+        // diem(id, ten, ten_norm, tinh_ma FK, huyen_cu, lat, lng, km_moc, so_lan_giao, created_at)
+        // UNIQUE(tinh_ma, ten_norm) — DB tự chặn trùng khi insert.
+        async function loadDiem(tinhMa) {
+            const { data, error } = await sb.from('diem').select('id, ten, ten_norm, tinh_ma').eq('tinh_ma', tinhMa).order('ten')
             if (error) { showToast('Lỗi tải điểm: ' + error.message, 'error'); return }
             allDiemInTinh = data || []
             renderDiemList(allDiemInTinh)
@@ -166,8 +272,22 @@
             if (!ten) { showToast('Nhập tên điểm trước', 'error'); return }
             const trung = timDiemTrung(allDiemInTinh, ten)
             if (trung.length && !confirm(`Đã có điểm gần giống: "${trung[0].ten}". Vẫn tạo điểm mới?`)) return
-            const { data, error } = await sb.from('diem').insert({ tinh_id: selectedTinh.id, ten }).select().single()
-            if (error) { showToast('Lỗi tạo điểm: ' + error.message, 'error'); return }
+            const { data, error } = await sb.from('diem').insert({
+                tinh_ma: selectedTinh.ma,
+                ten,
+                ten_norm: boDau(ten)
+            }).select().single()
+            if (error) {
+                if (error.code === '23505') {
+                    // UNIQUE(tinh_ma, ten_norm) đụng — điểm đã tồn tại, refetch rồi chọn lại
+                    showToast('Điểm này đã tồn tại, đang chọn điểm có sẵn...', '')
+                    await loadDiem(selectedTinh.ma)
+                    const existed = allDiemInTinh.find(d => d.ten_norm === boDau(ten))
+                    if (existed) { selectedDiem = existed; goToStep('step-anh'); return }
+                }
+                showToast('Lỗi tạo điểm: ' + error.message, 'error')
+                return
+            }
             allDiemInTinh.push(data)
             selectedDiem = data
             goToStep('step-anh')
@@ -188,13 +308,14 @@
         })
 
         document.getElementById('btn-save-kien').addEventListener('click', async () => {
-            if (!selectedTinh || !selectedDiem) { showToast('Thiếu tỉnh/điểm', 'error'); return }
+            if (!currentChuyen || !selectedTinh || !selectedDiem) { showToast('Thiếu chuyến/tỉnh/điểm', 'error'); return }
             const record = {
                 id: crypto.randomUUID(),
-                tinh_id: selectedTinh.id,
+                chuyen_id: currentChuyen.id,
                 diem_id: selectedDiem.id,
-                mo_ta: document.getElementById('kien-mota').value.trim(),
-                nguoi_nhap: currentProfile ? currentProfile.full_name : null,
+                nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
+                ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
+                trang_thai: 'chua_giao',
                 anh_blob: activePhotoBlob || null,
                 created_at: new Date().toISOString(),
                 da_sync: false
@@ -203,10 +324,11 @@
             showToast('Đã lưu kiện hàng' + (navigator.onLine ? '' : ' (offline, sẽ tự đồng bộ)'), 'success')
             trySyncQueue(sb).then(updateQueueStatus)
 
-            // reset về bước 1 để nhập kiện tiếp theo
+            // reset về bước 1 (chọn tỉnh) để nhập kiện tiếp theo trong cùng chuyến
             activePhotoBlob = null
             document.getElementById('kien-preview').style.display = 'none'
-            document.getElementById('kien-mota').value = ''
+            document.getElementById('kien-sdt').value = ''
+            document.getElementById('kien-ghichu').value = ''
             goToStep('step-tinh')
         })
 
@@ -220,7 +342,7 @@
             const auth = await requireRole(sb, ['driver', 'owner'])
             if (!auth) return
             currentProfile = auth.profile
-            await loadTinh()
+            await loadChuyenList()
             setupQueueAutoSync(sb)
             updateQueueStatus()
             setInterval(updateQueueStatus, 5000)
