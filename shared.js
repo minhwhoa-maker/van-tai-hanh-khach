@@ -1,9 +1,8 @@
 // EaKar Hàng — shared utilities
 // Yêu cầu: load supabase-js trước file này
 
-// TODO: điền URL + anon key của project Supabase MỚI (eakar-hang), khác project eakar-logistics
-const SUPABASE_URL = 'https://YOUR-NEW-PROJECT-REF.supabase.co'
-const SUPABASE_ANON_KEY = 'YOUR-NEW-ANON-KEY'
+const SUPABASE_URL = 'https://ycifioonjzrdasofdmjb.supabase.co'
+const SUPABASE_ANON_KEY = 'sb_publishable_Mz8G341RU_k3PqOFLiCKjg_8ClEsdhR'
 
 function createSb() {
     return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
