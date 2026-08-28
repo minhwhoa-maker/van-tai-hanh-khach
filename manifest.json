@@ -2,7 +2,7 @@
   "name": "EaKar Hàng",
   "short_name": "EaKar Hàng",
   "description": "App quản lý kiện hàng crew xe khách giường nằm, tuyến Đắk Lắk - Hải Dương",
-  "start_url": "./login-sdt.html",
+  "start_url": "./login.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

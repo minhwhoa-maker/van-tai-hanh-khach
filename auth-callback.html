@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đang đăng nhập...</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
+        .box { text-align: center; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <div id="msg">Đang đăng nhập...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        // Đích đến sau bridge Zalo Login (api/zalo-callback.js redirect về đây với
+        // email + token_hash). Dùng supabase.auth.verifyOtp() — cơ chế chính thức của
+        // Supabase — để thiết lập session client-side, không tự ký JWT tay.
+        const sb = createSb()
+
+        async function run() {
+            const params = new URLSearchParams(window.location.search)
+            const email = params.get('email')
+            const tokenHash = params.get('token_hash')
+
+            if (!email || !tokenHash) {
+                document.getElementById('msg').textContent = 'Thiếu thông tin đăng nhập, quay lại...'
+                setTimeout(() => window.location.href = 'login.html', 1500)
+                return
+            }
+
+            const { error } = await sb.auth.verifyOtp({ email, token: tokenHash, type: 'magiclink' })
+            if (error) {
+                document.getElementById('msg').textContent = 'Đăng nhập thất bại: ' + error.message
+                setTimeout(() => window.location.href = 'login.html', 2000)
+                return
+            }
+
+            window.location.href = 'hang.html'
+        }
+
+        run()
+    </script>
+</body>
+</html>

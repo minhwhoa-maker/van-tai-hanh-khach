@@ -1,6 +1,7 @@
 const CACHE_NAME = 'eakar-hang-v1';
 const STATIC_ASSETS = [
-    './login-sdt.html',
+    './login.html',
+    './auth-callback.html',
     './hang.html',
     './manifest-hang.html',
     './style.css',
@@ -65,7 +66,7 @@ self.addEventListener('fetch', e => {
                 if (response.ok) await cache.put(e.request, response.clone());
                 return response;
             } catch {
-                return (await cache.match(e.request)) || cache.match('./login-sdt.html');
+                return (await cache.match(e.request)) || cache.match('./login.html');
             }
         }
 

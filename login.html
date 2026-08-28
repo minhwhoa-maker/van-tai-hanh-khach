@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg);
+            padding: 16px;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 32px 24px;
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+        }
+        .login-title {
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .login-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+            background: var(--white);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .login-btn.zalo { background: #0068ff; color: #fff; border-color: #0068ff; }
+        .login-btn.google { color: var(--text); }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-title">📦 EaKar Hàng</div>
+        <button class="login-btn google" id="btn-google" type="button">🔵 Đăng nhập với Google</button>
+        <button class="login-btn zalo" id="btn-zalo" type="button">💬 Đăng nhập với Zalo</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        const sb = createSb()
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        document.getElementById('btn-google').addEventListener('click', async () => {
+            const { error } = await sb.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin + '/hang.html' }
+            })
+            if (error) showToast('Lỗi đăng nhập Google: ' + error.message, 'error')
+        })
+
+        document.getElementById('btn-zalo').addEventListener('click', () => {
+            window.location.href = '/api/zalo-login'
+        })
+
+        // Nếu đã có session sẵn (quay lại trang login khi vẫn đang login), vào thẳng app.
+        async function checkExisting() {
+            const { data } = await sb.auth.getSession()
+            if (data?.session) window.location.href = 'hang.html'
+        }
+        checkExisting()
+    </script>
+</body>
+</html>

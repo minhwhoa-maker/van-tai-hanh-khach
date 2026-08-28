@@ -127,7 +127,7 @@
     <script src="idb-queue.js"></script>
     <script>
         const sb = createSb()
-        let currentProfile = null
+        let currentUser = null
         let currentChuyen = null  // { id, chieu, khoi_hanh, ghi_chu }
         let selectedTinh = null   // { ma, ten, thu_tu }
         let selectedDiem = null   // { id, ten, tinh_ma }
@@ -195,12 +195,12 @@
             const chieu = document.getElementById('new-chuyen-chieu').value
             const khoiHanhRaw = document.getElementById('new-chuyen-khoihanh').value
             const ghiChu = document.getElementById('new-chuyen-ghichu').value.trim()
+            // tao_boi có default auth.uid() ở DB — không cần gửi từ client
             const { data, error } = await sb.from('chuyen').insert({
                 chieu,
                 khoi_hanh: khoiHanhRaw ? new Date(khoiHanhRaw).toISOString() : new Date().toISOString(),
                 trang_thai: 'dang_chay',
-                ghi_chu: ghiChu || null,
-                tao_boi: currentProfile ? (currentProfile.full_name || currentProfile.id) : null
+                ghi_chu: ghiChu || null
             }).select().single()
             if (error) { showToast('Lỗi tạo chuyến: ' + error.message, 'error'); return }
             showToast('Đã tạo chuyến mới', 'success')
@@ -339,9 +339,9 @@
         }
 
         async function initPage() {
-            const auth = await requireRole(sb, ['driver', 'owner'])
+            const auth = await requireSession(sb)
             if (!auth) return
-            currentProfile = auth.profile
+            currentUser = auth.user
             await loadChuyenList()
             setupQueueAutoSync(sb)
             updateQueueStatus()

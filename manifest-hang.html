@@ -145,13 +145,12 @@
 
         document.getElementById('btn-logout').addEventListener('click', async (e) => {
             e.preventDefault()
-            localStorage.removeItem('driver_token')
             await sb.auth.signOut()
-            window.location.href = 'login-sdt.html'
+            window.location.href = 'login.html'
         })
 
         async function initPage() {
-            const auth = await requireRole(sb, ['driver', 'owner'])
+            const auth = await requireSession(sb)
             if (!auth) return
             await loadChuyenOptions()
         }
