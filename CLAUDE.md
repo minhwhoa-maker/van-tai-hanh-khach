@@ -1,10 +1,20 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 App quản lý kiện hàng crew xe khách giường nằm, tuyến Đắk Lắk ↔ Hải Dương. Fork từ `eakar-logistics` — tái dùng `shared.js`, CSS, PWA shell; auth viết lại hoàn toàn (Supabase Auth thật, không phải Zalo-OTP-tự-viết của repo gốc).
 
 ## Stack
 
-Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không build step, không test runner.
+Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không build step, không test runner, không lint.
+
+## Commands
+
+- **Preview local**: `powershell -File .static-server.ps1 -Port 8765` — custom static file server (Windows dev machine không có python/node/php khả dụng cho việc này); serve `.` lên `http://localhost:8765/login.html`. Không dùng `file://` trực tiếp vì service worker/relative path sẽ lỗi.
+  - **Lưu ý**: OAuth (Google + Zalo) không chạy được qua `localhost:8765` — cả 2 provider cần redirect URI thật đã đăng ký (Supabase Dashboard / Zalo App console). Server này chỉ dùng để xem giao diện tĩnh, không test được luồng đăng nhập.
+- **`npm install`**: chỉ cần khi sửa `api/*.js` (cài `@supabase/supabase-js`, `web-push`). Không cần chạy lại khi chỉ sửa HTML/CSS/JS frontend.
+- **Deploy**: `git push origin main` → Vercel auto-deploy (khi đã nối remote).
+- **DB schema changes**: vào Supabase dashboard project `van-tai-hanh-khach` (ref `ycifioonjzrdasofdmjb`) chỉnh tay (SQL editor).
 
 ## Auth — Supabase Auth built-in, 2 provider song song
 
@@ -25,7 +35,22 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
 - `login.html` — màn đăng nhập (2 nút Google/Zalo)
 - `auth-callback.html` — bridge verifyOtp cho nhánh Zalo, không dùng cho Google
 - `hang.html` — nhập kiện: chọn/tạo **chuyến** (chiều bắc/nam) → chọn tỉnh → chọn/tạo điểm → chụp ảnh + SĐT người nhận + ghi chú → lưu offline-first vào IndexedDB (`idb-queue.js`), tự đồng bộ khi có mạng
-- `manifest-hang.html` — chọn 1 chuyến, xem kiện gom theo tỉnh (thứ tự theo `tinh_tuyen.thu_tu`, chiều lấy từ `chuyen.chieu`: bac = ASC, nam = DESC)
+- `manifest-hang.html` — chọn 1 chuyến, xem kiện gom theo tỉnh (thứ tự theo `tinh_tuyen.thu_tu`, chiều lấy từ `chuyen.chieu`: bac = ASC, nam = DESC). Mỗi dòng kiện có 3 chế độ render, chuyển đổi tại chỗ trong cùng 1 `.kien-row` (không điều hướng trang) — `renderKienRowView` / `renderKienRowEdit` / `renderKienRowThuTien`:
+  - **Sửa** — sửa nhanh SĐT người nhận + ghi chú (`renderKienRowEdit`)
+  - **Hoàn thành** — `toggleDaGiao` cập nhật `trang_thai` → `da_giao` rồi chuyển thẳng sang `renderKienRowThuTien` (nhập số tiền thu ngay, không cần bấm thêm nút); bấm lại để hủy (`chua_giao`) quay về `renderKienRowView`. Tiền đã thu hiện lại được qua nút "Sửa tiền". Cùng lúc đó, nếu `diem` của kiện chưa có toạ độ, `toggleDaGiao` tự bắt GPS + tính `km_moc` (xem mục "Toạ độ điểm giao + km_moc" bên dưới) trước khi update `kien.trang_thai`
+  - **Sửa vị trí / Định vị điểm** (`renderKienRowViTri`) — sửa tay `lat`/`lng` của `diem`, tính lại `km_moc` khi lưu. Dự phòng khi GPS lúc "Hoàn thành" bị từ chối/lỗi/không đủ chính xác
+  - Bấm vào ảnh thumbnail mở lightbox phóng to (`#lightbox`)
+
+### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
+
+Mục đích: trong `manifest-hang.html`, sắp xếp thứ tự kiện *bên trong 1 tỉnh* theo đúng thứ tự đi trên đường (tránh xe chạy ngược xuôi khi giao nhiều điểm cùng tỉnh) — dùng `diem.km_moc` (km tích lũy từ Đắk Lắk).
+
+- **KHÔNG bắt GPS lúc tạo điểm** (`hang.html`) — điểm được tạo lúc bốc hàng ở Đắk Lắk, bắt GPS lúc đó sẽ ra toạ độ sai hoàn toàn cho điểm giao ở ngoài Bắc.
+- **Bắt GPS lúc bấm "Hoàn thành"** (`manifest-hang.html`, `toggleDaGiao`) — đúng lúc xe đang đứng tại điểm giao. Chỉ bắt khi `diem.lat`/`lng` đang NULL (không ghi đè điểm đã định vị từ lần giao trước), chỉ nhận nếu `pos.coords.accuracy <= 50` (mét). Từ chối quyền/lỗi/timeout/độ chính xác kém → bỏ qua lặng lẽ, không chặn luồng "Hoàn thành" chính, toạ độ bị mất (không lưu tạm) — **quyết định có chủ đích**: `kien.trang_thai` vẫn là UPDATE trực tiếp lên Supabase (cần mạng, giống code cũ), phần GPS/km_moc KHÔNG đi qua `idb-queue.js` (việc mở rộng hàng đợi offline cho "cập nhật bản ghi đã tồn tại" bị cất lại, xem TODO bên dưới) — nếu bước update `trang_thai` thất bại vì mất mạng, giữ nguyên hành vi lỗi hiện tại, toạ độ GPS vừa bắt bị bỏ luôn.
+- `diemMap` trong `loadManifest` gộp mọi kiện cùng `diem_id` về chung 1 object — bắt/sửa toạ độ 1 lần thì mọi dòng kiện cùng điểm trong phiên hiện tại tự thấy giá trị mới, tránh xin quyền GPS lặp lại.
+- `tinhKmMoc(lat, lng, tinhMa, tuyenChuan, tinhKmRange)` (`km-moc.js`) — nearest-neighbor thuần nhưng **giới hạn tìm kiếm theo `tinh_ma` đã biết** (qua `data/tinh_km_range.json`) để tránh nhảy nhầm sang đoạn tuyến khác xa hàng trăm km (đèo, khúc cua, vòng qua thành phố). `data/tuyen_chuan_bactien.json` là tuyến chuẩn rút gọn (2644 điểm `{lat,lng,km}`, ~500m/điểm) tính từ GPX thật — dùng chung cho cả 2 chiều, `sapXepTrongTinh(dsKien, chieu)` chỉ đảo ASC/DESC theo `chieu`, null luôn xuống cuối bất kể chiều.
+- 2 file JSON tĩnh nạp qua `fetch()` (không nhúng vào JS) — được cache tự động bởi `sw.js` (runtime cache-on-fetch) và cũng có trong `STATIC_ASSETS` để sẵn sàng offline ngay từ lần cài đầu.
+- **TODO cất lại cho sau (Phương án B)**: làm "Hoàn thành" chạy offline-first hoàn toàn (cả `trang_thai` lẫn toạ độ) — cần mở rộng `idb-queue.js` với khái niệm "cập nhật bản ghi đã tồn tại" (hiện chỉ có tạo mới), nạp `idb-queue.js` + gọi `setupQueueAutoSync` trong `manifest-hang.html` (hiện chưa nạp), và UI hiển thị trạng thái "chờ đồng bộ". Khối lượng việc lớn hơn đáng kể so với phạm vi ban đầu nên tách riêng.
 
 ## Database (đối chiếu `eakar_hang_v1.sql`)
 
@@ -41,7 +66,9 @@ chuyen     (id uuid PK, chieu 'bac'|'nam', khoi_hanh, trang_thai 'dang_chay'|'xo
 kien       (id uuid PK — CLIENT TỰ SINH qua crypto.randomUUID() để offline-first,
             chuyen_id FK -> chuyen.id, diem_id FK -> diem.id,
             anh_path, anh_url, nguoi_nhan_sdt, trang_thai 'chua_giao'|'da_giao',
-            ghi_chu, created_at)
+            ghi_chu, tien_thu numeric, created_at)
+           -- tien_thu: thêm sau v1 (alter table), nullable — số tiền thu khi giao xong,
+           -- nhập ngay trong bước "Hoàn thành" ở manifest-hang.html, không có trong idb-queue.js
 ```
 
 - Trigger DB: insert vào `kien` tự +1 `diem.so_lan_giao` — app không tự cộng tay.
@@ -50,6 +77,8 @@ kien       (id uuid PK — CLIENT TỰ SINH qua crypto.randomUUID() để offlin
 ## Storage
 
 Bucket `kien` (Public). Path: `{kien.id}.jpg`. `idb-queue.js` upload khi đồng bộ, set `anh_path`/`anh_url`.
+
+- **Public bucket chỉ cấp quyền đọc (SELECT), không tự cấp ghi.** `storage.objects` luôn tự có RLS riêng, độc lập với quyết định "RLS disabled" ở 4 bảng app phía trên. Muốn `sb.storage.from('kien').upload(...)` chạy được từ client phải tạo thêm Storage Policy cho phép INSERT/UPDATE (role `authenticated`, `bucket_id = 'kien'`) — thiếu bước này thì upload throw lỗi, kéo theo cả record `kien` không insert được (xem `trySyncQueue` bên dưới).
 
 ## Offline write-queue (`idb-queue.js`)
 

@@ -15,13 +15,34 @@
             display: flex; align-items: center; gap: 12px; padding: 10px 16px;
             border-top: 1px solid var(--border); font-size: 14px;
         }
-        .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
-        .kien-row .info { flex: 1; }
+        .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; }
+        .lightbox {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 1000; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+        }
+        .lightbox.show { display: flex; }
+        .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; cursor: default; }
+        .kien-row .info { flex: 1; min-width: 0; }
         .kien-row .diem { font-weight: 600; }
         .kien-row .mota { color: var(--text-muted); font-size: 13px; }
-        .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+        .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
         .badge.chua_giao { background: #fdecea; color: var(--danger); }
         .badge.da_giao { background: #eafaf1; color: var(--success); }
+        .kien-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .btn-sm {
+            padding: 6px 10px; font-size: 12px; border-radius: 6px;
+            border: 1.5px solid var(--border); background: var(--white); cursor: pointer; white-space: nowrap;
+        }
+        .btn-sm.btn-done { border-color: var(--success); color: var(--success); }
+        .btn-sm.btn-undone { border-color: var(--text-muted); color: var(--text-muted); }
+        .btn-sm.btn-save { border-color: var(--success); background: var(--success); color: #fff; }
+        .btn-sm.btn-thu { border-color: var(--primary); color: var(--primary); }
+        .btn-sm.btn-vitri { border-color: var(--text-muted); color: var(--text-muted); }
+        .mota.tien-thu { color: var(--success); font-weight: 600; }
+        .kien-row-edit input, .kien-row-edit textarea {
+            width: 100%; padding: 8px 10px; border: 1.5px solid var(--border);
+            border-radius: 6px; font-size: 14px; font-family: inherit;
+        }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
     </style>
 </head>
@@ -45,12 +66,15 @@
     <div id="list-wrap"></div>
 
     <div class="toast" id="toast"></div>
+    <div class="lightbox" id="lightbox"><img id="lightbox-img" alt=""></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="shared.js"></script>
+    <script src="km-moc.js"></script>
     <script>
         const sb = createSb()
         let chuyenList = []
+        loadTuyenChuanData().catch(() => {}) // nạp trước để cache sẵn cho khi bấm "Đã giao"
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -106,14 +130,24 @@
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, tien_thu, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
+            // Dùng chung 1 object diem cho mọi kiện cùng diem_id — cập nhật 1 lần (vd sau khi
+            // bắt GPS) thì mọi dòng kiện cùng điểm tự thấy giá trị mới ngay, tránh xin quyền
+            // GPS lặp lại nhiều lần trong 1 phiên khi bấm "Đã giao" liên tiếp cùng 1 điểm.
+            const diemMap = new Map()
+            kienList.forEach(k => {
+                if (!k.diem) return
+                if (diemMap.has(k.diem_id)) k.diem = diemMap.get(k.diem_id)
+                else diemMap.set(k.diem_id, k.diem)
+            })
+
             let any = false
             tinhList.forEach(tinh => {
-                const kiensCuaTinh = kienList.filter(k => k.diem?.tinh_ma === tinh.ma)
+                const kiensCuaTinh = sapXepTrongTinh(kienList.filter(k => k.diem?.tinh_ma === tinh.ma), chuyen.chieu)
                 if (!kiensCuaTinh.length) return
                 any = true
 
@@ -124,23 +158,181 @@
                 group.appendChild(h3)
 
                 kiensCuaTinh.forEach(k => {
-                    const row = document.createElement('div')
-                    row.className = 'kien-row'
-                    row.innerHTML = `
-                        ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
-                        <div class="info">
-                            <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
-                            ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
-                            ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
-                        </div>
-                        <span class="badge ${k.trang_thai}">${k.trang_thai === 'da_giao' ? 'Đã giao' : 'Chưa giao'}</span>
-                    `
-                    group.appendChild(row)
+                    group.appendChild(createKienRow(k))
                 })
                 wrap.appendChild(group)
             })
 
             if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
+        }
+
+        // kien(id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma))
+        function createKienRow(k) {
+            const row = document.createElement('div')
+            row.className = 'kien-row'
+            renderKienRowView(row, k)
+            return row
+        }
+
+        function renderKienRowView(row, k) {
+            row.classList.remove('kien-row-edit')
+            const daGiao = k.trang_thai === 'da_giao'
+            const coTien = k.tien_thu !== null && k.tien_thu !== undefined
+            row.innerHTML = `
+                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                <div class="info">
+                    <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
+                    ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
+                    ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
+                    ${coTien ? `<div class="mota tien-thu">Đã thu: ${formatMoney(k.tien_thu)}</div>` : ''}
+                </div>
+                <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
+                <div class="kien-actions">
+                    <button class="btn-sm btn-edit" type="button">Sửa</button>
+                    <button class="btn-sm ${daGiao ? 'btn-undone' : 'btn-done'}" type="button">${daGiao ? 'Hủy giao' : 'Hoàn thành'}</button>
+                    ${daGiao ? `<button class="btn-sm btn-thu" type="button">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
+                    <button class="btn-sm btn-vitri" type="button">${k.diem?.lat != null ? 'Sửa vị trí' : 'Định vị điểm'}</button>
+                </div>
+            `
+            row.querySelector('.btn-edit').addEventListener('click', () => renderKienRowEdit(row, k))
+            row.querySelector('.btn-done, .btn-undone').addEventListener('click', () => toggleDaGiao(row, k))
+            const btnThu = row.querySelector('.btn-thu')
+            if (btnThu) btnThu.addEventListener('click', () => renderKienRowThuTien(row, k))
+            row.querySelector('.btn-vitri').addEventListener('click', () => renderKienRowViTri(row, k))
+            const img = row.querySelector('img')
+            if (img) img.addEventListener('click', () => openLightbox(k.anh_url))
+        }
+
+        // Sửa tay lat/lng của diem — dự phòng khi GPS lúc "Đã giao" bị từ chối/lỗi,
+        // hoặc toạ độ bắt sai. Tính lại km_moc luôn khi lưu.
+        function renderKienRowViTri(row, k) {
+            row.classList.add('kien-row-edit')
+            const diem = k.diem || {}
+            row.innerHTML = `
+                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                <div class="info" style="display:flex; flex-direction:column; gap:6px;">
+                    <div class="diem">${diem.ten || '(không rõ điểm)'}</div>
+                    <input type="number" step="any" class="edit-lat" placeholder="Vĩ độ (lat)" value="${diem.lat ?? ''}">
+                    <input type="number" step="any" class="edit-lng" placeholder="Kinh độ (lng)" value="${diem.lng ?? ''}">
+                </div>
+                <div class="kien-actions">
+                    <button class="btn-sm btn-save" type="button">Lưu</button>
+                    <button class="btn-sm btn-cancel" type="button">Hủy</button>
+                </div>
+            `
+            row.querySelector('.btn-save').addEventListener('click', async () => {
+                const lat = Number(row.querySelector('.edit-lat').value)
+                const lng = Number(row.querySelector('.edit-lng').value)
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) { showToast('Toạ độ không hợp lệ', 'error'); return }
+                const { tuyenChuan, tinhKmRange } = await loadTuyenChuanData()
+                const km_moc = tinhKmMoc(lat, lng, diem.tinh_ma, tuyenChuan, tinhKmRange)
+                const { error } = await sb.from('diem').update({ lat, lng, km_moc }).eq('id', diem.id)
+                if (error) { showToast('Lỗi lưu vị trí: ' + error.message, 'error'); return }
+                diem.lat = lat; diem.lng = lng; diem.km_moc = km_moc
+                showToast('Đã lưu vị trí điểm', 'success')
+                renderKienRowView(row, k)
+            })
+            row.querySelector('.btn-cancel').addEventListener('click', () => renderKienRowView(row, k))
+        }
+
+        function renderKienRowThuTien(row, k) {
+            row.classList.add('kien-row-edit')
+            row.innerHTML = `
+                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                <div class="info">
+                    <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
+                    <input type="number" inputmode="numeric" class="edit-tien" placeholder="Số tiền thu (đ)" value="${k.tien_thu ?? ''}">
+                </div>
+                <div class="kien-actions">
+                    <button class="btn-sm btn-save" type="button">Lưu</button>
+                    <button class="btn-sm btn-cancel" type="button">Hủy</button>
+                </div>
+            `
+            row.querySelector('.btn-save').addEventListener('click', async () => {
+                const raw = row.querySelector('.edit-tien').value.trim()
+                const tien = raw === '' ? null : Number(raw)
+                if (tien !== null && (!Number.isFinite(tien) || tien < 0)) { showToast('Số tiền không hợp lệ', 'error'); return }
+                const { error } = await sb.from('kien').update({ tien_thu: tien }).eq('id', k.id)
+                if (error) { showToast('Lỗi lưu tiền thu: ' + error.message, 'error'); return }
+                k.tien_thu = tien
+                showToast('Đã lưu tiền thu', 'success')
+                renderKienRowView(row, k)
+            })
+            row.querySelector('.btn-cancel').addEventListener('click', () => renderKienRowView(row, k))
+        }
+
+        function openLightbox(url) {
+            document.getElementById('lightbox-img').src = url
+            document.getElementById('lightbox').classList.add('show')
+        }
+        document.getElementById('lightbox').addEventListener('click', () => {
+            document.getElementById('lightbox').classList.remove('show')
+        })
+
+        function renderKienRowEdit(row, k) {
+            row.classList.add('kien-row-edit')
+            row.innerHTML = `
+                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                <div class="info" style="display:flex; flex-direction:column; gap:6px;">
+                    <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
+                    <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${k.nguoi_nhan_sdt || ''}">
+                    <textarea class="edit-ghichu" placeholder="Ghi chú" rows="2">${k.ghi_chu || ''}</textarea>
+                </div>
+                <div class="kien-actions">
+                    <button class="btn-sm btn-save" type="button">Lưu</button>
+                    <button class="btn-sm btn-cancel" type="button">Hủy</button>
+                </div>
+            `
+            row.querySelector('.btn-save').addEventListener('click', async () => {
+                const sdt = row.querySelector('.edit-sdt').value.trim() || null
+                const ghichu = row.querySelector('.edit-ghichu').value.trim() || null
+                const { error } = await sb.from('kien').update({ nguoi_nhan_sdt: sdt, ghi_chu: ghichu }).eq('id', k.id)
+                if (error) { showToast('Lỗi lưu: ' + error.message, 'error'); return }
+                k.nguoi_nhan_sdt = sdt
+                k.ghi_chu = ghichu
+                showToast('Đã lưu', 'success')
+                renderKienRowView(row, k)
+            })
+            row.querySelector('.btn-cancel').addEventListener('click', () => renderKienRowView(row, k))
+        }
+
+        async function toggleDaGiao(row, k) {
+            const newStatus = k.trang_thai === 'da_giao' ? 'chua_giao' : 'da_giao'
+
+            // Bắt GPS + tính km_moc TRƯỚC khi update trạng thái — cả 2 bước này không cần
+            // mạng (GPS offline, km_moc tính tại client từ dữ liệu tuyến đã cache), đúng lúc
+            // xe đang đứng tại điểm giao. Chỉ làm khi điểm chưa từng có toạ độ, không ghi đè.
+            let toaDoMoi = null
+            if (newStatus === 'da_giao' && k.diem && (k.diem.lat == null || k.diem.lng == null)) {
+                const pos = await batGpsDiemGiao()
+                if (pos && pos.accuracy <= 50) {
+                    const { tuyenChuan, tinhKmRange } = await loadTuyenChuanData()
+                    const km_moc = tinhKmMoc(pos.lat, pos.lng, k.diem.tinh_ma, tuyenChuan, tinhKmRange)
+                    toaDoMoi = { lat: pos.lat, lng: pos.lng, km_moc }
+                }
+                // Không bắt được (từ chối quyền/lỗi/timeout/độ chính xác kém) → bỏ qua,
+                // không chặn luồng "Đã giao" chính, điểm chờ lần giao sau hoặc sửa tay.
+            }
+
+            const { error } = await sb.from('kien').update({ trang_thai: newStatus }).eq('id', k.id)
+            if (error) { showToast('Lỗi cập nhật: ' + error.message, 'error'); return }
+            k.trang_thai = newStatus
+
+            // Cập nhật toạ độ điểm SAU khi trạng thái kiện đã lưu thành công — 2 lệnh UPDATE
+            // tách rời (PostgREST không hỗ trợ transaction đa bảng từ client). Nếu bước này lỗi,
+            // kiện vẫn được đánh dấu giao xong bình thường, điểm rơi về nhánh sửa tay.
+            if (toaDoMoi && k.diem?.id) {
+                const { error: diemErr } = await sb.from('diem').update(toaDoMoi).eq('id', k.diem.id)
+                if (!diemErr) Object.assign(k.diem, toaDoMoi)
+            }
+
+            if (newStatus === 'da_giao') {
+                showToast('Đã đánh dấu giao xong', 'success')
+                renderKienRowThuTien(row, k)
+            } else {
+                showToast('Đã hủy đánh dấu giao', 'success')
+                renderKienRowView(row, k)
+            }
         }
 
         document.getElementById('btn-logout').addEventListener('click', async (e) => {

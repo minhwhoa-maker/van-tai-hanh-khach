@@ -19,7 +19,7 @@ while ($listener.IsListening) {
     $res = $ctx.Response
     try {
         $path = $req.Url.LocalPath.TrimStart('/')
-        if ([string]::IsNullOrEmpty($path)) { $path = 'login-sdt.html' }
+        if ([string]::IsNullOrEmpty($path)) { $path = 'login.html' }
         $full = Join-Path $Root $path
         if (Test-Path $full -PathType Leaf) {
             $ext = [System.IO.Path]::GetExtension($full)

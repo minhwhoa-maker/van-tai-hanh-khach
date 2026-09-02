@@ -7,6 +7,9 @@ const STATIC_ASSETS = [
     './style.css',
     './manifest.json',
     './idb-queue.js',
+    './km-moc.js',
+    './data/tuyen_chuan_bactien.json',
+    './data/tinh_km_range.json',
     './icons/icon-192.png',
     './icons/icon-512.png'
 ];
