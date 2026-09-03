@@ -3,3 +3,5 @@ Backup-codes-minhwhoa.txt
 recovery-codes.txt
 node_modules/
 REVIEW-v36.md
+.vercel
+.env*

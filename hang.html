@@ -228,7 +228,8 @@
             if (error) { showToast('Lỗi tải danh sách tỉnh: ' + error.message, 'error'); return }
             const wrap = document.getElementById('tinh-chips')
             wrap.textContent = ''
-            data.forEach(t => {
+            // Đắk Lắk luôn là điểm bốc hàng (không phải điểm giao); Khánh Hòa không chạy tuyến này — loại khỏi danh sách chọn
+            data.filter(t => t.ma !== 'DLK' && t.ten !== 'Khánh Hòa').forEach(t => {
                 const chip = document.createElement('div')
                 chip.className = 'chip'
                 chip.textContent = t.ten
