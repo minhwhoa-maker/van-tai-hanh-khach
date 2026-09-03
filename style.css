@@ -775,8 +775,11 @@ tr:hover td { background: #f9f9fc; }
         white-space: nowrap !important;
         flex-shrink: 0;
     }
-    .hamburger-btn { display: inline-block; }
-    .header-nav-desktop { display: none !important; }
+    .header-nav-desktop {
+        font-size: 13px !important;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
 }
 
 /* Owner-only UI: ẩn mặc định, hiện khi body có class role-owner.
