@@ -35,15 +35,17 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
 
 ## Pages
 
+- Header của `hang.html`/`manifest-hang.html` đặt link điều hướng (back, "Đăng xuất", "+ Nhập kiện") trong class `.header-nav-desktop` — tên gọi là tàn dư từ fork `eakar-logistics` (nơi có hamburger menu riêng thay thế trên mobile) nhưng **repo này không có hamburger menu nào implement**, nên `style.css` không còn ẩn class này dưới 600px nữa (đã sửa — trước đó `display: none !important` khiến header trống trơn, mất hết back-nav trên điện thoại). Đừng thêm lại rule ẩn `.header-nav-desktop` trên mobile trừ khi đồng thời xây hamburger menu thay thế.
 - `login.html` — màn đăng nhập (2 nút Google/Zalo)
 - `auth-callback.html` — bridge verifyOtp cho nhánh Zalo, không dùng cho Google
 - `hang.html` — nhập kiện: chọn/tạo **chuyến** (chiều bắc/nam) → chọn tỉnh → chọn/tạo điểm → chụp ảnh + SĐT người nhận + ghi chú → lưu offline-first vào IndexedDB (`idb-queue.js`), tự đồng bộ khi có mạng
   - **Danh sách "1. Chọn tỉnh" loại bỏ Đắk Lắk và Khánh Hòa** (`loadTinh()`, lọc bằng `ma !== 'DLK'` và `ten !== 'Khánh Hòa'`) — hàng luôn được bốc ở Đắk Lắk (là điểm xuất phát, không phải điểm giao nên không cần chọn) và xe không chạy tuyến qua Khánh Hòa. Đây là filter cứng ở client, không phải xoá khỏi bảng `tinh_tuyen` — cả 2 tỉnh vẫn còn trong DB, chỉ ẩn khỏi UI chọn tỉnh giao hàng. Lưu ý `data/tinh_km_range.json` cũng không có entry cho Khánh Hòa (đi thẳng `DLK` → `PYN`), khớp với việc tuyến không qua đó.
-- `manifest-hang.html` — chọn 1 chuyến, xem kiện gom theo tỉnh (thứ tự theo `tinh_tuyen.thu_tu`, chiều lấy từ `chuyen.chieu`: bac = ASC, nam = DESC). Mỗi dòng kiện có 3 chế độ render, chuyển đổi tại chỗ trong cùng 1 `.kien-row` (không điều hướng trang) — `renderKienRowView` / `renderKienRowEdit` / `renderKienRowThuTien`:
+- `manifest-hang.html` — chọn 1 chuyến, xem kiện gom theo tỉnh (thứ tự theo `tinh_tuyen.thu_tu`, chiều lấy từ `chuyen.chieu`: bac = ASC, nam = DESC). Mỗi dòng kiện có 4 chế độ render, chuyển đổi tại chỗ trong cùng 1 `.kien-row` (không điều hướng trang) — `renderKienRowView` / `renderKienRowEdit` / `renderKienRowThuTien` / `renderKienRowViTri`:
   - **Sửa** — sửa nhanh SĐT người nhận + ghi chú (`renderKienRowEdit`)
   - **Hoàn thành** — `toggleDaGiao` cập nhật `trang_thai` → `da_giao` rồi chuyển thẳng sang `renderKienRowThuTien` (nhập số tiền thu ngay, không cần bấm thêm nút); bấm lại để hủy (`chua_giao`) quay về `renderKienRowView`. Tiền đã thu hiện lại được qua nút "Sửa tiền". Cùng lúc đó, nếu `diem` của kiện chưa có toạ độ, `toggleDaGiao` tự bắt GPS + tính `km_moc` (xem mục "Toạ độ điểm giao + km_moc" bên dưới) trước khi update `kien.trang_thai`
   - **Sửa vị trí / Định vị điểm** (`renderKienRowViTri`) — sửa tay `lat`/`lng` của `diem`, tính lại `km_moc` khi lưu. Dự phòng khi GPS lúc "Hoàn thành" bị từ chối/lỗi/không đủ chính xác
   - Bấm vào ảnh thumbnail mở lightbox phóng to (`#lightbox`)
+  - **Dưới 600px** (`@media (max-width: 600px)` trong `<style>` của trang): `.kien-row` chuyển `flex-wrap: wrap` — ảnh/tên điểm/badge giữ 1 hàng, `.kien-actions` (Sửa/Hoàn thành/Thu tiền/Định vị) xuống hàng riêng full-width, mỗi nút to hơn (padding/font lớn hơn) cho dễ bấm tay trên xe. Trước đó cả 4 nút nhồi chung 1 hàng flex nowrap với ảnh+tên khiến chữ vỡ từng ký tự và nút cuối bị cắt ngoài viewport trên điện thoại.
 
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 
