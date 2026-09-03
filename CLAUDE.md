@@ -10,7 +10,10 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
 
 ## Commands
 
-- **Preview local**: `powershell -File .static-server.ps1 -Port 8765` — custom static file server (Windows dev machine không có python/node/php khả dụng cho việc này); serve `.` lên `http://localhost:8765/login.html`. Không dùng `file://` trực tiếp vì service worker/relative path sẽ lỗi.
+- **Preview local**:
+  - Windows dev machine (không có python/node/php sẵn cho việc này): `powershell -File .static-server.ps1 -Port 8765` — custom static file server, serve `.` lên `http://localhost:8765/login.html`.
+  - Máy có Python/Node sẵn (vd Linux): `python3 -m http.server 8765` cũng phục vụ tốt, không cần script riêng.
+  - Không dùng `file://` trực tiếp vì service worker/relative path sẽ lỗi.
   - **Lưu ý**: OAuth (Google + Zalo) không chạy được qua `localhost:8765` — cả 2 provider cần redirect URI thật đã đăng ký (Supabase Dashboard / Zalo App console). Server này chỉ dùng để xem giao diện tĩnh, không test được luồng đăng nhập.
 - **`npm install`**: chỉ cần khi sửa `api/*.js` (cài `@supabase/supabase-js`, `web-push`). Không cần chạy lại khi chỉ sửa HTML/CSS/JS frontend.
 - **Deploy**: `git push origin main` → Vercel auto-deploy (khi đã nối remote).
