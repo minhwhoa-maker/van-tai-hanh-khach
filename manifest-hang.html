@@ -44,6 +44,15 @@
             border-radius: 6px; font-size: 14px; font-family: inherit;
         }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
+
+        /* Dưới 600px: img+info+badge dùng chung 1 hàng, kien-actions xuống hàng riêng
+           chiếm hết chiều rộng — tránh 4 nút bị bóp chung hàng với ảnh/tên gây vỡ chữ. */
+        @media (max-width: 600px) {
+            .kien-row { flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding: 14px 16px; }
+            .kien-row img { width: 56px; height: 56px; }
+            .kien-actions { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+            .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
+        }
     </style>
 </head>
 <body>
