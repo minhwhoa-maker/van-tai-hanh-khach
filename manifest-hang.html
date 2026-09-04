@@ -74,8 +74,9 @@
         </div>
     </div>
 
-    <div class="chuyen-select-wrap">
-        <select id="chuyen-select" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white"></select>
+    <div class="chuyen-select-wrap" style="display:flex; gap:8px; align-items:stretch;">
+        <select id="chuyen-select" style="flex:1; min-width:0; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white"></select>
+        <button id="btn-ket-thuc-chuyen" type="button" class="btn-sm btn-undone" style="display:none; flex-shrink:0; padding:0 14px; font-size:14px;">🏁 Kết thúc chuyến</button>
     </div>
 
     <div class="cod-summary" id="cod-summary"></div>
@@ -132,12 +133,34 @@
             if (chuyen) loadManifest(chuyen)
         })
 
+        function updateEndTripButton(chuyen) {
+            const btn = document.getElementById('btn-ket-thuc-chuyen')
+            btn.style.display = chuyen && chuyen.trang_thai !== 'xong' ? 'block' : 'none'
+        }
+
+        document.getElementById('btn-ket-thuc-chuyen').addEventListener('click', async () => {
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            if (!chuyen) return
+            if (!confirm('Kết thúc chuyến này? Sẽ không thể nhập thêm kiện mới cho chuyến này ở trang "Nhập kiện" nữa.')) return
+            const { error } = await sb.from('chuyen').update({ trang_thai: 'xong' }).eq('id', chuyen.id)
+            if (error) { showToast('Lỗi kết thúc chuyến: ' + error.message, 'error'); return }
+            chuyen.trang_thai = 'xong'
+            const opt = document.querySelector(`#chuyen-select option[value="${chuyen.id}"]`)
+            if (opt) {
+                const chieuLabel = chuyen.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+                opt.textContent = `${chieuLabel} — ${formatDate(chuyen.khoi_hanh)} (đã xong)`
+            }
+            updateEndTripButton(chuyen)
+            showToast('Đã kết thúc chuyến', 'success')
+        })
+
         // tinh_tuyen(ma PK, ten, thu_tu). diem(id, ten, tinh_ma). kien(id, chuyen_id, diem_id,
         // anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at).
         // Chiều bac = ASC thu_tu, nam = DESC thu_tu.
         async function loadManifest(chuyen) {
             const wrap = document.getElementById('list-wrap')
             wrap.textContent = ''
+            updateEndTripButton(chuyen)
 
             const { data: tinhList, error: tinhErr } = await sb
                 .from('tinh_tuyen')
