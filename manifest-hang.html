@@ -191,13 +191,14 @@
         function renderCodSummary(kienList) {
             const el = document.getElementById('cod-summary')
             const codKiens = kienList.filter(k => k.tien_thu_ho != null && k.tien_thu_ho > 0)
-            if (!codKiens.length) { el.style.display = 'none'; return }
             const chuaThuDu = codKiens.filter(k => Number(k.tien_thu || 0) < Number(k.tien_thu_ho))
+            // Chỉ cảnh báo khi còn kiện thu hộ chưa thu đủ — đã thu đủ hết thì tắt banner,
+            // không còn gì để cảnh báo nữa.
+            if (!chuaThuDu.length) { el.style.display = 'none'; return }
             const tongThuHo = codKiens.reduce((s, k) => s + Number(k.tien_thu_ho), 0)
             const tongDaThu = codKiens.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
             el.style.display = 'block'
-            el.textContent = `⚠️ ${codKiens.length} kiện thu hộ (COD) — cần thu ${formatMoney(tongThuHo)}, đã thu ${formatMoney(tongDaThu)}` +
-                (chuaThuDu.length ? `, còn ${chuaThuDu.length} kiện chưa thu đủ` : '')
+            el.textContent = `⚠️ ${codKiens.length} kiện thu hộ (COD) — cần thu ${formatMoney(tongThuHo)}, đã thu ${formatMoney(tongDaThu)}, còn ${chuaThuDu.length} kiện chưa thu đủ`
         }
 
         // kien(id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma))
