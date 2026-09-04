@@ -28,7 +28,7 @@
         .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
         .badge.chua_giao { background: #fdecea; color: var(--danger); }
         .badge.da_giao { background: #eafaf1; color: var(--success); }
-        .kien-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .kien-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
         .btn-sm {
             padding: 6px 10px; font-size: 12px; border-radius: 6px;
             border: 1.5px solid var(--border); background: var(--white); cursor: pointer; white-space: nowrap;
@@ -38,6 +38,33 @@
         .btn-sm.btn-save { border-color: var(--success); background: var(--success); color: #fff; }
         .btn-sm.btn-thu { border-color: var(--primary); color: var(--primary); }
         .btn-sm.btn-vitri { border-color: var(--text-muted); color: var(--text-muted); }
+        /* Hành động chính (1 nút to, hay bấm nhất) + menu "⋯" gộp hành động phụ ít dùng —
+           tránh nhồi nhiều nút cùng cỡ dễ bấm nhầm khi crew thao tác 1 tay trên xe rung lắc. */
+        .btn-primary-action {
+            padding: 10px 16px; min-height: 44px; font-size: 14px; font-weight: 600;
+            border-radius: 8px; border: none; background: var(--success); color: #fff;
+            cursor: pointer; white-space: nowrap;
+        }
+        .btn-menu-more {
+            width: 44px; height: 44px; flex-shrink: 0; border-radius: 8px;
+            border: 1.5px solid var(--border); background: var(--white);
+            font-size: 20px; line-height: 1; cursor: pointer; color: var(--text-muted);
+        }
+        /* position:fixed + toạ độ tính bằng JS (xem openKienMenu) thay vì absolute/top/right
+           tương đối theo .kien-actions — .tinh-group cha có overflow:hidden (bo góc header)
+           sẽ cắt mất menu nếu dùng absolute thông thường. */
+        .kien-menu {
+            display: none; position: fixed; z-index: 20;
+            background: var(--white); border: 1px solid var(--border); border-radius: 8px;
+            box-shadow: var(--shadow); min-width: 150px; overflow: hidden;
+        }
+        .kien-menu.open { display: block; }
+        .kien-menu button {
+            display: block; width: 100%; text-align: left; padding: 12px 14px; min-height: 44px;
+            border: none; background: none; font-size: 14px; cursor: pointer; color: var(--text);
+            white-space: nowrap; font-family: inherit;
+        }
+        .kien-menu button:hover { background: var(--bg); }
         .mota.tien-thu { color: var(--success); font-weight: 600; }
         .mota.cod { color: var(--warning); font-weight: 600; }
         .cod-summary {
@@ -51,13 +78,15 @@
         }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
 
-        /* Dưới 600px: img+info+badge dùng chung 1 hàng, kien-actions xuống hàng riêng
-           chiếm hết chiều rộng — tránh 4 nút bị bóp chung hàng với ảnh/tên gây vỡ chữ. */
+        /* Dưới 600px: img+info+badge dùng chung 1 hàng, các form Sửa/Thu tiền (2 nút
+           Lưu/Hủy) xuống hàng riêng chiếm hết chiều rộng, to hơn cho dễ bấm tay trên xe. */
         @media (max-width: 600px) {
             .kien-row { flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding: 14px 16px; }
             .kien-row img { width: 56px; height: 56px; }
-            .kien-actions { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
-            .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
+            .kien-row-edit .kien-actions { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+            .kien-row-edit .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
+            .btn-primary-action { padding: 12px 14px; font-size: 15px; }
+            .btn-menu-more { width: 48px; height: 48px; font-size: 22px; }
         }
     </style>
 </head>
@@ -232,6 +261,21 @@
             return row
         }
 
+        // Đặt .kien-menu (position:fixed) ngay dưới nút "⋯" vừa bấm, neo theo mép phải —
+        // tính bằng getBoundingClientRect() vì .tinh-group cha có overflow:hidden, dùng
+        // absolute thông thường sẽ bị cắt mất phần menu tràn ra ngoài khung.
+        function openKienMenu(btn, menu) {
+            const rect = btn.getBoundingClientRect()
+            menu.style.top = (rect.bottom + 4) + 'px'
+            menu.style.right = (window.innerWidth - rect.right) + 'px'
+            menu.classList.add('open')
+        }
+
+        // Mỗi dòng chỉ 1 hành động chính (to, dễ bấm 1 tay khi xe đang chạy) — hành động
+        // phụ ít dùng hơn gộp vào menu "⋯" thay vì nhồi nhiều nút cùng cỡ dễ bấm nhầm.
+        // Chưa giao: chính = "Hoàn thành", menu chỉ có "Sửa". Đã giao: không có hành động
+        // gấp nào (mọi thao tác ở đây là sửa sai, tần suất thấp) nên chỉ còn menu, gộp cả
+        // "Sửa" / "Hủy giao" / "Sửa tiền".
         function renderKienRowView(row, k) {
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
@@ -249,15 +293,27 @@
                 </div>
                 <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
                 <div class="kien-actions">
-                    <button class="btn-sm btn-edit" type="button">Sửa</button>
-                    <button class="btn-sm ${daGiao ? 'btn-undone' : 'btn-done'}" type="button">${daGiao ? 'Hủy giao' : 'Hoàn thành'}</button>
-                    ${daGiao ? `<button class="btn-sm btn-thu" type="button">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
+                    ${daGiao ? '' : '<button class="btn-primary-action" type="button">Hoàn thành</button>'}
+                    <button class="btn-menu-more" type="button" aria-label="Thêm thao tác">⋯</button>
+                    <div class="kien-menu">
+                        <button type="button" class="menu-sua">Sửa</button>
+                        ${daGiao ? '<button type="button" class="menu-huygiao">Hủy giao</button>' : ''}
+                        ${daGiao ? `<button type="button" class="menu-thutien">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
+                    </div>
                 </div>
             `
-            row.querySelector('.btn-edit').addEventListener('click', () => renderKienRowEdit(row, k))
-            row.querySelector('.btn-done, .btn-undone').addEventListener('click', () => toggleDaGiao(row, k))
-            const btnThu = row.querySelector('.btn-thu')
-            if (btnThu) btnThu.addEventListener('click', () => renderKienRowThuTien(row, k))
+            const btnPrimary = row.querySelector('.btn-primary-action')
+            if (btnPrimary) btnPrimary.addEventListener('click', () => toggleDaGiao(row, k))
+            row.querySelector('.menu-sua').addEventListener('click', () => renderKienRowEdit(row, k))
+            row.querySelector('.menu-huygiao')?.addEventListener('click', () => toggleDaGiao(row, k))
+            row.querySelector('.menu-thutien')?.addEventListener('click', () => renderKienRowThuTien(row, k))
+            row.querySelector('.btn-menu-more').addEventListener('click', (e) => {
+                e.stopPropagation()
+                const menu = row.querySelector('.kien-menu')
+                const wasOpen = menu.classList.contains('open')
+                document.querySelectorAll('.kien-menu.open').forEach(m => m.classList.remove('open'))
+                if (!wasOpen) openKienMenu(e.currentTarget, menu)
+            })
             const img = row.querySelector('img')
             if (img) img.addEventListener('click', () => openLightbox(k.anh_url))
         }
@@ -327,6 +383,12 @@
         }
         document.getElementById('lightbox').addEventListener('click', () => {
             document.getElementById('lightbox').classList.remove('show')
+        })
+
+        // Đóng menu "⋯" của dòng kiện khi bấm ra ngoài — đăng ký 1 lần ở đây thay vì
+        // trong renderKienRowView (hàm đó chạy lại mỗi lần render 1 dòng).
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.kien-menu.open').forEach(m => m.classList.remove('open'))
         })
 
         function renderKienRowEdit(row, k) {
