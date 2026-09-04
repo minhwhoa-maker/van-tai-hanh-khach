@@ -22,11 +22,11 @@
 </head>
 <body>
     <div class="header">
-        <div class="header-nav-desktop"><a href="hang.html" style="color:inherit;text-decoration:none;">+ Nhập kiện</a></div>
+        <div></div>
         <h2 style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
             <span class="header-text">🕐 Lịch sử chuyến</span>
         </h2>
-        <div class="header-nav-desktop"><a href="manifest-hang.html" style="color:inherit;text-decoration:none;">📋 Danh sách kiện</a></div>
+        <button id="btn-open-menu" class="btn-icon" aria-label="Menu" style="background:none;border:none;color:white;font-size:22px;cursor:pointer;">☰</button>
     </div>
 
     <div id="list-wrap"></div>
@@ -121,6 +121,9 @@
             if (!auth) return
             await loadLichSu()
         }
+
+        const { open: openMenu } = renderSideMenu(sb)
+        document.getElementById('btn-open-menu').addEventListener('click', openMenu)
 
         setupLogoutListener(sb)
         initPage()

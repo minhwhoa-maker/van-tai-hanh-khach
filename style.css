@@ -775,12 +775,31 @@ tr:hover td { background: #f9f9fc; }
         white-space: nowrap !important;
         flex-shrink: 0;
     }
-    .header-nav-desktop {
-        font-size: 13px !important;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
 }
+
+/* ===== SIDE DRAWER (menu trượt phải) ===== */
+.side-drawer { position: fixed; inset: 0; z-index: 200; visibility: hidden; }
+.side-drawer.open { visibility: visible; }
+.side-drawer-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+    opacity: 0; transition: opacity .2s;
+}
+.side-drawer.open .side-drawer-backdrop { opacity: 1; }
+.side-drawer-panel {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 260px;
+    background: var(--white); box-shadow: -2px 0 8px rgba(0,0,0,.15);
+    transform: translateX(100%); transition: transform .2s;
+    padding: 20px 16px; display: flex; flex-direction: column;
+}
+.side-drawer.open .side-drawer-panel { transform: translateX(0); }
+.side-drawer-close { align-self: flex-end; background: none; border: none; font-size: 20px; cursor: pointer; margin-bottom: 12px; }
+.side-drawer-panel nav { display: flex; flex-direction: column; gap: 4px; }
+.side-drawer-panel nav a {
+    padding: 12px 10px; border-radius: 8px; color: inherit; text-decoration: none; font-size: 15px;
+}
+.side-drawer-panel nav a.active { background: var(--bg); font-weight: 600; }
+.side-drawer-panel nav a:hover { background: var(--bg); }
+.side-drawer-panel hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 
 /* Owner-only UI: ẩn mặc định, hiện khi body có class role-owner.
    Tránh flash of unauthorized UI khi supervisor login. */

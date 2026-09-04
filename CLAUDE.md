@@ -36,10 +36,11 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
 ## Tiện ích dùng chung (`shared.js`)
 
 - `formatDate(dateStr)` — hiện giờ + ngày âm lịch + ngày dương, vd `13:03 - 20/7 ÂL - 01/09/26`, dùng cho label chuyến ở cả `hang.html` và `manifest-hang.html`. Âm lịch tính bằng thuật toán Hồ Ngọc Đức viết thuần JS ngay trong file (`convertSolar2Lunar` + các hàm phụ trợ `_jdFromDate`/`_newMoon`/`_sunLongitude`/...), không phụ thuộc thư viện ngoài, múi giờ cố định UTC+7 (khớp app chỉ chạy tuyến trong nước).
+- `renderSideMenu(sb)` — menu trượt từ phải (`.side-drawer*` trong `style.css`), dùng chung cho cả 3 trang `hang.html`/`manifest-hang.html`/`lich-su-chuyen.html`. Thay thế hoàn toàn cách cũ (link `header-nav-desktop` rời rạc nhét trực tiếp 2 bên header — class này và toàn bộ CSS của nó **đã bị xoá khỏi `style.css`**, không còn dùng nữa). Header mỗi trang giờ chỉ còn `<div></div>` rỗng bên trái (giữ chỗ cho `justify-content:space-between` đẩy nút sang phải) + `h2` tiêu đề (absolute-center) + nút `#btn-open-menu` (☰) bên phải. Nhận `sb` làm tham số thay vì tự `createSb()` — mỗi trang đã có sẵn instance `sb` riêng, dùng chung để `signOut()` đúng session. Tự so `location.pathname` để bôi đậm (`.active`) link trỏ tới trang hiện tại, không ẩn link đó đi. Mỗi trang gọi 1 lần: `const { open } = renderSideMenu(sb)` rồi gắn `open` vào `#btn-open-menu`.
 
 ## Pages
 
-- Header của `hang.html`/`manifest-hang.html`/`lich-su-chuyen.html` đặt link điều hướng (back, "Đăng xuất", "+ Nhập kiện", "🕐 Lịch sử") trong class `.header-nav-desktop` — tên gọi là tàn dư từ fork `eakar-logistics` (nơi có hamburger menu riêng thay thế trên mobile) nhưng **repo này không có hamburger menu nào implement**, nên `style.css` không còn ẩn class này dưới 600px nữa (đã sửa — trước đó `display: none !important` khiến header trống trơn, mất hết back-nav trên điện thoại). Đừng thêm lại rule ẩn `.header-nav-desktop` trên mobile trừ khi đồng thời xây hamburger menu thay thế. Cả 3 trang nối vòng: `hang.html` ↔ `manifest-hang.html` ↔ `lich-su-chuyen.html`.
+- Cả 3 trang `hang.html` ↔ `manifest-hang.html` ↔ `lich-su-chuyen.html` nối vòng qua menu trượt `renderSideMenu` (xem trên) — không còn link rời rạc trong header.
 - `login.html` — màn đăng nhập (2 nút Google/Zalo)
 - `auth-callback.html` — bridge verifyOtp cho nhánh Zalo, không dùng cho Google
 - `hang.html` — nhập kiện: chọn/tạo **chuyến** (chiều bắc/nam) → chọn tỉnh → chọn/tạo điểm → chụp ảnh + SĐT người nhận + ghi chú → lưu offline-first vào IndexedDB (`idb-queue.js`), tự đồng bộ khi có mạng

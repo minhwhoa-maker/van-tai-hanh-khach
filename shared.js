@@ -48,6 +48,49 @@ function setupLogoutListener(sb) {
     })
 }
 
+// === Navigation ===
+// Menu trượt phải dùng chung cho cả 3 trang (hang.html/manifest-hang.html/
+// lich-su-chuyen.html) — thay cho các link header-nav-desktop rời rạc 2 bên
+// header trước đây. Nhận `sb` làm tham số (thay vì tự tạo) vì mỗi trang đã có
+// sẵn 1 instance `sb` riêng — dùng chung instance đó để signOut() cho đúng session.
+function renderSideMenu(sb) {
+    const currentPage = location.pathname.split('/').pop()
+    const menuItems = [
+        { href: 'hang.html', label: '📦 Nhập kiện' },
+        { href: 'manifest-hang.html', label: '📋 Danh sách kiện' },
+        { href: 'lich-su-chuyen.html', label: '🕐 Lịch sử' },
+    ]
+
+    const drawer = document.createElement('div')
+    drawer.className = 'side-drawer'
+    drawer.innerHTML = `
+        <div class="side-drawer-backdrop"></div>
+        <div class="side-drawer-panel">
+            <button class="side-drawer-close" type="button" aria-label="Đóng">✕</button>
+            <nav>
+                ${menuItems.map(item => `
+                    <a href="${item.href}" class="${item.href === currentPage ? 'active' : ''}">${item.label}</a>
+                `).join('')}
+                <hr>
+                <a href="#" id="side-drawer-logout">Đăng xuất</a>
+            </nav>
+        </div>
+    `
+    document.body.appendChild(drawer)
+
+    const open = () => drawer.classList.add('open')
+    const close = () => drawer.classList.remove('open')
+    drawer.querySelector('.side-drawer-backdrop').addEventListener('click', close)
+    drawer.querySelector('.side-drawer-close').addEventListener('click', close)
+    drawer.querySelector('#side-drawer-logout').addEventListener('click', async (e) => {
+        e.preventDefault()
+        await sb.auth.signOut()
+        location.href = 'login.html'
+    })
+
+    return { open, close }
+}
+
 // === Âm lịch (thuật toán Hồ Ngọc Đức, múi giờ VN = UTC+7) ===
 function _int(d) { return Math.floor(d); }
 
