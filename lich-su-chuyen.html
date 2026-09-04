@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch sử chuyến</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: var(--bg); padding-bottom: 40px; }
+        .chuyen-card {
+            margin: 16px 16px 0; padding: 16px; background: var(--white); border-radius: var(--radius);
+            box-shadow: var(--shadow); cursor: pointer;
+        }
+        .chuyen-card:active { background: var(--bg); }
+        .chuyen-card .row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-weight: 600; }
+        .chuyen-card .row-top .ngay { font-weight: 400; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+        .chuyen-card .stats { margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+        .chuyen-card .cod-warn { margin-top: 4px; font-size: 13px; color: var(--warning); font-weight: 600; }
+        .empty { padding: 24px; text-align: center; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-nav-desktop"><a href="hang.html" style="color:inherit;text-decoration:none;">+ Nhập kiện</a></div>
+        <h2 style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
+            <span class="header-text">🕐 Lịch sử chuyến</span>
+        </h2>
+        <div class="header-nav-desktop"><a href="manifest-hang.html" style="color:inherit;text-decoration:none;">📋 Danh sách kiện</a></div>
+    </div>
+
+    <div id="list-wrap"></div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        const sb = createSb()
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        // chuyen(id, chieu, khoi_hanh, ghi_chu, created_at), lọc trang_thai = 'xong'.
+        // kien(chuyen_id, tien_thu, tien_thu_ho, trang_thai) — group theo chuyen_id ở client,
+        // data nhỏ (vài chục kiện/chuyến) nên không cần RPC/view riêng.
+        async function loadLichSu() {
+            const wrap = document.getElementById('list-wrap')
+            wrap.textContent = ''
+
+            const { data: chuyenXong, error: chuyenErr } = await sb
+                .from('chuyen')
+                .select('id, chieu, khoi_hanh, ghi_chu, created_at')
+                .eq('trang_thai', 'xong')
+                .order('khoi_hanh', { ascending: false })
+                .limit(50)
+            if (chuyenErr) { showToast('Lỗi tải lịch sử: ' + chuyenErr.message, 'error'); return }
+            if (!chuyenXong.length) { wrap.innerHTML = '<div class="empty">Chưa có chuyến nào đã kết thúc</div>'; return }
+
+            const { data: kienList, error: kienErr } = await sb
+                .from('kien')
+                .select('chuyen_id, tien_thu, tien_thu_ho')
+                .in('chuyen_id', chuyenXong.map(c => c.id))
+            if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
+
+            chuyenXong.forEach(c => {
+                const kiensCuaChuyen = kienList.filter(k => k.chuyen_id === c.id)
+                wrap.appendChild(createChuyenCard(c, kiensCuaChuyen))
+            })
+        }
+
+        function createChuyenCard(c, kiens) {
+            const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+            const tongKien = kiens.length
+            const tongThu = kiens.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
+            const codChuaDu = kiens.filter(k => k.tien_thu_ho != null && k.tien_thu_ho > 0 && Number(k.tien_thu || 0) < Number(k.tien_thu_ho))
+
+            const card = document.createElement('div')
+            card.className = 'chuyen-card'
+            card.innerHTML = `
+                <div class="row-top">
+                    <span>${chieuLabel}</span>
+                    <span class="ngay">${formatDate(c.khoi_hanh)}</span>
+                </div>
+                <div class="stats">${tongKien} kiện · Đã thu: ${formatMoney(tongThu)}${c.ghi_chu ? ' · ' + c.ghi_chu : ''}</div>
+                ${codChuaDu.length ? `<div class="cod-warn">⚠ Còn ${codChuaDu.length} kiện chưa thu đủ COD</div>` : ''}
+            `
+            card.addEventListener('click', () => {
+                window.location.href = `manifest-hang.html?chuyen_id=${c.id}`
+            })
+            return card
+        }
+
+        async function initPage() {
+            const auth = await requireSession(sb)
+            if (!auth) return
+            await loadLichSu()
+        }
+
+        setupLogoutListener(sb)
+        initPage()
+    </script>
+</body>
+</html>
