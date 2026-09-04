@@ -24,6 +24,8 @@
         }
         .diem-item.selected, .chuyen-item.selected { border-color: var(--primary); background: #eaf2fc; }
         .chuyen-item .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+        .chuyen-item-xong { opacity: 0.7; }
+        .chuyen-item-xong .sub::after { content: ' · xem lại'; color: var(--text-muted); }
         .camera-box {
             margin: 16px; padding: 24px; border: 2px dashed var(--border); border-radius: var(--radius);
             text-align: center; background: var(--white); cursor: pointer;
@@ -163,35 +165,70 @@
             bar.style.display = 'block'
         }
 
+        function renderChuyenItem(c) {
+            const item = document.createElement('div')
+            item.className = 'chuyen-item'
+            const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+            const trangThaiLabel = c.trang_thai === 'xong' ? ' (đã xong)' : ''
+            item.innerHTML = `<div>${chieuLabel}${trangThaiLabel}</div><div class="sub">${formatDate(c.khoi_hanh)}${c.ghi_chu ? ' — ' + c.ghi_chu : ''}</div>`
+            return item
+        }
+
+        function renderChuyenGroupHeader(text) {
+            const h = document.createElement('p')
+            h.style.cssText = 'padding:12px 16px 4px; font-weight:600; font-size:13px; color:var(--text-muted);'
+            h.textContent = text
+            return h
+        }
+
+        // Hiện cả chuyến đang chạy (bấm để chọn rồi nhập kiện mới) lẫn chuyến đã xong
+        // (bấm để XEM lại ở manifest-hang.html, không cho nhập thêm kiện) — 50 chuyến gần
+        // nhất, cùng giới hạn với lich-su-chuyen.html.
         async function loadChuyenList() {
             const { data, error } = await sb
                 .from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
-                .eq('trang_thai', 'dang_chay')
                 .order('created_at', { ascending: false })
+                .limit(50)
             if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
             const wrap = document.getElementById('chuyen-list')
             wrap.textContent = ''
 
+            const dangChay = data.filter(c => c.trang_thai === 'dang_chay')
+            const daXong = data.filter(c => c.trang_thai === 'xong')
+
             const btnNewChuyen = document.getElementById('btn-toggle-new-chuyen')
             const blockedNote = document.getElementById('new-chuyen-blocked-note')
-            const hasActive = data.length > 0
+            const hasActive = dangChay.length > 0
             btnNewChuyen.disabled = hasActive
             blockedNote.style.display = hasActive ? 'block' : 'none'
             if (hasActive) document.getElementById('new-chuyen-form').style.display = 'none'
 
-            if (!data.length) {
-                wrap.innerHTML = '<div style="color:var(--text-muted); font-size:14px;">Chưa có chuyến nào đang chạy, tạo chuyến mới bên dưới.</div>'
+            if (!dangChay.length && !daXong.length) {
+                wrap.innerHTML = '<div style="color:var(--text-muted); font-size:14px; padding:0 16px;">Chưa có chuyến nào, tạo chuyến mới bên dưới.</div>'
                 return
             }
-            data.forEach(c => {
-                const item = document.createElement('div')
-                item.className = 'chuyen-item'
-                const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
-                item.innerHTML = `<div>${chieuLabel}</div><div class="sub">${formatDate(c.khoi_hanh)}${c.ghi_chu ? ' — ' + c.ghi_chu : ''}</div>`
-                item.addEventListener('click', () => selectChuyen(c, item))
-                wrap.appendChild(item)
-            })
+
+            if (dangChay.length) {
+                wrap.appendChild(renderChuyenGroupHeader('Chuyến đang chạy'))
+                dangChay.forEach(c => {
+                    const item = renderChuyenItem(c)
+                    item.addEventListener('click', () => selectChuyen(c, item))
+                    wrap.appendChild(item)
+                })
+            }
+
+            if (daXong.length) {
+                wrap.appendChild(renderChuyenGroupHeader('Chuyến đã hoàn thành'))
+                daXong.forEach(c => {
+                    const item = renderChuyenItem(c)
+                    item.classList.add('chuyen-item-xong')
+                    item.addEventListener('click', () => {
+                        location.href = `manifest-hang.html?chuyen_id=${c.id}`
+                    })
+                    wrap.appendChild(item)
+                })
+            }
         }
 
         function selectChuyen(chuyen, itemEl) {

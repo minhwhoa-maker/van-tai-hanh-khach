@@ -45,32 +45,53 @@
             setTimeout(() => toast.className = 'toast', 3000)
         }
 
-        // chuyen(id, chieu, khoi_hanh, ghi_chu, created_at), lọc trang_thai = 'xong'.
-        // kien(chuyen_id, tien_thu, tien_thu_ho, trang_thai) — group theo chuyen_id ở client,
-        // data nhỏ (vài chục kiện/chuyến) nên không cần RPC/view riêng.
+        function renderGroupHeader(text) {
+            const h = document.createElement('p')
+            h.style.cssText = 'padding:16px 16px 4px; font-weight:600; font-size:13px; color:var(--text-muted);'
+            h.textContent = text
+            return h
+        }
+
+        // chuyen(id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at) — lấy cả 'dang_chay'
+        // lẫn 'xong' (50 gần nhất), tách 2 nhóm để crew vừa xem lại chuyến đã xong vừa
+        // theo dõi nhanh chuyến đang chạy mà không cần qua hang.html.
+        // kien(chuyen_id, tien_thu, tien_thu_ho) — group theo chuyen_id ở client, data nhỏ
+        // (vài chục kiện/chuyến) nên không cần RPC/view riêng.
         async function loadLichSu() {
             const wrap = document.getElementById('list-wrap')
             wrap.textContent = ''
 
-            const { data: chuyenXong, error: chuyenErr } = await sb
+            const { data: chuyenList, error: chuyenErr } = await sb
                 .from('chuyen')
-                .select('id, chieu, khoi_hanh, ghi_chu, created_at')
-                .eq('trang_thai', 'xong')
+                .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
                 .order('khoi_hanh', { ascending: false })
                 .limit(50)
             if (chuyenErr) { showToast('Lỗi tải lịch sử: ' + chuyenErr.message, 'error'); return }
-            if (!chuyenXong.length) { wrap.innerHTML = '<div class="empty">Chưa có chuyến nào đã kết thúc</div>'; return }
+            if (!chuyenList.length) { wrap.innerHTML = '<div class="empty">Chưa có chuyến nào</div>'; return }
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
                 .select('chuyen_id, tien_thu, tien_thu_ho')
-                .in('chuyen_id', chuyenXong.map(c => c.id))
+                .in('chuyen_id', chuyenList.map(c => c.id))
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
-            chuyenXong.forEach(c => {
-                const kiensCuaChuyen = kienList.filter(k => k.chuyen_id === c.id)
-                wrap.appendChild(createChuyenCard(c, kiensCuaChuyen))
-            })
+            const dangChay = chuyenList.filter(c => c.trang_thai === 'dang_chay')
+            const daXong = chuyenList.filter(c => c.trang_thai === 'xong')
+
+            if (dangChay.length) {
+                wrap.appendChild(renderGroupHeader('Chuyến đang chạy'))
+                dangChay.forEach(c => {
+                    const kiensCuaChuyen = kienList.filter(k => k.chuyen_id === c.id)
+                    wrap.appendChild(createChuyenCard(c, kiensCuaChuyen))
+                })
+            }
+            if (daXong.length) {
+                wrap.appendChild(renderGroupHeader('Chuyến đã hoàn thành'))
+                daXong.forEach(c => {
+                    const kiensCuaChuyen = kienList.filter(k => k.chuyen_id === c.id)
+                    wrap.appendChild(createChuyenCard(c, kiensCuaChuyen))
+                })
+            }
         }
 
         function createChuyenCard(c, kiens) {
