@@ -36,6 +36,12 @@
             padding: 10px 16px; background: var(--white); border-bottom: 1px solid var(--border);
             font-size: 13px; color: var(--text-muted); display: none;
         }
+        .btn-cod-toggle {
+            padding: 10px 16px; border-radius: 20px; border: 1.5px solid var(--warning);
+            background: var(--white); cursor: pointer; font-size: 15px; color: var(--warning); font-weight: 600;
+        }
+        .btn-cod-toggle.active { background: var(--warning); color: #fff; }
+        #kien-thu-ho-wrap { display: none; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -116,6 +122,12 @@
             <div class="form-group">
                 <label>Ghi chú</label>
                 <textarea id="kien-ghichu" placeholder="Ghi chú kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;"></textarea>
+            </div>
+            <div class="form-group">
+                <button class="btn-cod-toggle" id="btn-thu-ho-toggle" type="button">💰 Thu hộ (COD)</button>
+                <div id="kien-thu-ho-wrap">
+                    <input type="number" inputmode="numeric" id="kien-thu-ho" placeholder="Số tiền cần thu hộ (đ)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+                </div>
             </div>
         </div>
         <div class="form-actions">
@@ -306,6 +318,13 @@
             goToStep('step-anh')
         })
 
+        document.getElementById('btn-thu-ho-toggle').addEventListener('click', function () {
+            const active = this.classList.toggle('active')
+            const wrap = document.getElementById('kien-thu-ho-wrap')
+            wrap.style.display = active ? 'block' : 'none'
+            if (!active) document.getElementById('kien-thu-ho').value = ''
+        })
+
         document.getElementById('camera-box').addEventListener('click', () => {
             document.getElementById('kien-camera-input').click()
         })
@@ -322,6 +341,13 @@
 
         document.getElementById('btn-save-kien').addEventListener('click', async () => {
             if (!currentChuyen || !selectedTinh || !selectedDiem) { showToast('Thiếu chuyến/tỉnh/điểm', 'error'); return }
+            const thuHoActive = document.getElementById('btn-thu-ho-toggle').classList.contains('active')
+            let tienThuHo = null
+            if (thuHoActive) {
+                const raw = document.getElementById('kien-thu-ho').value.trim()
+                tienThuHo = raw === '' ? NaN : Number(raw)
+                if (!Number.isFinite(tienThuHo) || tienThuHo <= 0) { showToast('Nhập số tiền thu hộ hợp lệ', 'error'); return }
+            }
             const record = {
                 id: crypto.randomUUID(),
                 chuyen_id: currentChuyen.id,
@@ -329,6 +355,7 @@
                 nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
+                tien_thu_ho: tienThuHo,
                 anh_blob: activePhotoBlob || null,
                 created_at: new Date().toISOString(),
                 da_sync: false
@@ -342,6 +369,9 @@
             document.getElementById('kien-preview').style.display = 'none'
             document.getElementById('kien-sdt').value = ''
             document.getElementById('kien-ghichu').value = ''
+            document.getElementById('btn-thu-ho-toggle').classList.remove('active')
+            document.getElementById('kien-thu-ho-wrap').style.display = 'none'
+            document.getElementById('kien-thu-ho').value = ''
             goToStep('step-tinh')
         })
 

@@ -40,10 +40,12 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
 - `auth-callback.html` — bridge verifyOtp cho nhánh Zalo, không dùng cho Google
 - `hang.html` — nhập kiện: chọn/tạo **chuyến** (chiều bắc/nam) → chọn tỉnh → chọn/tạo điểm → chụp ảnh + SĐT người nhận + ghi chú → lưu offline-first vào IndexedDB (`idb-queue.js`), tự đồng bộ khi có mạng
   - **Danh sách "1. Chọn tỉnh" loại bỏ Đắk Lắk và Khánh Hòa** (`loadTinh()`, lọc bằng `ma !== 'DLK'` và `ten !== 'Khánh Hòa'`) — hàng luôn được bốc ở Đắk Lắk (là điểm xuất phát, không phải điểm giao nên không cần chọn) và xe không chạy tuyến qua Khánh Hòa. Đây là filter cứng ở client, không phải xoá khỏi bảng `tinh_tuyen` — cả 2 tỉnh vẫn còn trong DB, chỉ ẩn khỏi UI chọn tỉnh giao hàng. Lưu ý `data/tinh_km_range.json` cũng không có entry cho Khánh Hòa (đi thẳng `DLK` → `PYN`), khớp với việc tuyến không qua đó.
+  - **Bước 3 (chụp ảnh) có nút "💰 Thu hộ (COD)"** (`#btn-thu-ho-toggle`) — bật lên mới hiện ô nhập `#kien-thu-ho`, bắt buộc số dương nếu bật (validate trước khi `queueKien`). Lưu vào `record.tien_thu_ho`, đi qua `idb-queue.js` như các field khác (khác với `tien_thu` — field đó chỉ nhập được ở `manifest-hang.html` sau khi giao, không có trong hàng đợi offline).
 - `manifest-hang.html` — chọn 1 chuyến, xem kiện gom theo tỉnh (thứ tự theo `tinh_tuyen.thu_tu`, chiều lấy từ `chuyen.chieu`: bac = ASC, nam = DESC). Mỗi dòng kiện chuyển đổi tại chỗ trong cùng 1 `.kien-row` (không điều hướng trang) qua các hàm `renderKienRowView` / `renderKienRowEdit` / `renderKienRowThuTien` / `renderKienRowViTri`:
   - **Sửa** — sửa nhanh SĐT người nhận + ghi chú (`renderKienRowEdit`)
   - **Hoàn thành** — `toggleDaGiao` chuyển UI sang `renderKienRowThuTien` (nhập tiền thu) **ngay lập tức, không chờ mạng/GPS** — set `k.trang_thai = 'da_giao'` optimistic trước, rồi mới bắt GPS (nếu `diem` chưa có toạ độ, có thể mất tới 15s — xem mục "Toạ độ điểm giao + km_moc") và `UPDATE kien.trang_thai` chạy ngầm phía sau; nếu update DB lỗi thì revert `k.trang_thai` về `chua_giao` + render lại `renderKienRowView` kèm toast lỗi. Bấm lại "Hủy giao" (nhánh `chua_giao`, không có GPS nên vẫn update đồng bộ như cũ) quay về `renderKienRowView`. Tiền đã thu hiện lại được qua nút "Sửa tiền"
   - **`renderKienRowViTri`** (sửa tay `lat`/`lng` của `diem`, tính lại `km_moc` khi lưu) — code vẫn còn nguyên nhưng **nút "Sửa vị trí / Định vị điểm" đã bị ẩn khỏi `renderKienRowView`** theo yêu cầu đơn giản hoá UI mobile, nên hàm này hiện không có đường gọi tới từ UI (dead code có chủ đích, giữ lại phòng khi cần bật lại lối sửa tay toạ độ)
+  - **Cảnh báo thu hộ (COD)** — `renderCodSummary` hiện banner `#cod-summary` phía trên danh sách khi chuyến có kiện `tien_thu_ho > 0`: tổng cần thu, tổng đã thu (so với `tien_thu`), số kiện chưa thu đủ. Mỗi dòng kiện có `tien_thu_ho` cũng hiện badge màu `--warning` "💰 Thu hộ: Xđ" (kèm "⚠ chưa thu đủ" nếu đã giao mà `tien_thu < tien_thu_ho`) — hiện cả khi chưa giao, và số tiền cần thu hộ cũng hiện lại trong `renderKienRowThuTien` lúc nhập tiền thực thu để đối chiếu.
   - Bấm vào ảnh thumbnail mở lightbox phóng to (`#lightbox`)
   - **Dưới 600px** (`@media (max-width: 600px)` trong `<style>` của trang): `.kien-row` chuyển `flex-wrap: wrap` — ảnh/tên điểm/badge giữ 1 hàng, `.kien-actions` (Sửa/Hoàn thành/Thu tiền) xuống hàng riêng full-width, mỗi nút to hơn (padding/font lớn hơn) cho dễ bấm tay trên xe. Trước đó 4 nút (gồm cả "Sửa vị trí") nhồi chung 1 hàng flex nowrap với ảnh+tên khiến chữ vỡ từng ký tự và nút cuối bị cắt ngoài viewport trên điện thoại.
 
@@ -72,9 +74,11 @@ chuyen     (id uuid PK, chieu 'bac'|'nam', khoi_hanh, trang_thai 'dang_chay'|'xo
 kien       (id uuid PK — CLIENT TỰ SINH qua crypto.randomUUID() để offline-first,
             chuyen_id FK -> chuyen.id, diem_id FK -> diem.id,
             anh_path, anh_url, nguoi_nhan_sdt, trang_thai 'chua_giao'|'da_giao',
-            ghi_chu, tien_thu numeric, created_at)
-           -- tien_thu: thêm sau v1 (alter table), nullable — số tiền thu khi giao xong,
+            ghi_chu, tien_thu numeric, tien_thu_ho numeric, created_at)
+           -- tien_thu: thêm sau v1 (alter table), nullable — số tiền THỰC thu khi giao xong,
            -- nhập ngay trong bước "Hoàn thành" ở manifest-hang.html, không có trong idb-queue.js
+           -- tien_thu_ho: thêm sau v1 (alter table), nullable — số tiền CẦN thu hộ (COD) do
+           -- người gửi yêu cầu, nhập lúc chụp ảnh ở hang.html (bước 3), CÓ trong idb-queue.js
 ```
 
 - Trigger DB: insert vào `kien` tự +1 `diem.so_lan_giao` — app không tự cộng tay.

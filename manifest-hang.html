@@ -39,6 +39,12 @@
         .btn-sm.btn-thu { border-color: var(--primary); color: var(--primary); }
         .btn-sm.btn-vitri { border-color: var(--text-muted); color: var(--text-muted); }
         .mota.tien-thu { color: var(--success); font-weight: 600; }
+        .mota.cod { color: var(--warning); font-weight: 600; }
+        .cod-summary {
+            display: none; margin: 0 16px 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+            background: #fdf3e5; border: 1.5px solid var(--warning); color: var(--warning);
+            font-size: 14px; font-weight: 600;
+        }
         .kien-row-edit input, .kien-row-edit textarea {
             width: 100%; padding: 8px 10px; border: 1.5px solid var(--border);
             border-radius: 6px; font-size: 14px; font-family: inherit;
@@ -71,6 +77,8 @@
     <div class="chuyen-select-wrap">
         <select id="chuyen-select" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white"></select>
     </div>
+
+    <div class="cod-summary" id="cod-summary"></div>
 
     <div id="list-wrap"></div>
 
@@ -139,7 +147,7 @@
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, tien_thu, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, tien_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
@@ -153,6 +161,8 @@
                 if (diemMap.has(k.diem_id)) k.diem = diemMap.get(k.diem_id)
                 else diemMap.set(k.diem_id, k.diem)
             })
+
+            renderCodSummary(kienList)
 
             let any = false
             tinhList.forEach(tinh => {
@@ -175,6 +185,21 @@
             if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
         }
 
+        // Cảnh báo tổng tiền thu hộ (COD) của cả chuyến — kien.tien_thu_ho là số tiền người
+        // gửi yêu cầu thu hộ khi giao, nhập lúc chụp ảnh ở hang.html. So với tien_thu (số tiền
+        // thực thu, nhập lúc "Hoàn thành") để biết còn kiện nào thu hộ chưa thu đủ.
+        function renderCodSummary(kienList) {
+            const el = document.getElementById('cod-summary')
+            const codKiens = kienList.filter(k => k.tien_thu_ho != null && k.tien_thu_ho > 0)
+            if (!codKiens.length) { el.style.display = 'none'; return }
+            const chuaThuDu = codKiens.filter(k => Number(k.tien_thu || 0) < Number(k.tien_thu_ho))
+            const tongThuHo = codKiens.reduce((s, k) => s + Number(k.tien_thu_ho), 0)
+            const tongDaThu = codKiens.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
+            el.style.display = 'block'
+            el.textContent = `⚠️ ${codKiens.length} kiện thu hộ (COD) — cần thu ${formatMoney(tongThuHo)}, đã thu ${formatMoney(tongDaThu)}` +
+                (chuaThuDu.length ? `, còn ${chuaThuDu.length} kiện chưa thu đủ` : '')
+        }
+
         // kien(id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma))
         function createKienRow(k) {
             const row = document.createElement('div')
@@ -187,12 +212,15 @@
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
             const coTien = k.tien_thu !== null && k.tien_thu !== undefined
+            const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
+            const thuHoConThieu = coThuHo && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
                     ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
+                    ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">Đã thu: ${formatMoney(k.tien_thu)}</div>` : ''}
                 </div>
                 <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
@@ -248,6 +276,7 @@
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
+                    ${k.tien_thu_ho != null && k.tien_thu_ho > 0 ? `<div class="mota cod">💰 Cần thu hộ: ${formatMoney(k.tien_thu_ho)}</div>` : ''}
                     <input type="number" inputmode="numeric" class="edit-tien" placeholder="Số tiền thu (đ)" value="${k.tien_thu ?? ''}">
                 </div>
                 <div class="kien-actions">

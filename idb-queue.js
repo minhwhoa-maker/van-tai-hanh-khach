@@ -1,7 +1,7 @@
 // idb-queue.js — offline write-queue cho kiện hàng, dùng IndexedDB.
 // Yêu cầu: load trước shared.js/hang.html script. KHÔNG phụ thuộc thư viện ngoài.
 // Schema khớp eakar_hang_v1.sql: bảng kien(id, chuyen_id, diem_id, anh_path,
-// anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at), bucket Storage 'kien'.
+// anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, tien_thu_ho, created_at), bucket Storage 'kien'.
 
 const IDB_NAME = 'eakar-hang'
 const IDB_VERSION = 1
@@ -21,7 +21,7 @@ function openQueueDb() {
     })
 }
 
-// record: { id, chuyen_id, diem_id, nguoi_nhan_sdt, ghi_chu, trang_thai, anh_blob, created_at, da_sync }
+// record: { id, chuyen_id, diem_id, nguoi_nhan_sdt, ghi_chu, trang_thai, tien_thu_ho, anh_blob, created_at, da_sync }
 async function queueKien(record) {
     const db = await openQueueDb()
     return new Promise((resolve, reject) => {
@@ -91,6 +91,7 @@ async function trySyncQueue(sb) {
                 nguoi_nhan_sdt: rec.nguoi_nhan_sdt || null,
                 trang_thai: rec.trang_thai || 'chua_giao',
                 ghi_chu: rec.ghi_chu || null,
+                tien_thu_ho: rec.tien_thu_ho ?? null,
                 created_at: rec.created_at
             })
             if (insErr) throw insErr
