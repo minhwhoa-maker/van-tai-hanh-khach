@@ -200,14 +200,12 @@
                     <button class="btn-sm btn-edit" type="button">Sửa</button>
                     <button class="btn-sm ${daGiao ? 'btn-undone' : 'btn-done'}" type="button">${daGiao ? 'Hủy giao' : 'Hoàn thành'}</button>
                     ${daGiao ? `<button class="btn-sm btn-thu" type="button">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
-                    <button class="btn-sm btn-vitri" type="button">${k.diem?.lat != null ? 'Sửa vị trí' : 'Định vị điểm'}</button>
                 </div>
             `
             row.querySelector('.btn-edit').addEventListener('click', () => renderKienRowEdit(row, k))
             row.querySelector('.btn-done, .btn-undone').addEventListener('click', () => toggleDaGiao(row, k))
             const btnThu = row.querySelector('.btn-thu')
             if (btnThu) btnThu.addEventListener('click', () => renderKienRowThuTien(row, k))
-            row.querySelector('.btn-vitri').addEventListener('click', () => renderKienRowViTri(row, k))
             const img = row.querySelector('img')
             if (img) img.addEventListener('click', () => openLightbox(k.anh_url))
         }
@@ -308,11 +306,26 @@
         async function toggleDaGiao(row, k) {
             const newStatus = k.trang_thai === 'da_giao' ? 'chua_giao' : 'da_giao'
 
-            // Bắt GPS + tính km_moc TRƯỚC khi update trạng thái — cả 2 bước này không cần
-            // mạng (GPS offline, km_moc tính tại client từ dữ liệu tuyến đã cache), đúng lúc
-            // xe đang đứng tại điểm giao. Chỉ làm khi điểm chưa từng có toạ độ, không ghi đè.
+            if (newStatus === 'chua_giao') {
+                const { error } = await sb.from('kien').update({ trang_thai: newStatus }).eq('id', k.id)
+                if (error) { showToast('Lỗi cập nhật: ' + error.message, 'error'); return }
+                k.trang_thai = newStatus
+                showToast('Đã hủy đánh dấu giao', 'success')
+                renderKienRowView(row, k)
+                return
+            }
+
+            // Chuyển ngay sang ô thu tiền — không chờ GPS/DB (GPS có thể mất tới 15s).
+            // Trạng thái + toạ độ cập nhật ngầm phía sau; nếu update trang_thai lỗi thì
+            // revert UI về lại view và báo lỗi.
+            k.trang_thai = newStatus
+            renderKienRowThuTien(row, k)
+            showToast('Đã đánh dấu giao xong', 'success')
+
+            // Bắt GPS + tính km_moc — không cần mạng (GPS offline, km_moc tính tại client từ
+            // dữ liệu tuyến đã cache). Chỉ làm khi điểm chưa từng có toạ độ, không ghi đè.
             let toaDoMoi = null
-            if (newStatus === 'da_giao' && k.diem && (k.diem.lat == null || k.diem.lng == null)) {
+            if (k.diem && (k.diem.lat == null || k.diem.lng == null)) {
                 const pos = await batGpsDiemGiao()
                 if (pos && pos.accuracy <= 50) {
                     const { tuyenChuan, tinhKmRange } = await loadTuyenChuanData()
@@ -324,8 +337,12 @@
             }
 
             const { error } = await sb.from('kien').update({ trang_thai: newStatus }).eq('id', k.id)
-            if (error) { showToast('Lỗi cập nhật: ' + error.message, 'error'); return }
-            k.trang_thai = newStatus
+            if (error) {
+                showToast('Lỗi cập nhật: ' + error.message, 'error')
+                k.trang_thai = 'chua_giao'
+                renderKienRowView(row, k)
+                return
+            }
 
             // Cập nhật toạ độ điểm SAU khi trạng thái kiện đã lưu thành công — 2 lệnh UPDATE
             // tách rời (PostgREST không hỗ trợ transaction đa bảng từ client). Nếu bước này lỗi,
@@ -333,14 +350,6 @@
             if (toaDoMoi && k.diem?.id) {
                 const { error: diemErr } = await sb.from('diem').update(toaDoMoi).eq('id', k.diem.id)
                 if (!diemErr) Object.assign(k.diem, toaDoMoi)
-            }
-
-            if (newStatus === 'da_giao') {
-                showToast('Đã đánh dấu giao xong', 'success')
-                renderKienRowThuTien(row, k)
-            } else {
-                showToast('Đã hủy đánh dấu giao', 'success')
-                renderKienRowView(row, k)
             }
         }
 
