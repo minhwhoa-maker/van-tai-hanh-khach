@@ -145,6 +145,11 @@
                     <input type="number" inputmode="numeric" id="kien-thu-ho" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
                     <div id="kien-thu-ho-chu" style="font-size:13px;color:var(--text-muted);margin-top:4px;"></div>
                 </div>
+                <button class="btn-cod-toggle" id="btn-cuoc-toggle" type="button" style="margin-top:8px;">✅ Đã thu cước</button>
+                <div id="kien-cuoc-wrap" style="display:none; margin-top:10px;">
+                    <input type="number" inputmode="numeric" id="kien-cuoc" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+                    <div id="kien-cuoc-chu" style="font-size:13px;color:var(--text-muted);margin-top:4px;"></div>
+                </div>
             </div>
         </div>
         <div class="form-actions">
@@ -371,6 +376,22 @@
                 so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
         })
 
+        document.getElementById('btn-cuoc-toggle').addEventListener('click', function () {
+            const active = this.classList.toggle('active')
+            const wrap = document.getElementById('kien-cuoc-wrap')
+            wrap.style.display = active ? 'block' : 'none'
+            if (!active) {
+                document.getElementById('kien-cuoc').value = ''
+                document.getElementById('kien-cuoc-chu').textContent = ''
+            }
+        })
+        document.getElementById('kien-cuoc').addEventListener('input', function () {
+            const raw = this.value.trim()
+            const so = raw === '' ? null : Number(raw) * 1000
+            document.getElementById('kien-cuoc-chu').textContent =
+                so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+        })
+
         // Resize ảnh xuống tối đa maxSize (cạnh dài) trước khi lưu — ảnh gốc camera đời mới
         // thường 3000-4000px/vài MB, không cần giữ nguyên để nhìn rõ SĐT/tình trạng hàng.
         // Giảm dung lượng lưu IndexedDB + thời gian upload lên Supabase Storage sau này.
@@ -491,6 +512,13 @@
                 tienThuHo = raw === '' ? NaN : Number(raw) * 1000
                 if (!Number.isFinite(tienThuHo) || tienThuHo <= 0) { showToast('Nhập số tiền thu hộ hợp lệ', 'error'); return }
             }
+            const cuocActive = document.getElementById('btn-cuoc-toggle').classList.contains('active')
+            let cuocDaThu = null
+            if (cuocActive) {
+                const raw = document.getElementById('kien-cuoc').value.trim()
+                cuocDaThu = raw === '' ? NaN : Number(raw) * 1000
+                if (!Number.isFinite(cuocDaThu) || cuocDaThu <= 0) { showToast('Nhập số tiền cước hợp lệ', 'error'); return }
+            }
             const record = {
                 id: crypto.randomUUID(),
                 chuyen_id: currentChuyen.id,
@@ -499,6 +527,7 @@
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
                 so_luong: kienSoLuong,
+                tien_thu: cuocDaThu,
                 tien_thu_ho: tienThuHo,
                 anh_blob: activePhotoBlob || null,
                 created_at: new Date().toISOString(),
@@ -520,6 +549,10 @@
             document.getElementById('kien-thu-ho-wrap').style.display = 'none'
             document.getElementById('kien-thu-ho').value = ''
             document.getElementById('kien-thu-ho-chu').textContent = ''
+            document.getElementById('btn-cuoc-toggle').classList.remove('active')
+            document.getElementById('kien-cuoc-wrap').style.display = 'none'
+            document.getElementById('kien-cuoc').value = ''
+            document.getElementById('kien-cuoc-chu').textContent = ''
             goToStep('step-tinh')
         })
 

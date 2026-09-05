@@ -302,6 +302,7 @@
             const daGiao = k.trang_thai === 'da_giao'
             row.classList.toggle('kien-row-da-giao', daGiao)
             const coTien = k.tien_thu !== null && k.tien_thu !== undefined
+            const thuTruocKhiGiao = coTien && !daGiao
             const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
             const thuHoConThieu = coThuHo && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
             row.innerHTML = `
@@ -311,7 +312,7 @@
                     ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
-                    ${coTien ? `<div class="mota tien-thu">Đã thu: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
+                    ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
                 </div>
                 <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
                 <div class="kien-actions">
@@ -465,10 +466,17 @@
 
             // Chuyển ngay sang ô thu tiền — không chờ GPS/DB (GPS có thể mất tới 15s).
             // Trạng thái + toạ độ cập nhật ngầm phía sau; nếu update trang_thai lỗi thì
-            // revert UI về lại view và báo lỗi.
+            // revert UI về lại view và báo lỗi. Nếu tien_thu đã có sẵn (khách trả cước
+            // ngay lúc gửi ở hang.html) thì bỏ qua bước hỏi lại, tránh thu 2 lần.
             k.trang_thai = newStatus
-            renderKienRowThuTien(row, k)
-            showToast('Đã đánh dấu giao xong', 'success')
+            const daCoTienSan = k.tien_thu !== null && k.tien_thu !== undefined
+            if (daCoTienSan) {
+                renderKienRowView(row, k)
+                showToast('Đã đánh dấu giao xong (cước đã thu lúc gửi)', 'success')
+            } else {
+                renderKienRowThuTien(row, k)
+                showToast('Đã đánh dấu giao xong', 'success')
+            }
 
             // Bắt GPS + tính km_moc — không cần mạng (GPS offline, km_moc tính tại client từ
             // dữ liệu tuyến đã cache). Chỉ làm khi điểm chưa từng có toạ độ, không ghi đè.
