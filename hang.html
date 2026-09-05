@@ -29,6 +29,9 @@
             text-align: center; background: var(--white); cursor: pointer;
         }
         #kien-preview { display: none; margin: 0 16px 16px; }
+        #camera-live { display: none; margin: 16px; }
+        #camera-live video { width: 100%; border-radius: var(--radius); background: #000; display: block; }
+        #camera-live .camera-live-actions { display: flex; gap: 8px; margin-top: 10px; }
         #kien-preview img { width: 100%; border-radius: var(--radius-sm); }
         .form-actions { padding: 16px; display: flex; gap: 8px; }
         #queue-status { padding: 8px 16px; font-size: 13px; color: var(--text-muted); }
@@ -103,6 +106,14 @@
             <input type="file" accept="image/*" capture="environment" id="kien-camera-input" style="display:none;">
             <div>📷 Chạm để chụp ảnh</div>
         </div>
+        <div id="camera-live">
+            <video id="camera-video" autoplay playsinline muted></video>
+            <div class="camera-live-actions">
+                <button class="btn btn-full btn-success" id="btn-camera-capture" type="button">📸 Chụp</button>
+                <button class="btn btn-full" id="btn-camera-cancel" type="button">Hủy</button>
+            </div>
+        </div>
+        <canvas id="camera-canvas" style="display:none;"></canvas>
         <div id="kien-preview"><img id="kien-preview-img" alt=""></div>
         <div style="padding:0 16px;">
             <div class="form-group">
@@ -350,26 +361,89 @@
 
         let activePreviewUrl = null
 
-        document.getElementById('camera-box').addEventListener('click', () => {
-            document.getElementById('kien-camera-input').click()
-        })
-        document.getElementById('kien-camera-input').addEventListener('change', function () {
-            if (!this.files || !this.files[0]) return
-            const originalFile = this.files[0]
-
+        // Pipeline xử lý ảnh dùng chung, không quan tâm nguồn ảnh đến từ đâu (file trả về từ
+        // app Camera gốc trên iOS/fallback, hay Blob vẽ từ <canvas> của camera nhúng Android).
+        function handleNewPhotoBlob(fileOrBlob) {
             // Hiện preview ngay bằng object URL — không đọc/encode base64 toàn bộ ảnh gốc
             // (FileReader.readAsDataURL mất 0.5-3s với ảnh camera vài MB chưa resize, đây
             // là nguyên nhân chính của độ trễ "chậm sau khi chụp" trước đây).
             if (activePreviewUrl) URL.revokeObjectURL(activePreviewUrl)
-            activePreviewUrl = URL.createObjectURL(originalFile)
+            activePreviewUrl = URL.createObjectURL(fileOrBlob)
             document.getElementById('kien-preview-img').src = activePreviewUrl
             document.getElementById('kien-preview').style.display = 'block'
-            activePhotoBlob = originalFile // fallback nếu resize lỗi (vd định dạng canvas không decode được)
+            activePhotoBlob = fileOrBlob // fallback nếu resize lỗi (vd định dạng canvas không decode được)
 
             // Resize chạy ngầm phía sau, không chặn preview vừa hiện ở trên.
-            resizeImage(originalFile, 1600)
+            resizeImage(fileOrBlob, 1600)
                 .then(blob => { activePhotoBlob = blob })
                 .catch(err => console.error('[resizeImage] lỗi, giữ ảnh gốc', err))
+        }
+
+        // Chụp ảnh: input file (mở app Camera gốc) luôn dùng trên iOS — PWA standalone trên
+        // iOS có lịch sử lỗi getUserMedia/WebRTC lặp lại qua nhiều bản cập nhật WebKit (gần
+        // nhất iOS 18, vá ở 18.1.1), rủi ro app tự hỏng ngoài tầm kiểm soát nên KHÔNG dùng
+        // camera nhúng ở đây dù về mặt kỹ thuật iOS vẫn "hỗ trợ" getUserMedia — đây là lựa
+        // chọn theo độ tin cậy thực tế của nền tảng, không phải feature-detection thông
+        // thường. Android dùng camera nhúng (nhanh hơn, không phải mở/đóng app riêng), có
+        // fallback về input file nếu getUserMedia lỗi (từ chối quyền, máy/WebView không hỗ trợ).
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        let cameraStream = null
+
+        function stopCameraStream() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop())
+                cameraStream = null
+            }
+        }
+
+        function closeCameraLive() {
+            stopCameraStream()
+            document.getElementById('camera-live').style.display = 'none'
+            document.getElementById('camera-box').style.display = 'block'
+        }
+
+        async function openCameraFlow() {
+            if (isIOS || !navigator.mediaDevices?.getUserMedia) {
+                document.getElementById('kien-camera-input').click()
+                return
+            }
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                document.getElementById('camera-video').srcObject = cameraStream
+                document.getElementById('camera-box').style.display = 'none'
+                document.getElementById('camera-live').style.display = 'block'
+            } catch (err) {
+                // Không để màn hình chụp đứng/trắng — rơi về input file như iOS.
+                console.error('[camera] getUserMedia lỗi, dùng input file', err)
+                document.getElementById('kien-camera-input').click()
+            }
+        }
+
+        document.getElementById('camera-box').addEventListener('click', openCameraFlow)
+
+        document.getElementById('btn-camera-capture').addEventListener('click', () => {
+            const video = document.getElementById('camera-video')
+            const canvas = document.getElementById('camera-canvas')
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+            canvas.toBlob(blob => {
+                if (blob) handleNewPhotoBlob(blob)
+                closeCameraLive()
+            }, 'image/jpeg', 0.92)
+        })
+
+        document.getElementById('btn-camera-cancel').addEventListener('click', closeCameraLive)
+
+        // Tắt camera khi rời tab/app (chuyển app khác, khoá màn hình...) — không tắt sẽ giữ
+        // đèn camera sáng, tốn pin, có thể chặn app khác dùng camera.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) closeCameraLive()
+        })
+
+        document.getElementById('kien-camera-input').addEventListener('change', function () {
+            if (!this.files || !this.files[0]) return
+            handleNewPhotoBlob(this.files[0])
         })
 
         document.getElementById('btn-save-kien').addEventListener('click', async () => {
