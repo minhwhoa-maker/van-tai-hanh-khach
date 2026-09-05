@@ -269,10 +269,17 @@
         // tính bằng getBoundingClientRect() vì .tinh-group cha có overflow:hidden, dùng
         // absolute thông thường sẽ bị cắt mất phần menu tràn ra ngoài khung.
         function openKienMenu(btn, menu) {
-            const rect = btn.getBoundingClientRect()
-            menu.style.top = (rect.bottom + 4) + 'px'
-            menu.style.right = (window.innerWidth - rect.right) + 'px'
+            // Hiện trước rồi mới đo offsetWidth thật — trên mobile nút "⋯" đứng 1 mình
+            // (flex-start) thường nằm sát mép trái, nếu chỉ neo theo mép phải của nút
+            // (không kẹp trong viewport) menu sẽ bị đẩy tràn ra ngoài mép trái màn hình,
+            // nhìn như 1 khối trắng trống không có chữ (đã gặp thực tế trên điện thoại).
             menu.classList.add('open')
+            const rect = btn.getBoundingClientRect()
+            const margin = 8
+            let left = rect.right - menu.offsetWidth
+            left = Math.max(margin, Math.min(left, window.innerWidth - menu.offsetWidth - margin))
+            menu.style.left = left + 'px'
+            menu.style.top = (rect.bottom + 4) + 'px'
         }
 
         // Mỗi dòng chỉ 1 hành động chính (to, dễ bấm 1 tay khi xe đang chạy) — hành động
