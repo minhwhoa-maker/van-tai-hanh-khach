@@ -22,6 +22,55 @@ function formatMoney(n) {
     return (Number.isFinite(amount) ? amount : 0).toLocaleString('vi-VN') + ' đ'
 }
 
+// Đọc số tiền bằng chữ (tiếng Việt) — dùng để crew đối chiếu trước khi lưu,
+// tránh gõ nhầm số 0 khi nhập tiền thu/thu hộ.
+function soTienBangChu(n) {
+    let so = Math.round(Number(n) || 0)
+    if (so === 0) return 'Không đồng'
+    const CHU_SO = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín']
+    function docBaSo(nhom, coTramLe) {
+        const tram = Math.floor(nhom / 100)
+        const chuc = Math.floor((nhom % 100) / 10)
+        const dv = nhom % 10
+        let s = ''
+        if (coTramLe || tram > 0) s += CHU_SO[tram] + ' trăm '
+        if (chuc === 0) {
+            if (dv > 0) s += (coTramLe || tram > 0 ? 'lẻ ' : '') + CHU_SO[dv]
+        } else if (chuc === 1) {
+            s += 'mười'
+            if (dv === 1) s += ' một'
+            else if (dv === 5) s += ' lăm'
+            else if (dv > 0) s += ' ' + CHU_SO[dv]
+        } else {
+            s += CHU_SO[chuc] + ' mươi'
+            if (dv === 1) s += ' mốt'
+            else if (dv === 5) s += ' lăm'
+            else if (dv > 0) s += ' ' + CHU_SO[dv]
+        }
+        return s.trim()
+    }
+    const isNeg = so < 0
+    so = Math.abs(so)
+    const nhomList = []
+    while (so > 0) {
+        nhomList.unshift(so % 1000)
+        so = Math.floor(so / 1000)
+    }
+    const donVi = ['', 'nghìn', 'triệu', 'tỷ']
+    const parts = []
+    for (let i = 0; i < nhomList.length; i++) {
+        const nhom = nhomList[i]
+        if (nhom === 0) continue
+        const dvIdx = nhomList.length - 1 - i
+        const chu = docBaSo(nhom, i > 0)
+        const donViText = dvIdx > 0 ? (donVi[dvIdx] || '') : ''
+        parts.push(chu + (donViText ? ' ' + donViText : ''))
+    }
+    let result = parts.join(' ')
+    result = result.charAt(0).toUpperCase() + result.slice(1)
+    return (isNeg ? 'Âm ' : '') + result + ' đồng'
+}
+
 // === Auth ===
 // Bảo vệ trang: chỉ cần có session Supabase Auth hợp lệ (Google OAuth hoặc bridge
 // Zalo qua verifyOtp — xem login.html + api/zalo-callback.js), không phân biệt

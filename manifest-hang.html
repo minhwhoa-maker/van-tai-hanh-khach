@@ -379,17 +379,27 @@
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
                     ${k.tien_thu_ho != null && k.tien_thu_ho > 0 ? `<div class="mota cod">💰 Cần thu hộ: ${formatMoney(k.tien_thu_ho)}</div>` : ''}
-                    <input type="number" inputmode="numeric" class="edit-tien" placeholder="Số tiền thu (đ)" value="${k.tien_thu ?? ''}">
+                    <input type="number" inputmode="numeric" class="edit-tien" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" value="${k.tien_thu != null ? k.tien_thu / 1000 : ''}">
+                    <div class="mota tien-chu"></div>
                 </div>
                 <div class="kien-actions">
                     <button class="btn-sm btn-save" type="button" data-hinh-thuc="tien_mat">💵 Tiền mặt</button>
                     <button class="btn-sm btn-save" type="button" data-hinh-thuc="chuyen_khoan">🏦 Chuyển khoản</button>
                 </div>
             `
+            const inputTien = row.querySelector('.edit-tien')
+            const chuTien = row.querySelector('.tien-chu')
+            function capNhatTienChu() {
+                const raw = inputTien.value.trim()
+                const so = raw === '' ? null : Number(raw) * 1000
+                chuTien.textContent = so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+            }
+            inputTien.addEventListener('input', capNhatTienChu)
+            capNhatTienChu()
             row.querySelectorAll('.btn-save').forEach(btn => btn.addEventListener('click', async () => {
                 const hinhThuc = btn.dataset.hinhThuc
-                const raw = row.querySelector('.edit-tien').value.trim()
-                const tien = raw === '' ? null : Number(raw)
+                const raw = inputTien.value.trim()
+                const tien = raw === '' ? null : Number(raw) * 1000
                 if (tien !== null && (!Number.isFinite(tien) || tien < 0)) { showToast('Số tiền không hợp lệ', 'error'); return }
                 const { error } = await sb.from('kien').update({ tien_thu: tien, hinh_thuc_thu: tien === null ? null : hinhThuc }).eq('id', k.id)
                 if (error) { showToast('Lỗi lưu tiền thu: ' + error.message, 'error'); return }
