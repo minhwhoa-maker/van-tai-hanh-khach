@@ -15,6 +15,7 @@
             display: flex; align-items: center; gap: 12px; padding: 10px 16px;
             border-top: 1px solid var(--border); font-size: 14px;
         }
+        .kien-row.kien-row-da-giao { background: var(--success-light); }
         .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; }
         .lightbox {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -298,6 +299,7 @@
         function renderKienRowView(row, k) {
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
+            row.classList.toggle('kien-row-da-giao', daGiao)
             const coTien = k.tien_thu !== null && k.tien_thu !== undefined
             const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
             const thuHoConThieu = coThuHo && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
