@@ -205,7 +205,7 @@
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, tien_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
@@ -311,7 +311,7 @@
                     ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
-                    ${coTien ? `<div class="mota tien-thu">Đã thu: ${formatMoney(k.tien_thu)}</div>` : ''}
+                    ${coTien ? `<div class="mota tien-thu">Đã thu: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
                 </div>
                 <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
                 <div class="kien-actions">
@@ -382,21 +382,22 @@
                     <input type="number" inputmode="numeric" class="edit-tien" placeholder="Số tiền thu (đ)" value="${k.tien_thu ?? ''}">
                 </div>
                 <div class="kien-actions">
-                    <button class="btn-sm btn-save" type="button">Lưu</button>
-                    <button class="btn-sm btn-cancel" type="button">Hủy</button>
+                    <button class="btn-sm btn-save" type="button" data-hinh-thuc="tien_mat">💵 Tiền mặt</button>
+                    <button class="btn-sm btn-save" type="button" data-hinh-thuc="chuyen_khoan">🏦 Chuyển khoản</button>
                 </div>
             `
-            row.querySelector('.btn-save').addEventListener('click', async () => {
+            row.querySelectorAll('.btn-save').forEach(btn => btn.addEventListener('click', async () => {
+                const hinhThuc = btn.dataset.hinhThuc
                 const raw = row.querySelector('.edit-tien').value.trim()
                 const tien = raw === '' ? null : Number(raw)
                 if (tien !== null && (!Number.isFinite(tien) || tien < 0)) { showToast('Số tiền không hợp lệ', 'error'); return }
-                const { error } = await sb.from('kien').update({ tien_thu: tien }).eq('id', k.id)
+                const { error } = await sb.from('kien').update({ tien_thu: tien, hinh_thuc_thu: tien === null ? null : hinhThuc }).eq('id', k.id)
                 if (error) { showToast('Lỗi lưu tiền thu: ' + error.message, 'error'); return }
                 k.tien_thu = tien
+                k.hinh_thuc_thu = tien === null ? null : hinhThuc
                 showToast('Đã lưu tiền thu', 'success')
                 renderKienRowView(row, k)
-            })
-            row.querySelector('.btn-cancel').addEventListener('click', () => renderKienRowView(row, k))
+            }))
         }
 
         function openLightbox(url) {
