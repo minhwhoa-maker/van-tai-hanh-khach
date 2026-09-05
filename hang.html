@@ -45,6 +45,13 @@
         }
         .btn-cod-toggle.active { background: var(--warning); color: #fff; }
         #kien-thu-ho-wrap { display: none; margin-top: 10px; }
+        .qty-stepper { display: flex; align-items: center; gap: 16px; }
+        .btn-qty {
+            width: 44px; height: 44px; flex-shrink: 0; border-radius: 8px;
+            border: 1.5px solid var(--border); background: var(--white);
+            font-size: 20px; line-height: 1; cursor: pointer; color: var(--text);
+        }
+        #kien-soluong-display { font-size: 18px; font-weight: 600; min-width: 28px; text-align: center; }
     </style>
 </head>
 <body>
@@ -117,6 +124,14 @@
         <div id="kien-preview"><img id="kien-preview-img" alt=""></div>
         <div style="padding:0 16px;">
             <div class="form-group">
+                <label>Số lượng</label>
+                <div class="qty-stepper">
+                    <button type="button" id="btn-qty-minus" class="btn-qty">−</button>
+                    <span id="kien-soluong-display">1</span>
+                    <button type="button" id="btn-qty-plus" class="btn-qty">+</button>
+                </div>
+            </div>
+            <div class="form-group">
                 <label>SĐT người nhận</label>
                 <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)">
             </div>
@@ -150,6 +165,7 @@
         let selectedDiem = null   // { id, ten, tinh_ma }
         let allDiemInTinh = []
         let activePhotoBlob = null
+        let kienSoLuong = 1
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -328,6 +344,16 @@
             goToStep('step-anh')
         })
 
+        document.getElementById('btn-qty-minus').addEventListener('click', () => {
+            if (kienSoLuong <= 1) return
+            kienSoLuong--
+            document.getElementById('kien-soluong-display').textContent = kienSoLuong
+        })
+        document.getElementById('btn-qty-plus').addEventListener('click', () => {
+            kienSoLuong++
+            document.getElementById('kien-soluong-display').textContent = kienSoLuong
+        })
+
         document.getElementById('btn-thu-ho-toggle').addEventListener('click', function () {
             const active = this.classList.toggle('active')
             const wrap = document.getElementById('kien-thu-ho-wrap')
@@ -462,6 +488,7 @@
                 nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
+                so_luong: kienSoLuong,
                 tien_thu_ho: tienThuHo,
                 anh_blob: activePhotoBlob || null,
                 created_at: new Date().toISOString(),
@@ -475,6 +502,8 @@
             activePhotoBlob = null
             if (activePreviewUrl) { URL.revokeObjectURL(activePreviewUrl); activePreviewUrl = null }
             document.getElementById('kien-preview').style.display = 'none'
+            kienSoLuong = 1
+            document.getElementById('kien-soluong-display').textContent = '1'
             document.getElementById('kien-sdt').value = ''
             document.getElementById('kien-ghichu').value = ''
             document.getElementById('btn-thu-ho-toggle').classList.remove('active')
