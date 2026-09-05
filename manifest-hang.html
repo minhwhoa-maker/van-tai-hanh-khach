@@ -78,15 +78,19 @@
         }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
 
-        /* Dưới 600px: img+info+badge dùng chung 1 hàng, các form Sửa/Thu tiền (2 nút
-           Lưu/Hủy) xuống hàng riêng chiếm hết chiều rộng, to hơn cho dễ bấm tay trên xe. */
+        /* Dưới 600px: img+info+badge dùng chung 1 hàng, nút hành động (kể cả nút chính +
+           menu "⋯" của renderKienRowView, kể cả form Lưu/Hủy) luôn xuống hàng riêng chiếm
+           hết chiều rộng — .info có flex:1 + min-width:0 nên nếu để kien-actions chung
+           hàng với info, info sẽ bị bóp gần như bằng 0 thay vì tự xuống dòng (flex-wrap chỉ
+           ngắt dòng theo từng flex-item, không cứu được item co giãn được), khiến tên
+           điểm/SĐT/ghi chú vỡ chữ chồng chéo lên nhau. */
         @media (max-width: 600px) {
             .kien-row { flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding: 14px 16px; }
             .kien-row img { width: 56px; height: 56px; }
-            .kien-row-edit .kien-actions { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
-            .kien-row-edit .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
-            .btn-primary-action { padding: 12px 14px; font-size: 15px; }
+            .kien-actions { flex-basis: 100%; flex-wrap: wrap; gap: 8px; }
+            .btn-primary-action { flex: 1; padding: 12px 14px; font-size: 15px; }
             .btn-menu-more { width: 48px; height: 48px; font-size: 22px; }
+            .kien-row-edit .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
         }
     </style>
 </head>
