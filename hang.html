@@ -61,13 +61,22 @@
         }
         .btn-cod-toggle.active { background: var(--warning); color: #fff; }
         #kien-thu-ho-wrap { display: none; margin-top: 10px; }
-        .qty-stepper { display: flex; align-items: center; gap: 16px; }
-        .btn-qty {
-            width: 44px; height: 44px; flex-shrink: 0; border-radius: 8px;
-            border: 1.5px solid var(--border); background: var(--white);
-            font-size: 20px; line-height: 1; cursor: pointer; color: var(--text);
+        .loaihang-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-top: 8px;
+            background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
         }
-        #kien-soluong-display { font-size: 18px; font-weight: 600; min-width: 28px; text-align: center; }
+        .loaihang-item-ten { flex: 1; font-size: 15px; min-width: 0; }
+        .loaihang-item .qty-stepper-sm { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .loaihang-item .btn-qty-sm {
+            width: 32px; height: 32px; flex-shrink: 0; border-radius: 6px;
+            border: 1.5px solid var(--border); background: var(--white);
+            font-size: 16px; line-height: 1; cursor: pointer; color: var(--text);
+        }
+        .loaihang-item .item-qty { font-size: 15px; font-weight: 600; min-width: 20px; text-align: center; }
+        .loaihang-item .item-remove {
+            flex-shrink: 0; width: 28px; height: 28px; border: none; background: none;
+            color: var(--text-muted); font-size: 16px; cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -140,22 +149,14 @@
         <div id="kien-preview"><img id="kien-preview-img" alt=""></div>
         <div style="padding:0 16px;">
             <div class="form-group">
-                <label>Số lượng</label>
-                <div class="qty-stepper">
-                    <button type="button" id="btn-qty-minus" class="btn-qty">−</button>
-                    <span id="kien-soluong-display">1</span>
-                    <button type="button" id="btn-qty-plus" class="btn-qty">+</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Loại hàng</label>
+                <label>Số lượng / Loại hàng</label>
                 <div class="chip-row" id="loaihang-chips" style="padding:0;">
-                    <div class="chip" data-loai="Thùng giấy">Thùng giấy</div>
-                    <div class="chip" data-loai="Thùng xốp">Thùng xốp</div>
-                    <div class="chip" data-loai="Bao">Bao</div>
-                    <div class="chip" data-loai="__khac__">Khác...</div>
+                    <div class="chip" data-loai="Thùng giấy">+ Thùng giấy</div>
+                    <div class="chip" data-loai="Thùng xốp">+ Thùng xốp</div>
+                    <div class="chip" data-loai="Bao">+ Bao</div>
+                    <div class="chip" data-loai="__khac__">+ Khác...</div>
                 </div>
-                <input type="text" id="loaihang-khac" placeholder="Nhập loại hàng khác" style="display:none;margin-top:8px;width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+                <div id="loaihang-items"></div>
             </div>
             <div class="form-group">
                 <label>SĐT người nhận</label>
@@ -206,8 +207,7 @@
         let selectedDiem = null   // { id, ten, tinh_ma }
         let allDiemInTinh = []
         let activePhotoBlob = null
-        let kienSoLuong = 1
-        let selectedLoaiHang = null
+        let loaiHangItems = []   // [{ ten, soLuong }] — danh sách loại hàng + số lượng riêng từng loại
         let reviewPreviewUrl = null   // object URL của ảnh kiện vừa lưu, hiện ở step-review
 
         function showToast(msg, type = '') {
@@ -391,36 +391,56 @@
             goToStep('step-anh')
         })
 
-        document.getElementById('btn-qty-minus').addEventListener('click', () => {
-            if (kienSoLuong <= 1) return
-            kienSoLuong--
-            document.getElementById('kien-soluong-display').textContent = kienSoLuong
-        })
-        document.getElementById('btn-qty-plus').addEventListener('click', () => {
-            kienSoLuong++
-            document.getElementById('kien-soluong-display').textContent = kienSoLuong
-        })
+        // Loại hàng — mỗi lần bấm chip thêm 1 dòng vào danh sách (hoặc +1 số lượng nếu loại
+        // đó đã có trong danh sách), mỗi dòng có stepper riêng — cho trường hợp 1 kiện gồm
+        // nhiều loại khác nhau (vd 2 thùng giấy + 3 thùng xốp cùng 1 khách gửi 1 lúc).
+        // "Khác..." dùng prompt() để gõ tên tự do, đủ dùng cho trường hợp hiếm, không cần
+        // thêm UI riêng. Không chọn loại nào (danh sách rỗng) → mặc định 1 kiện, không phân
+        // loại, giống hành vi trước khi có tính năng này.
+        function renderLoaiHangItems() {
+            const wrap = document.getElementById('loaihang-items')
+            wrap.textContent = ''
+            loaiHangItems.forEach((item, idx) => {
+                const row = document.createElement('div')
+                row.className = 'loaihang-item'
+                row.innerHTML = `
+                    <span class="loaihang-item-ten">${item.ten}</span>
+                    <div class="qty-stepper-sm">
+                        <button type="button" class="btn-qty-sm item-minus">−</button>
+                        <span class="item-qty">${item.soLuong}</span>
+                        <button type="button" class="btn-qty-sm item-plus">+</button>
+                    </div>
+                    <button type="button" class="item-remove" aria-label="Xoá">✕</button>
+                `
+                row.querySelector('.item-minus').addEventListener('click', () => {
+                    if (item.soLuong <= 1) loaiHangItems.splice(idx, 1)
+                    else item.soLuong--
+                    renderLoaiHangItems()
+                })
+                row.querySelector('.item-plus').addEventListener('click', () => {
+                    item.soLuong++
+                    renderLoaiHangItems()
+                })
+                row.querySelector('.item-remove').addEventListener('click', () => {
+                    loaiHangItems.splice(idx, 1)
+                    renderLoaiHangItems()
+                })
+                wrap.appendChild(row)
+            })
+        }
 
-        // Loại hàng — chọn nhanh qua chip, "Khác..." hiện ô nhập tự do. Tạm thời chỉ có
-        // 3 loại phổ biến (Thùng giấy/Thùng xốp/Bao) + tự nhập, chưa cần bảng danh mục riêng.
         document.querySelectorAll('#loaihang-chips .chip').forEach(chip => {
             chip.addEventListener('click', () => {
-                document.querySelectorAll('#loaihang-chips .chip').forEach(c => c.classList.remove('selected'))
-                chip.classList.add('selected')
-                const khacInput = document.getElementById('loaihang-khac')
-                if (chip.dataset.loai === '__khac__') {
-                    khacInput.style.display = 'block'
-                    khacInput.focus()
-                    selectedLoaiHang = khacInput.value.trim() || null
-                } else {
-                    khacInput.style.display = 'none'
-                    khacInput.value = ''
-                    selectedLoaiHang = chip.dataset.loai
+                let ten = chip.dataset.loai
+                if (ten === '__khac__') {
+                    ten = (prompt('Nhập tên loại hàng:') || '').trim()
+                    if (!ten) return
                 }
+                const existed = loaiHangItems.find(i => i.ten === ten)
+                if (existed) existed.soLuong++
+                else loaiHangItems.push({ ten, soLuong: 1 })
+                renderLoaiHangItems()
             })
-        })
-        document.getElementById('loaihang-khac').addEventListener('input', function () {
-            selectedLoaiHang = this.value.trim() || null
         })
 
         document.getElementById('btn-thu-ho-toggle').addEventListener('click', function () {
@@ -582,6 +602,13 @@
                 cuocDaThu = raw === '' ? NaN : Number(raw) * 1000
                 if (!Number.isFinite(cuocDaThu) || cuocDaThu <= 0) { showToast('Nhập số tiền cước hợp lệ', 'error'); return }
             }
+            // Không chọn loại nào → 1 kiện, không phân loại (như trước khi có tính năng này).
+            // Có chọn → so_luong = tổng số lượng mọi loại, loai_hang = liệt kê từng loại kèm
+            // số lượng riêng (chỉ thêm "×N" khi N > 1, tránh lặp "×1" thừa).
+            const tongSoLuong = loaiHangItems.length ? loaiHangItems.reduce((s, i) => s + i.soLuong, 0) : 1
+            const loaiHangText = loaiHangItems.length
+                ? loaiHangItems.map(i => i.soLuong > 1 ? `${i.ten} ×${i.soLuong}` : i.ten).join(', ')
+                : null
             const record = {
                 id: crypto.randomUUID(),
                 chuyen_id: currentChuyen.id,
@@ -589,8 +616,8 @@
                 nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
-                so_luong: kienSoLuong,
-                loai_hang: selectedLoaiHang,
+                so_luong: tongSoLuong,
+                loai_hang: loaiHangText,
                 tien_thu: cuocDaThu,
                 tien_thu_ho: tienThuHo,
                 anh_blob: activePhotoBlob || null,
@@ -622,12 +649,8 @@
             activePhotoBlob = null
             activePreviewUrl = null
             document.getElementById('kien-preview').style.display = 'none'
-            kienSoLuong = 1
-            document.getElementById('kien-soluong-display').textContent = '1'
-            selectedLoaiHang = null
-            document.querySelectorAll('#loaihang-chips .chip').forEach(c => c.classList.remove('selected'))
-            document.getElementById('loaihang-khac').style.display = 'none'
-            document.getElementById('loaihang-khac').value = ''
+            loaiHangItems = []
+            renderLoaiHangItems()
             document.getElementById('kien-sdt').value = ''
             document.getElementById('kien-ghichu').value = ''
             document.getElementById('btn-thu-ho-toggle').classList.remove('active')
@@ -647,7 +670,7 @@
                 <div class="diem">${data.tenDiem} — ${data.tenTinh}</div>
                 ${data.sdt ? `<div class="mota">SĐT: ${data.sdt}</div>` : ''}
                 ${data.ghiChu ? `<div class="mota">${data.ghiChu}</div>` : ''}
-                ${data.loaiHang ? `<div class="mota">${data.loaiHang}${data.soLuong > 1 ? ` ×${data.soLuong}` : ''}</div>` : (data.soLuong > 1 ? `<div class="mota">Số lượng: ×${data.soLuong}</div>` : '')}
+                ${data.loaiHang ? `<div class="mota">${data.loaiHang}</div>` : (data.soLuong > 1 ? `<div class="mota">Số lượng: ×${data.soLuong}</div>` : '')}
                 ${data.tienThuHo != null && data.tienThuHo > 0 ? `<div class="cod">💰 Thu hộ: ${formatMoney(data.tienThuHo)}</div>` : ''}
                 ${data.tienThu != null ? `<div class="cuoc">💵 Đã thu cước: ${formatMoney(data.tienThu)}</div>` : ''}
             `
