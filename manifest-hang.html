@@ -13,6 +13,7 @@
     <style>
         body { background: var(--bg); padding-bottom: 40px; }
         .chuyen-select-wrap { padding: 16px; }
+        .chuyen-select-wrap select#chuyen-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tinh-group { margin: 0 16px 16px; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
         .tinh-group h3 { margin: 0; padding: 12px 16px; background: var(--bg); font-size: 16px; }
         .kien-row {
@@ -90,6 +91,10 @@
            hàng với info, info sẽ bị bóp gần như bằng 0 thay vì tự xuống dòng (flex-wrap chỉ
            ngắt dòng theo từng flex-item, không cứu được item co giãn được), khiến tên
            điểm/SĐT/ghi chú vỡ chữ chồng chéo lên nhau. */
+        @media (max-width: 480px) {
+            .chuyen-select-wrap { flex-direction: column; }
+            #btn-ket-thuc-chuyen { width: 100%; }
+        }
         @media (max-width: 600px) {
             .kien-row { flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding: 14px 16px; }
             .kien-row img { width: 56px; height: 56px; }
