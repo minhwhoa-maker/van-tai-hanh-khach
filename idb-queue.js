@@ -32,6 +32,16 @@ async function queueKien(record) {
     })
 }
 
+async function deleteKienLocal(id) {
+    const db = await openQueueDb()
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_KIEN, 'readwrite')
+        tx.objectStore(STORE_KIEN).delete(id)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+    })
+}
+
 async function getAllKienLocal() {
     const db = await openQueueDb()
     return new Promise((resolve, reject) => {

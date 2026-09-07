@@ -201,8 +201,9 @@
     <div class="step" id="step-review">
         <p style="padding:16px 16px 0; font-weight:600;">✅ Đã lưu kiện hàng</p>
         <div id="review-card"></div>
-        <div class="form-actions">
+        <div class="form-actions" style="flex-direction:column;">
             <button class="btn btn-full btn-success" id="btn-review-next" type="button">+ Nhập kiện tiếp theo</button>
+            <button class="btn btn-full" id="btn-review-edit" type="button" style="background:var(--white); color:var(--text); border:1.5px solid var(--border);">← Sửa lại kiện này</button>
         </div>
     </div>
 
@@ -222,6 +223,7 @@
         let activePhotoBlob = null
         let loaiHangItems = []   // [{ ten, soLuong }] — danh sách loại hàng + số lượng riêng từng loại
         let reviewPreviewUrl = null   // object URL của ảnh kiện vừa lưu, hiện ở step-review
+        let lastSaved = null   // snapshot kiện vừa lưu, dùng để khôi phục form khi bấm "Sửa lại"
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -648,6 +650,25 @@
             // tránh phải rời sang manifest-hang.html mới biết vừa lưu đúng chưa.
             if (reviewPreviewUrl) { URL.revokeObjectURL(reviewPreviewUrl); reviewPreviewUrl = null }
             reviewPreviewUrl = activePreviewUrl   // chuyển quyền sở hữu URL sang review, không revoke ở dưới
+
+            // Lưu lại toàn bộ thông tin vừa nhập (trước khi các field bị reset bên dưới) để
+            // nút "Sửa lại kiện này" có thể khôi phục form nếu crew phát hiện nhập sai.
+            lastSaved = {
+                id: record.id,
+                chuyen: currentChuyen,
+                tinh: selectedTinh,
+                diem: selectedDiem,
+                loaiHangItems: loaiHangItems.map(i => ({ ...i })),
+                sdt: record.nguoi_nhan_sdt,
+                ghiChu: record.ghi_chu,
+                thuHoActive,
+                tienThuHo,
+                cuocActive,
+                cuocDaThu,
+                photoBlob: record.anh_blob,
+                previewUrl: reviewPreviewUrl
+            }
+
             renderReviewCard({
                 tenDiem: selectedDiem.ten,
                 tenTinh: selectedTinh.ten,
@@ -693,7 +714,53 @@
 
         document.getElementById('btn-review-next').addEventListener('click', () => {
             if (reviewPreviewUrl) { URL.revokeObjectURL(reviewPreviewUrl); reviewPreviewUrl = null }
+            lastSaved = null
             goToStep('step-tinh')
+        })
+
+        // "Sửa lại kiện này" — huỷ kiện vừa lưu (cả local queue lẫn Supabase nếu đã kịp
+        // đồng bộ) rồi khôi phục lại toàn bộ form ở bước 3 với đúng dữ liệu vừa nhập, để
+        // crew sửa và lưu lại thay vì phải rời sang manifest-hang.html sửa tay từng field.
+        document.getElementById('btn-review-edit').addEventListener('click', async () => {
+            if (!lastSaved) return
+            const saved = lastSaved
+            lastSaved = null
+
+            await deleteKienLocal(saved.id)
+            sb.from('kien').delete().eq('id', saved.id).then(() => {})
+            if (saved.photoBlob) sb.storage.from('kien').remove([`${saved.id}.jpg`]).then(() => {})
+
+            currentChuyen = saved.chuyen
+            selectedTinh = saved.tinh
+            selectedDiem = saved.diem
+            updateChuyenBar()
+
+            loaiHangItems = saved.loaiHangItems
+            renderLoaiHangItems()
+            document.getElementById('kien-sdt').value = saved.sdt || ''
+            document.getElementById('kien-ghichu').value = saved.ghiChu || ''
+
+            document.getElementById('btn-thu-ho-toggle').classList.toggle('active', saved.thuHoActive)
+            document.getElementById('kien-thu-ho-wrap').style.display = saved.thuHoActive ? 'block' : 'none'
+            document.getElementById('kien-thu-ho').value = saved.thuHoActive ? saved.tienThuHo / 1000 : ''
+            document.getElementById('kien-thu-ho').dispatchEvent(new Event('input'))
+
+            document.getElementById('btn-cuoc-toggle').classList.toggle('active', saved.cuocActive)
+            document.getElementById('kien-cuoc-wrap').style.display = saved.cuocActive ? 'block' : 'none'
+            document.getElementById('kien-cuoc').value = saved.cuocActive ? saved.cuocDaThu / 1000 : ''
+            document.getElementById('kien-cuoc').dispatchEvent(new Event('input'))
+
+            activePhotoBlob = saved.photoBlob
+            activePreviewUrl = saved.previewUrl
+            reviewPreviewUrl = null
+            if (activePreviewUrl) {
+                document.getElementById('kien-preview-img').src = activePreviewUrl
+                document.getElementById('kien-preview').style.display = 'block'
+            } else {
+                document.getElementById('kien-preview').style.display = 'none'
+            }
+
+            goToStep('step-anh')
         })
 
         async function updateQueueStatus() {
