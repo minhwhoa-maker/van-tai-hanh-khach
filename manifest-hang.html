@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <title>Danh sách kiện hàng</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
@@ -75,8 +79,8 @@
             font-size: 14px; font-weight: 600;
         }
         .kien-row-edit input, .kien-row-edit textarea {
-            width: 100%; padding: 8px 10px; border: 1.5px solid var(--border);
-            border-radius: 6px; font-size: 14px; font-family: inherit;
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit;
         }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
 
@@ -106,7 +110,7 @@
     </div>
 
     <div class="chuyen-select-wrap" style="display:flex; gap:8px; align-items:stretch;">
-        <select id="chuyen-select" style="flex:1; min-width:0; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white"></select>
+        <select id="chuyen-select" style="flex:1; min-width:0; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
         <button id="btn-ket-thuc-chuyen" type="button" class="btn-sm btn-undone" style="display:none; flex-shrink:0; padding:0 14px; font-size:14px;">🏁 Kết thúc chuyến</button>
     </div>
 

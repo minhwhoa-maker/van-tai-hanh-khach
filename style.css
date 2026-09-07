@@ -108,6 +108,14 @@ body {
 }
 
 /* --- BUTTONS --- */
+/* .btn-icon: dùng cho nút icon-only trong header (vd hamburger "☰" ở btn-open-menu) — chỉ set
+   màu/nền/font-size qua inline style ở từng trang, class này lo phần vùng chạm tối thiểu 44px
+   (khuyến nghị Apple/Google cho touch target) mà trước đây bị thiếu hoàn toàn (class được gán
+   trong HTML nhưng chưa từng có rule CSS nào cho nó). */
+.btn-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 44px; min-height: 44px; padding: 8px;
+}
 .btn {
     background: var(--primary);
     color: white;

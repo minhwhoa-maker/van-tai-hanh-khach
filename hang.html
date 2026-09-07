@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <title>Nhập kiện hàng</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
@@ -104,7 +108,7 @@
         <div id="new-chuyen-form" style="display:none; padding:0 16px;">
             <div class="form-group">
                 <label>Chiều</label>
-                <select id="new-chuyen-chieu" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;color:#1a1a2e;background:white">
+                <select id="new-chuyen-chieu" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white">
                     <option value="bac">Bắc (Đắk Lắk → Hải Dương)</option>
                     <option value="nam">Nam (Hải Dương → Đắk Lắk)</option>
                 </select>
@@ -123,7 +127,7 @@
     <div class="step" id="step-diem">
         <p style="padding:16px 16px 0; font-weight:600;">2. Chọn điểm nhận/giao</p>
         <div style="padding:8px 16px;">
-            <input type="text" id="diem-search" placeholder="Gõ tên điểm..." style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+            <input type="text" id="diem-search" placeholder="Gõ tên điểm..." style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
         </div>
         <div class="diem-list" id="diem-list"></div>
         <div style="padding:8px 16px;">
@@ -160,21 +164,21 @@
             </div>
             <div class="form-group">
                 <label>SĐT người nhận</label>
-                <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)">
+                <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
             </div>
             <div class="form-group">
                 <label>Ghi chú</label>
-                <textarea id="kien-ghichu" placeholder="Ghi chú kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;"></textarea>
+                <textarea id="kien-ghichu" placeholder="Ghi chú kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;"></textarea>
             </div>
             <div class="form-group">
                 <button class="btn-cod-toggle" id="btn-thu-ho-toggle" type="button">💰 Thu hộ (COD)</button>
                 <div id="kien-thu-ho-wrap">
-                    <input type="number" inputmode="numeric" id="kien-thu-ho" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+                    <input type="number" inputmode="numeric" id="kien-thu-ho" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
                     <div id="kien-thu-ho-chu" style="font-size:13px;color:var(--text-muted);margin-top:4px;"></div>
                 </div>
                 <button class="btn-cod-toggle" id="btn-cuoc-toggle" type="button" style="margin-top:8px;">✅ Đã thu cước</button>
                 <div id="kien-cuoc-wrap" style="display:none; margin-top:10px;">
-                    <input type="number" inputmode="numeric" id="kien-cuoc" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+                    <input type="number" inputmode="numeric" id="kien-cuoc" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
                     <div id="kien-cuoc-chu" style="font-size:13px;color:var(--text-muted);margin-top:4px;"></div>
                 </div>
             </div>

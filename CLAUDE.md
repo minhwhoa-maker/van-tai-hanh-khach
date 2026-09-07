@@ -33,6 +33,36 @@ Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không buil
   - **`auth-callback.html`** — chỉ dùng cho nhánh Zalo: gọi `sb.auth.verifyOtp({ email, token: token_hash, type: 'magiclink' })` client-side để thiết lập session thật, rồi vào `hang.html`.
   - **⚠️ TODO trước khi go-live**: endpoint/tên tham số Zalo OAuth v4 trong `api/zalo-login.js`/`api/zalo-callback.js` viết theo hiểu biết chung (doc `developers.zalo.me` là SPA, không fetch được nội dung lúc viết) — đối chiếu lại với doc thật + test end-to-end bằng 2 tài khoản Zalo khác nhau trước khi dùng thật.
 
+## Tối ưu mobile / PWA (checklist khi thêm UI mới)
+
+Sau 1 đợt audit toàn bộ 5 trang HTML, các quy ước sau áp dụng xuyên suốt app — giữ nguyên khi
+thêm form/nút mới:
+
+- **Mọi `<input>`/`<textarea>`/`<select>` phải `font-size: 16px` trở lên** — dưới 16px khiến
+  Safari iOS tự động zoom vào khi focus (hành vi mặc định của iOS, không tắt được bằng
+  `user-scalable=no` một cách đáng tin cậy). Không áp dụng cho chip/button dạng text (`.chip`,
+  `.btn-cod-toggle`...) vì đó không phải ô nhập, không kích hoạt zoom.
+- **Nút icon-only (không có text, vd hamburger `☰`) phải đạt tối thiểu 44×44px vùng chạm**
+  (khuyến nghị Apple HIG/Material Design) — dùng class `.btn-icon` (định nghĩa ở `style.css`,
+  dùng chung cho `#btn-open-menu` ở cả 3 trang `hang.html`/`manifest-hang.html`/
+  `lich-su-chuyen.html`). Từng có bug thật: class `.btn-icon` được gán trong HTML nhưng
+  KHÔNG có rule CSS nào cho tới khi audit này phát hiện — vùng chạm trước đó chỉ bằng đúng
+  kích thước glyph icon (~22px), dưới ngưỡng khuyến nghị.
+- **Input trong form sửa tại chỗ của `manifest-hang.html`** (`.kien-row-edit input`,
+  `.kien-row-edit textarea` — dùng chung cho cả 3 hàm `renderKienRowEdit`/`renderKienRowThuTien`/
+  `renderKienRowViTri`) — 1 rule CSS duy nhất áp cho toàn bộ, padding `12px 14px`, font-size
+  `16px`. Từng bị đặt quá nhỏ (padding `8px 10px`, font-size `14px`) — đã bump lên cùng chuẩn
+  với input ở `hang.html`.
+- **Cả 5 trang đều có đủ bộ thẻ PWA/iOS trong `<head>`** (ngay sau viewport meta):
+  `theme-color` (khớp `var(--primary)` `#1565c0`), `apple-mobile-web-app-capable`,
+  `apple-mobile-web-app-status-bar-style`, `apple-touch-icon` (trỏ `icons/icon-192.png`).
+  Thiếu bộ này thì "Thêm vào màn hình chính" trên iOS dùng ảnh chụp màn hình làm icon (thay vì
+  icon app thật) và có thể mở kèm thanh địa chỉ Safari thay vì standalone — `manifest.json`
+  (`display: standalone`) chỉ đủ cho Android/Chrome, iOS Safari cần thêm các meta tag riêng này.
+  Lưu ý `manifest.json` khai `theme_color: #2563eb` (khác `#1565c0` của CSS/meta tag) — lệch nhẹ
+  có từ trước, chưa đồng bộ lại vì đổi giá trị trong `manifest.json` ảnh hưởng icon/theme đã cài
+  trên máy crew, cần cân nhắc riêng chứ không sửa tuỳ tiện.
+
 ## Tiện ích dùng chung (`shared.js`)
 
 - `formatDate(dateStr)` — hiện giờ + ngày âm lịch + ngày dương, vd `13:03 - 20/7 ÂL - 01/09/26`, dùng cho label chuyến ở cả `hang.html` và `manifest-hang.html`. Âm lịch tính bằng thuật toán Hồ Ngọc Đức viết thuần JS ngay trong file (`convertSolar2Lunar` + các hàm phụ trợ `_jdFromDate`/`_newMoon`/`_sunLongitude`/...), không phụ thuộc thư viện ngoài, múi giờ cố định UTC+7 (khớp app chỉ chạy tuyến trong nước).
