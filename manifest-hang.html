@@ -180,7 +180,7 @@
         document.getElementById('btn-ket-thuc-chuyen').addEventListener('click', async () => {
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (!chuyen) return
-            if (!confirm('Kết thúc chuyến này? Sẽ không thể nhập thêm kiện mới cho chuyến này ở trang "Nhập kiện" nữa.')) return
+            if (!(await confirmDialog('Kết thúc chuyến này? Sẽ không thể nhập thêm kiện mới cho chuyến này ở trang "Nhập kiện" nữa.'))) return
             const { error } = await sb.from('chuyen').update({ trang_thai: 'xong' }).eq('id', chuyen.id)
             if (error) { showToast('Lỗi kết thúc chuyến: ' + error.message, 'error'); return }
             chuyen.trang_thai = 'xong'
@@ -523,7 +523,7 @@
         // ẩn khỏi manifest qua .neq('trang_thai', 'huy') ở loadManifest. Gọi lại loadManifest
         // thay vì chỉ row.remove() để tự ẩn tiêu đề tỉnh nếu đó là kiện cuối cùng của tỉnh đó.
         async function huyDon(row, k) {
-            if (!confirm(`Hủy đơn kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Không thể hoàn tác qua giao diện.`)) return
+            if (!(await confirmDialog(`Hủy đơn kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Không thể hoàn tác qua giao diện.`, { danger: true, okText: 'Hủy đơn' }))) return
             const { error } = await sb.from('kien').update({ trang_thai: 'huy' }).eq('id', k.id)
             if (error) { showToast('Lỗi hủy đơn: ' + error.message, 'error'); return }
             showToast('Đã hủy đơn', 'success')

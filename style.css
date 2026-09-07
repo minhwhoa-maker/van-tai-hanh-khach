@@ -809,6 +809,36 @@ tr:hover td { background: #f9f9fc; }
 .side-drawer-panel nav a:hover { background: var(--bg); }
 .side-drawer-panel hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
 
+/* ===== CONFIRM DIALOG ===== */
+/* Thay confirm() gốc trình duyệt — dialog gốc hiện tên miền "xxx says" ở đầu, nhìn không giống
+   1 phần của app thật, đặc biệt khó hiểu với crew khi chạy PWA standalone (không có thanh địa
+   chỉ để biết dialog đó "đến từ đâu"). Dùng confirmDialog() ở shared.js, trả về Promise<boolean>. */
+.confirm-dialog {
+    position: fixed; inset: 0; z-index: 2000; visibility: hidden;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.confirm-dialog.open { visibility: visible; }
+.confirm-dialog-backdrop {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+    opacity: 0; transition: opacity .15s;
+}
+.confirm-dialog.open .confirm-dialog-backdrop { opacity: 1; }
+.confirm-dialog-card {
+    position: relative; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 20px; max-width: 340px; width: 100%;
+    transform: scale(0.95); opacity: 0; transition: transform .15s, opacity .15s;
+}
+.confirm-dialog.open .confirm-dialog-card { transform: scale(1); opacity: 1; }
+.confirm-dialog-msg { font-size: 15px; color: var(--text); line-height: 1.5; margin-bottom: 20px; white-space: pre-line; }
+.confirm-dialog-actions { display: flex; gap: 10px; }
+.confirm-dialog-actions button {
+    flex: 1; padding: 12px; min-height: 44px; border-radius: var(--radius-sm);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.confirm-dialog-cancel { border: 1.5px solid var(--border); background: var(--white); color: var(--text); }
+.confirm-dialog-ok { border: none; color: #fff; background: var(--primary); }
+.confirm-dialog-ok.danger { background: var(--danger); }
+
 /* Owner-only UI: ẩn mặc định, hiện khi body có class role-owner.
    Tránh flash of unauthorized UI khi supervisor login. */
 .owner-only { display: none !important; }

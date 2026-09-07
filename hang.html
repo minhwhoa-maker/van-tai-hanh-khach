@@ -373,7 +373,7 @@
             const ten = document.getElementById('diem-search').value.trim()
             if (!ten) { showToast('Nhập tên điểm trước', 'error'); return }
             const trung = timDiemTrung(allDiemInTinh, ten)
-            if (trung.length && !confirm(`Đã có điểm gần giống: "${trung[0].ten}". Vẫn tạo điểm mới?`)) return
+            if (trung.length && !(await confirmDialog(`Đã có điểm gần giống: "${trung[0].ten}". Vẫn tạo điểm mới?`))) return
             const { data, error } = await sb.from('diem').insert({
                 tinh_ma: selectedTinh.ma,
                 ten,

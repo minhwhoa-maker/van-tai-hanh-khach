@@ -140,6 +140,51 @@ function renderSideMenu(sb) {
     return { open, close }
 }
 
+// Thay confirm() gốc trình duyệt — xem lý do ở comment .confirm-dialog trong style.css.
+// Dựng 1 lần, tái dùng cho mọi lần gọi sau (giống pattern renderSideMenu). options.danger tô
+// đỏ nút xác nhận cho hành động phá huỷ/không hoàn tác được (vd "Hủy đơn").
+let _confirmDialogEl = null
+function confirmDialog(message, { danger = false, okText = 'Xác nhận', cancelText = 'Hủy' } = {}) {
+    if (!_confirmDialogEl) {
+        _confirmDialogEl = document.createElement('div')
+        _confirmDialogEl.className = 'confirm-dialog'
+        _confirmDialogEl.innerHTML = `
+            <div class="confirm-dialog-backdrop"></div>
+            <div class="confirm-dialog-card">
+                <div class="confirm-dialog-msg"></div>
+                <div class="confirm-dialog-actions">
+                    <button type="button" class="confirm-dialog-cancel"></button>
+                    <button type="button" class="confirm-dialog-ok"></button>
+                </div>
+            </div>
+        `
+        document.body.appendChild(_confirmDialogEl)
+    }
+    const overlay = _confirmDialogEl
+    const okBtn = overlay.querySelector('.confirm-dialog-ok')
+    const cancelBtn = overlay.querySelector('.confirm-dialog-cancel')
+    overlay.querySelector('.confirm-dialog-msg').textContent = message
+    okBtn.textContent = okText
+    cancelBtn.textContent = cancelText
+    okBtn.classList.toggle('danger', danger)
+
+    return new Promise(resolve => {
+        function cleanup(result) {
+            overlay.classList.remove('open')
+            okBtn.removeEventListener('click', onOk)
+            cancelBtn.removeEventListener('click', onCancel)
+            overlay.querySelector('.confirm-dialog-backdrop').removeEventListener('click', onCancel)
+            resolve(result)
+        }
+        function onOk() { cleanup(true) }
+        function onCancel() { cleanup(false) }
+        okBtn.addEventListener('click', onOk)
+        cancelBtn.addEventListener('click', onCancel)
+        overlay.querySelector('.confirm-dialog-backdrop').addEventListener('click', onCancel)
+        overlay.classList.add('open')
+    })
+}
+
 // === Âm lịch (thuật toán Hồ Ngọc Đức, múi giờ VN = UTC+7) ===
 function _int(d) { return Math.floor(d); }
 
