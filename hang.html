@@ -38,6 +38,13 @@
         .current-chuyen-bar {
             padding: 10px 16px; background: var(--white); border-bottom: 1px solid var(--border);
             font-size: 13px; color: var(--text-muted); display: none;
+            align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .current-chuyen-bar.show { display: flex; }
+        .btn-xem-manifest {
+            flex-shrink: 0; padding: 6px 12px; border-radius: 14px; border: 1.5px solid var(--primary);
+            background: var(--white); color: var(--primary); font-size: 12px; font-weight: 600;
+            text-decoration: none; white-space: nowrap;
         }
         .btn-cod-toggle {
             padding: 10px 16px; border-radius: 20px; border: 1.5px solid var(--warning);
@@ -187,10 +194,14 @@
 
         function updateChuyenBar() {
             const bar = document.getElementById('current-chuyen-bar')
-            if (!currentChuyen) { bar.style.display = 'none'; return }
+            if (!currentChuyen) { bar.classList.remove('show'); return }
             const chieuLabel = currentChuyen.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
-            bar.textContent = `Chuyến: ${chieuLabel}${currentChuyen.ghi_chu ? ' — ' + currentChuyen.ghi_chu : ''}`
-            bar.style.display = 'block'
+            const label = `Chuyến: ${chieuLabel}${currentChuyen.ghi_chu ? ' — ' + currentChuyen.ghi_chu : ''}`
+            bar.innerHTML = `
+                <span>${label}</span>
+                <a class="btn-xem-manifest" href="manifest-hang.html?chuyen_id=${currentChuyen.id}" target="_blank" rel="noopener">📋 Xem danh sách</a>
+            `
+            bar.classList.add('show')
         }
 
         function renderChuyenItem(c) {
