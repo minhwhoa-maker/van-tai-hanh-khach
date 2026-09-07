@@ -309,8 +309,8 @@
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
-                    <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
-                    ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
+                    <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
+                    ${k.loai_hang ? `<div class="mota">${k.loai_hang}${k.so_luong > 1 ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>` : ''}
                     ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
