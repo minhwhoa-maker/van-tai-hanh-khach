@@ -88,7 +88,13 @@
         }
         .loaihang-item .btn-qty-sm.item-plus { border-color: var(--primary); color: var(--primary); }
         .loaihang-item .btn-qty-sm.item-minus { border-color: var(--danger); color: var(--danger); }
-        .loaihang-item .item-qty { font-size: 15px; font-weight: 600; min-width: 20px; text-align: center; }
+        .loaihang-item .item-qty-input {
+            width: 48px; flex-shrink: 0; text-align: center; font-size: 16px; font-weight: 600;
+            border: 1.5px solid var(--border); border-radius: 6px; padding: 6px 2px; color: var(--text);
+        }
+        .loaihang-item .item-qty-input::-webkit-outer-spin-button,
+        .loaihang-item .item-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .loaihang-item .item-qty-input[type=number] { -moz-appearance: textfield; }
         .loaihang-item .item-remove {
             flex-shrink: 0; width: 28px; height: 28px; border: none; background: none;
             color: var(--text-muted); font-size: 16px; cursor: pointer;
@@ -424,11 +430,12 @@
                     <span class="loaihang-item-ten">${item.ten}</span>
                     <div class="qty-stepper-sm">
                         <button type="button" class="btn-qty-sm item-minus">−</button>
-                        <span class="item-qty">${item.soLuong}</span>
+                        <input type="number" inputmode="numeric" class="item-qty-input" value="${item.soLuong}" min="1">
                         <button type="button" class="btn-qty-sm item-plus">+</button>
                     </div>
                     <button type="button" class="item-remove" aria-label="Xoá">✕</button>
                 `
+                const qtyInput = row.querySelector('.item-qty-input')
                 row.querySelector('.item-minus').addEventListener('click', () => {
                     if (item.soLuong <= 1) loaiHangItems.splice(idx, 1)
                     else item.soLuong--
@@ -437,6 +444,18 @@
                 row.querySelector('.item-plus').addEventListener('click', () => {
                     item.soLuong++
                     renderLoaiHangItems()
+                })
+                // Gõ tay số lượng — không re-render khi đang gõ (mất focus/con trỏ giữa
+                // chừng), chỉ chuẩn hoá (số nguyên dương, mặc định 1 nếu bỏ trống/không hợp
+                // lệ) lúc rời khỏi ô (blur).
+                qtyInput.addEventListener('input', () => {
+                    const n = parseInt(qtyInput.value, 10)
+                    if (Number.isFinite(n) && n > 0) item.soLuong = n
+                })
+                qtyInput.addEventListener('blur', () => {
+                    const n = parseInt(qtyInput.value, 10)
+                    item.soLuong = Number.isFinite(n) && n > 0 ? n : 1
+                    qtyInput.value = item.soLuong
                 })
                 row.querySelector('.item-remove').addEventListener('click', () => {
                     loaiHangItems.splice(idx, 1)
