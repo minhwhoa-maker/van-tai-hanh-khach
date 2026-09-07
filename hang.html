@@ -37,8 +37,9 @@
         .diem-item.selected, .chuyen-item.selected { border-color: var(--primary); background: #eaf2fc; }
         .chuyen-item .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
         .camera-box {
-            margin: 16px; padding: 24px; border: 2px dashed var(--border); border-radius: var(--radius);
-            text-align: center; background: var(--white); cursor: pointer;
+            margin: 16px; padding: 24px; border: 2px dashed var(--primary); border-radius: var(--radius);
+            text-align: center; background: linear-gradient(135deg, #eaf2fc, #f5f9ff); cursor: pointer;
+            color: var(--primary); font-weight: 600;
         }
         #kien-preview { display: none; margin: 0 16px 16px; }
         #camera-live { display: none; margin: 16px; }
@@ -64,10 +65,20 @@
         }
         .btn-cod-toggle.active { background: var(--warning); color: #fff; }
         #kien-thu-ho-wrap { display: none; margin-top: 10px; }
+        .chip[data-loai="Thùng giấy"] { border-color: #c17a2e; color: #a3621f; background: #fdf3e7; }
+        .chip[data-loai="Thùng xốp"]  { border-color: #2196c9; color: #1a7ba3; background: #e6f6fc; }
+        .chip[data-loai="Bao"]        { border-color: var(--success); color: var(--success); background: var(--success-light); }
+        .chip[data-loai="__khac__"]   { border-color: #8e5fd1; color: #7548b8; background: #f3edfc; }
         .loaihang-item {
             display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-top: 8px;
-            background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--white); border: 1.5px solid var(--border); border-left: 5px solid var(--border);
+            border-radius: var(--radius-sm);
         }
+        .loaihang-item[data-loai="Thùng giấy"] { border-left-color: #c17a2e; }
+        .loaihang-item[data-loai="Thùng xốp"]  { border-left-color: #2196c9; }
+        .loaihang-item[data-loai="Bao"]        { border-left-color: var(--success); }
+        .loaihang-item[data-loai="khac"]       { border-left-color: #8e5fd1; }
+        .loaihang-item-icon { font-size: 18px; flex-shrink: 0; }
         .loaihang-item-ten { flex: 1; font-size: 15px; min-width: 0; }
         .loaihang-item .qty-stepper-sm { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .loaihang-item .btn-qty-sm {
@@ -75,6 +86,8 @@
             border: 1.5px solid var(--border); background: var(--white);
             font-size: 16px; line-height: 1; cursor: pointer; color: var(--text);
         }
+        .loaihang-item .btn-qty-sm.item-plus { border-color: var(--primary); color: var(--primary); }
+        .loaihang-item .btn-qty-sm.item-minus { border-color: var(--danger); color: var(--danger); }
         .loaihang-item .item-qty { font-size: 15px; font-weight: 600; min-width: 20px; text-align: center; }
         .loaihang-item .item-remove {
             flex-shrink: 0; width: 28px; height: 28px; border: none; background: none;
@@ -151,10 +164,10 @@
             <div class="form-group">
                 <label>Số lượng / Loại hàng</label>
                 <div class="chip-row" id="loaihang-chips" style="padding:0;">
-                    <div class="chip" data-loai="Thùng giấy">+ Thùng giấy</div>
-                    <div class="chip" data-loai="Thùng xốp">+ Thùng xốp</div>
-                    <div class="chip" data-loai="Bao">+ Bao</div>
-                    <div class="chip" data-loai="__khac__">+ Khác...</div>
+                    <div class="chip" data-loai="Thùng giấy">📦 + Thùng giấy</div>
+                    <div class="chip" data-loai="Thùng xốp">🧊 + Thùng xốp</div>
+                    <div class="chip" data-loai="Bao">🛍️ + Bao</div>
+                    <div class="chip" data-loai="__khac__">✨ + Khác...</div>
                 </div>
                 <div id="loaihang-items"></div>
             </div>
@@ -395,13 +408,17 @@
         // "Khác..." dùng prompt() để gõ tên tự do, đủ dùng cho trường hợp hiếm, không cần
         // thêm UI riêng. Không chọn loại nào (danh sách rỗng) → mặc định 1 kiện, không phân
         // loại, giống hành vi trước khi có tính năng này.
+        const LOAI_HANG_ICON = { 'Thùng giấy': '📦', 'Thùng xốp': '🧊', 'Bao': '🛍️' }
+
         function renderLoaiHangItems() {
             const wrap = document.getElementById('loaihang-items')
             wrap.textContent = ''
             loaiHangItems.forEach((item, idx) => {
                 const row = document.createElement('div')
                 row.className = 'loaihang-item'
+                row.dataset.loai = LOAI_HANG_ICON[item.ten] ? item.ten : 'khac'
                 row.innerHTML = `
+                    <span class="loaihang-item-icon">${LOAI_HANG_ICON[item.ten] || '✨'}</span>
                     <span class="loaihang-item-ten">${item.ten}</span>
                     <div class="qty-stepper-sm">
                         <button type="button" class="btn-qty-sm item-minus">−</button>
