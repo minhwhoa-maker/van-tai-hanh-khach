@@ -29,7 +29,6 @@
             background: var(--white); cursor: pointer; font-size: 15px; color: var(--text);
         }
         .chip.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
-        #btn-toggle-new-chuyen:disabled { opacity: 0.5; cursor: not-allowed; }
         .diem-list, .chuyen-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
         .diem-item, .chuyen-item {
             padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
@@ -101,9 +100,6 @@
         <div class="chuyen-list" id="chuyen-list"></div>
         <div style="padding:8px 16px;">
             <button class="btn btn-full" id="btn-toggle-new-chuyen" type="button">+ Tạo chuyến mới</button>
-            <div id="new-chuyen-blocked-note" style="display:none; color:var(--text-muted); font-size:13px; margin-top:6px;">
-                Đang có chuyến chạy — chọn chuyến ở trên để tiếp tục, không tạo chuyến mới khi chuyến cũ chưa xong.
-            </div>
         </div>
         <div id="new-chuyen-form" style="display:none; padding:0 16px;">
             <div class="form-group">
@@ -260,10 +256,8 @@
             wrap.textContent = ''
 
             const btnNewChuyen = document.getElementById('btn-toggle-new-chuyen')
-            const blockedNote = document.getElementById('new-chuyen-blocked-note')
             const hasActive = data.length > 0
-            btnNewChuyen.disabled = hasActive
-            blockedNote.style.display = hasActive ? 'block' : 'none'
+            btnNewChuyen.style.display = hasActive ? 'none' : ''
             if (hasActive) document.getElementById('new-chuyen-form').style.display = 'none'
 
             if (!data.length) {
