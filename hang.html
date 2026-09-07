@@ -148,6 +148,16 @@
                 </div>
             </div>
             <div class="form-group">
+                <label>Loại hàng</label>
+                <div class="chip-row" id="loaihang-chips" style="padding:0;">
+                    <div class="chip" data-loai="Thùng giấy">Thùng giấy</div>
+                    <div class="chip" data-loai="Thùng xốp">Thùng xốp</div>
+                    <div class="chip" data-loai="Bao">Bao</div>
+                    <div class="chip" data-loai="__khac__">Khác...</div>
+                </div>
+                <input type="text" id="loaihang-khac" placeholder="Nhập loại hàng khác" style="display:none;margin-top:8px;width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:15px;">
+            </div>
+            <div class="form-group">
                 <label>SĐT người nhận</label>
                 <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)">
             </div>
@@ -197,6 +207,7 @@
         let allDiemInTinh = []
         let activePhotoBlob = null
         let kienSoLuong = 1
+        let selectedLoaiHang = null
         let reviewPreviewUrl = null   // object URL của ảnh kiện vừa lưu, hiện ở step-review
 
         function showToast(msg, type = '') {
@@ -390,6 +401,28 @@
             document.getElementById('kien-soluong-display').textContent = kienSoLuong
         })
 
+        // Loại hàng — chọn nhanh qua chip, "Khác..." hiện ô nhập tự do. Tạm thời chỉ có
+        // 3 loại phổ biến (Thùng giấy/Thùng xốp/Bao) + tự nhập, chưa cần bảng danh mục riêng.
+        document.querySelectorAll('#loaihang-chips .chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('#loaihang-chips .chip').forEach(c => c.classList.remove('selected'))
+                chip.classList.add('selected')
+                const khacInput = document.getElementById('loaihang-khac')
+                if (chip.dataset.loai === '__khac__') {
+                    khacInput.style.display = 'block'
+                    khacInput.focus()
+                    selectedLoaiHang = khacInput.value.trim() || null
+                } else {
+                    khacInput.style.display = 'none'
+                    khacInput.value = ''
+                    selectedLoaiHang = chip.dataset.loai
+                }
+            })
+        })
+        document.getElementById('loaihang-khac').addEventListener('input', function () {
+            selectedLoaiHang = this.value.trim() || null
+        })
+
         document.getElementById('btn-thu-ho-toggle').addEventListener('click', function () {
             const active = this.classList.toggle('active')
             const wrap = document.getElementById('kien-thu-ho-wrap')
@@ -557,6 +590,7 @@
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
                 so_luong: kienSoLuong,
+                loai_hang: selectedLoaiHang,
                 tien_thu: cuocDaThu,
                 tien_thu_ho: tienThuHo,
                 anh_blob: activePhotoBlob || null,
@@ -578,6 +612,7 @@
                 sdt: record.nguoi_nhan_sdt,
                 ghiChu: record.ghi_chu,
                 soLuong: record.so_luong,
+                loaiHang: record.loai_hang,
                 tienThu: record.tien_thu,
                 tienThuHo: record.tien_thu_ho,
                 photoUrl: reviewPreviewUrl
@@ -589,6 +624,10 @@
             document.getElementById('kien-preview').style.display = 'none'
             kienSoLuong = 1
             document.getElementById('kien-soluong-display').textContent = '1'
+            selectedLoaiHang = null
+            document.querySelectorAll('#loaihang-chips .chip').forEach(c => c.classList.remove('selected'))
+            document.getElementById('loaihang-khac').style.display = 'none'
+            document.getElementById('loaihang-khac').value = ''
             document.getElementById('kien-sdt').value = ''
             document.getElementById('kien-ghichu').value = ''
             document.getElementById('btn-thu-ho-toggle').classList.remove('active')
@@ -608,7 +647,7 @@
                 <div class="diem">${data.tenDiem} — ${data.tenTinh}</div>
                 ${data.sdt ? `<div class="mota">SĐT: ${data.sdt}</div>` : ''}
                 ${data.ghiChu ? `<div class="mota">${data.ghiChu}</div>` : ''}
-                ${data.soLuong > 1 ? `<div class="mota">Số lượng: ×${data.soLuong}</div>` : ''}
+                ${data.loaiHang ? `<div class="mota">${data.loaiHang}${data.soLuong > 1 ? ` ×${data.soLuong}` : ''}</div>` : (data.soLuong > 1 ? `<div class="mota">Số lượng: ×${data.soLuong}</div>` : '')}
                 ${data.tienThuHo != null && data.tienThuHo > 0 ? `<div class="cod">💰 Thu hộ: ${formatMoney(data.tienThuHo)}</div>` : ''}
                 ${data.tienThu != null ? `<div class="cuoc">💵 Đã thu cước: ${formatMoney(data.tienThu)}</div>` : ''}
             `

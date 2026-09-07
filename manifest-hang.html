@@ -205,7 +205,7 @@
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
                 .order('created_at', { ascending: true })
@@ -310,6 +310,7 @@
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
+                    ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
                     ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
