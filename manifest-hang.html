@@ -207,6 +207,7 @@
                 .from('kien')
                 .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
+                .neq('trang_thai', 'huy')
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
@@ -322,6 +323,7 @@
                         <button type="button" class="menu-sua">Sửa</button>
                         ${daGiao ? '<button type="button" class="menu-huygiao">Hủy giao</button>' : ''}
                         ${daGiao ? `<button type="button" class="menu-thutien">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
+                        ${!daGiao ? '<button type="button" class="menu-huydon">Hủy đơn</button>' : ''}
                     </div>
                 </div>
             `
@@ -330,6 +332,7 @@
             row.querySelector('.menu-sua').addEventListener('click', () => renderKienRowEdit(row, k))
             row.querySelector('.menu-huygiao')?.addEventListener('click', () => toggleDaGiao(row, k))
             row.querySelector('.menu-thutien')?.addEventListener('click', () => renderKienRowThuTien(row, k))
+            row.querySelector('.menu-huydon')?.addEventListener('click', () => huyDon(row, k))
             row.querySelector('.btn-menu-more').addEventListener('click', (e) => {
                 e.stopPropagation()
                 const menu = row.querySelector('.kien-menu')
@@ -507,6 +510,20 @@
                 const { error: diemErr } = await sb.from('diem').update(toaDoMoi).eq('id', k.diem.id)
                 if (!diemErr) Object.assign(k.diem, toaDoMoi)
             }
+        }
+
+        // Hủy hẳn 1 kiện vì khách đổi ý không gửi nữa — khác "Hủy giao" (chỉ đảo trang_thai
+        // giữa chua_giao/da_giao). Chỉ cho hủy khi chưa giao (xem điều kiện hiện nút ở
+        // renderKienRowView). Không xoá bản ghi, set trang_thai = 'huy' để đối chiếu sau,
+        // ẩn khỏi manifest qua .neq('trang_thai', 'huy') ở loadManifest. Gọi lại loadManifest
+        // thay vì chỉ row.remove() để tự ẩn tiêu đề tỉnh nếu đó là kiện cuối cùng của tỉnh đó.
+        async function huyDon(row, k) {
+            if (!confirm(`Hủy đơn kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Không thể hoàn tác qua giao diện.`)) return
+            const { error } = await sb.from('kien').update({ trang_thai: 'huy' }).eq('id', k.id)
+            if (error) { showToast('Lỗi hủy đơn: ' + error.message, 'error'); return }
+            showToast('Đã hủy đơn', 'success')
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            if (chuyen) loadManifest(chuyen)
         }
 
         const { open: openMenu } = renderSideMenu(sb)
