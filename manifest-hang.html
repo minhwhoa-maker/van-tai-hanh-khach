@@ -450,12 +450,29 @@
             }))
         }
 
+        // Lightbox tự push 1 history entry khi mở — không có entry này thì bấm Back/vuốt
+        // gesture Android lúc đang xem ảnh phóng to sẽ thoát thẳng khỏi PWA (đóng lightbox
+        // không tính là 1 điều hướng thật nên trình duyệt không có gì để lùi lại), thay vì
+        // chỉ đóng ảnh như crew mong đợi. Cùng pattern history-guard với hang.html nhưng đơn
+        // giản hơn vì chỉ có 1 trạng thái mở/đóng (không phải nhiều bước).
+        let lightboxOpen = false
         function openLightbox(url) {
             document.getElementById('lightbox-img').src = url
             document.getElementById('lightbox').classList.add('show')
+            if (!lightboxOpen) history.pushState({ lightbox: true }, '', location.href)
+            lightboxOpen = true
+        }
+        function closeLightboxUI() {
+            document.getElementById('lightbox').classList.remove('show')
+            lightboxOpen = false
         }
         document.getElementById('lightbox').addEventListener('click', () => {
-            document.getElementById('lightbox').classList.remove('show')
+            if (!lightboxOpen) return
+            closeLightboxUI()
+            history.back()   // tiêu thụ entry vừa push lúc mở, tránh phải bấm Back 2 lần khi rời trang sau đó
+        })
+        window.addEventListener('popstate', () => {
+            if (lightboxOpen) closeLightboxUI()
         })
 
         // Đóng menu "⋯" của dòng kiện khi bấm ra ngoài — đăng ký 1 lần ở đây thay vì
