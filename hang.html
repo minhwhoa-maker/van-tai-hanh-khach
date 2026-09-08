@@ -240,13 +240,15 @@
 
         // Xử lý phím Back Android / vuốt back trong luồng nhiều bước: các bước chuyển bằng
         // JS thuần (show/hide .step), không đổi URL nên mặc định KHÔNG có history entry nào
-        // để trình duyệt lùi lại — bấm Back ở bước 2/3/4 sẽ thoát thẳng ra khỏi PWA. Dùng
-        // pattern "1 history entry giả (guard) tái tạo mỗi lần" thay vì push 1 entry thật
-        // cho MỖI bước: chỉ cần tối đa 1 entry thừa trong history thật bất kể đang sâu bao
-        // nhiêu bước — nguồn sự thật duy nhất về "đang ở bước nào/lùi về đâu" là mảng
-        // `stepStack` tự quản lý trong JS, KHÔNG đọc từ `event.state` (tránh lệch nếu bấm
-        // Back nhanh liên tiếp). Bước gốc (`step-chuyen`, luôn hiện đầu tiên khi mở trang)
-        // không có guard — Back ở đó rơi về hành vi mặc định của trình duyệt/PWA (thoát app).
+        // để trình duyệt lùi lại — bấm Back sẽ thoát thẳng ra khỏi PWA thay vì lùi bước. Dùng
+        // pattern "1 history entry giả (guard) tái tạo mỗi lần" thay vì push 1 entry thật cho
+        // MỖI bước: chỉ cần tối đa 1 entry thừa trong history thật bất kể đang sâu bao nhiêu
+        // bước — nguồn sự thật duy nhất về "đang ở bước nào/lùi về đâu" là mảng `stepStack`
+        // tự quản lý trong JS, KHÔNG đọc từ `event.state` (tránh lệch nếu bấm Back nhanh liên
+        // tiếp). Guard được giữ ở MỌI bước kể cả bước gốc (`step-chuyen`) — theo yêu cầu Back
+        // không bao giờ thoát PWA, chỉ lùi bước trong app; ở bước gốc thì Back coi như no-op
+        // (render lại chính bước gốc, tái lập guard) thay vì rơi về hành vi mặc định của
+        // trình duyệt.
         let stepStack = ['step-chuyen']
         let backGuardActive = false
 
@@ -272,15 +274,15 @@
             } else if (stepStack[stepStack.length - 1] !== id) {
                 stepStack.push(id)
             }
-            if (stepStack.length > 1) pushBackGuard()
+            pushBackGuard()
         }
+        pushBackGuard()   // giữ guard ngay từ lúc mở trang — bước gốc cũng không thoát PWA khi bấm Back
 
         window.addEventListener('popstate', () => {
-            if (stepStack.length <= 1) return   // đang ở bước gốc — để hành vi mặc định xảy ra
             backGuardActive = false   // entry guard vừa bị "tiêu thụ" bởi lần back này
-            stepStack.pop()
+            if (stepStack.length > 1) stepStack.pop()   // ở bước gốc thì giữ nguyên, không pop nữa
             renderStep(stepStack[stepStack.length - 1])
-            if (stepStack.length > 1) pushBackGuard()   // còn sâu hơn bước gốc — tái lập bẫy cho lần Back kế tiếp
+            pushBackGuard()   // luôn tái lập bẫy — kể cả ở bước gốc — để Back lần sau vẫn không thoát app
         })
 
         function updateChuyenBar() {
