@@ -21,6 +21,7 @@
             border-top: 1px solid var(--border); font-size: 14px;
         }
         .kien-row.kien-row-da-giao { background: var(--success-light); }
+        .kien-row.kien-row-tra-lai { background: #f2ede6; }
         .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; }
         .lightbox {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -35,6 +36,7 @@
         .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
         .badge.chua_giao { background: #fdecea; color: var(--danger); }
         .badge.da_giao { background: #eafaf1; color: var(--success); }
+        .badge.tra_lai { background: #e9e2d6; color: #8a6d3b; }
         .kien-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
         .btn-sm {
             padding: 6px 10px; font-size: 12px; border-radius: 6px;
@@ -195,7 +197,8 @@
             const btn = document.getElementById('btn-ket-thuc-chuyen')
             if (!chuyen || chuyen.trang_thai === 'xong') { btn.style.display = 'none'; return }
             btn.style.display = 'block'
-            const daXongHet = !!(kienList && kienList.every(k => k.trang_thai === 'da_giao'))
+            // 'tra_lai' tính là đã xử lý xong (không còn chờ giao) — không chặn kết thúc chuyến.
+            const daXongHet = !!(kienList && kienList.every(k => k.trang_thai === 'da_giao' || k.trang_thai === 'tra_lai'))
             btn.disabled = !daXongHet
             btn.style.opacity = daXongHet ? '1' : '0.5'
             btn.style.cursor = daXongHet ? 'pointer' : 'not-allowed'
@@ -205,7 +208,7 @@
         document.getElementById('btn-ket-thuc-chuyen').addEventListener('click', async () => {
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (!chuyen) return
-            if (chuyen.trang_thai !== 'xong' && !currentKienList.every(k => k.trang_thai === 'da_giao')) {
+            if (chuyen.trang_thai !== 'xong' && !currentKienList.every(k => k.trang_thai === 'da_giao' || k.trang_thai === 'tra_lai')) {
                 showToast('Còn kiện hàng chưa giao — giao hết mới kết thúc được chuyến', 'error')
                 return
             }
@@ -240,7 +243,7 @@
                 .from('kien')
                 .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
-                .not('trang_thai', 'in', '(huy,tra_lai)')
+                .neq('trang_thai', 'huy')
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
             currentKienList = kienList
@@ -284,7 +287,9 @@
         // thực thu, nhập lúc "Hoàn thành") để biết còn kiện nào thu hộ chưa thu đủ.
         function renderCodSummary(kienList) {
             const el = document.getElementById('cod-summary')
-            const codKiens = kienList.filter(k => k.tien_thu_ho != null && k.tien_thu_ho > 0)
+            // Kiện đã 'tra_lai' không còn khả năng thu COD nữa (hàng đã mang về) — loại khỏi
+            // cảnh báo, dù vẫn hiện trong danh sách dạng "Hàng hoàn" ở createKienRow.
+            const codKiens = kienList.filter(k => k.trang_thai !== 'tra_lai' && k.tien_thu_ho != null && k.tien_thu_ho > 0)
             const chuaThuDu = codKiens.filter(k => Number(k.tien_thu || 0) < Number(k.tien_thu_ho))
             // Chỉ cảnh báo khi còn kiện thu hộ chưa thu đủ — đã thu đủ hết thì tắt banner,
             // không còn gì để cảnh báo nữa.
@@ -344,33 +349,38 @@
         function renderKienRowView(row, k) {
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
+            const traLai = k.trang_thai === 'tra_lai'
+            const chuaGiao = !daGiao && !traLai
             row.classList.toggle('kien-row-da-giao', daGiao)
+            row.classList.toggle('kien-row-tra-lai', traLai)
             const coTien = k.tien_thu !== null && k.tien_thu !== undefined
-            const thuTruocKhiGiao = coTien && !daGiao
+            const thuTruocKhiGiao = coTien && chuaGiao
             const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
-            const thuHoConThieu = coThuHo && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
+            const thuHoConThieu = coThuHo && !traLai && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
             const soLanThuLienLac = demSoLanThuLienLac(k.ghi_chu)
+            const badgeLabel = daGiao ? 'Đã giao' : traLai ? 'Hàng hoàn' : 'Chưa giao'
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
-                    ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}${!daGiao && soLanThuLienLac ? ` — Đã thử liên lạc: ${soLanThuLienLac} lần` : ''}</div>` : ''}
+                    ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}${chuaGiao && soLanThuLienLac ? ` — Đã thử liên lạc: ${soLanThuLienLac} lần` : ''}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
-                    ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
+                    ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : traLai ? ' (đã hoàn, không thu nữa)' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
                 </div>
-                <span class="badge ${k.trang_thai}">${daGiao ? 'Đã giao' : 'Chưa giao'}</span>
+                <span class="badge ${k.trang_thai}">${badgeLabel}</span>
                 <div class="kien-actions">
-                    ${daGiao ? '' : '<button class="btn-primary-action" type="button">Hoàn thành</button>'}
+                    ${chuaGiao ? '<button class="btn-primary-action" type="button">Hoàn thành</button>' : ''}
                     <button class="btn-menu-more" type="button" aria-label="Thêm thao tác">⋯</button>
                     <div class="kien-menu">
                         <button type="button" class="menu-sua">Sửa</button>
                         ${daGiao ? '<button type="button" class="menu-huygiao">Hủy giao</button>' : ''}
                         ${daGiao ? `<button type="button" class="menu-thutien">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
-                        ${!daGiao ? '<button type="button" class="menu-dagoi">📞 Ghi nhận đã gọi</button>' : ''}
-                        ${!daGiao ? '<button type="button" class="menu-tralai">↩️ Trả hàng</button>' : ''}
-                        ${!daGiao ? '<button type="button" class="menu-huydon">Hủy đơn</button>' : ''}
+                        ${chuaGiao ? '<button type="button" class="menu-dagoi">📞 Ghi nhận đã gọi</button>' : ''}
+                        ${chuaGiao ? '<button type="button" class="menu-tralai">↩️ Trả hàng</button>' : ''}
+                        ${chuaGiao ? '<button type="button" class="menu-huydon">Hủy đơn</button>' : ''}
+                        ${traLai ? '<button type="button" class="menu-khoiphuc">↺ Khôi phục (bỏ trả hàng)</button>' : ''}
                     </div>
                 </div>
             `
@@ -382,6 +392,7 @@
             row.querySelector('.menu-dagoi')?.addEventListener('click', () => ghiNhanDaGoi(row, k))
             row.querySelector('.menu-tralai')?.addEventListener('click', () => traHang(row, k))
             row.querySelector('.menu-huydon')?.addEventListener('click', () => huyDon(row, k))
+            row.querySelector('.menu-khoiphuc')?.addEventListener('click', () => khoiPhucTraLai(row, k))
             row.querySelector('.btn-menu-more').addEventListener('click', (e) => {
                 e.stopPropagation()
                 const menu = row.querySelector('.kien-menu')
@@ -605,10 +616,22 @@
         async function traHang(row, k) {
             const soLan = demSoLanThuLienLac(k.ghi_chu)
             const canhBao = soLan === 0 ? '\n\n⚠ Chưa ghi nhận lần gọi nào cho kiện này.' : ''
-            if (!(await confirmDialog(`Đánh dấu TRẢ HÀNG kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ biến mất khỏi danh sách chuyến này, cần tạo kiện mới ở chuyến chiều ngược để mang về.${canhBao}`, { danger: true, okText: 'Trả hàng' }))) return
+            if (!(await confirmDialog(`Đánh dấu TRẢ HÀNG kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ chuyển sang trạng thái "Hàng hoàn" trong danh sách chuyến này, cần tạo kiện mới ở chuyến chiều ngược để mang về.${canhBao}`, { danger: true, okText: 'Trả hàng' }))) return
             const { error } = await sb.from('kien').update({ trang_thai: 'tra_lai' }).eq('id', k.id)
             if (error) { showToast('Lỗi trả hàng: ' + error.message, 'error'); return }
             showToast('Đã đánh dấu trả hàng', 'success')
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            if (chuyen) loadManifest(chuyen)
+        }
+
+        // "Khôi phục (bỏ trả hàng)" — đảo ngược traHang khi bấm nhầm, đưa kiện về 'chua_giao'
+        // để crew xử lý lại bình thường. Không có ràng buộc gì đặc biệt (khác toggleDaGiao
+        // không cần GPS ở chiều này).
+        async function khoiPhucTraLai(row, k) {
+            if (!(await confirmDialog(`Bỏ đánh dấu trả hàng cho kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ quay lại trạng thái "Chưa giao".`))) return
+            const { error } = await sb.from('kien').update({ trang_thai: 'chua_giao' }).eq('id', k.id)
+            if (error) { showToast('Lỗi khôi phục: ' + error.message, 'error'); return }
+            showToast('Đã khôi phục', 'success')
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (chuyen) loadManifest(chuyen)
         }
