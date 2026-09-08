@@ -702,10 +702,11 @@
             }
             // Không chọn loại nào → 1 kiện, không phân loại (như trước khi có tính năng này).
             // Có chọn → so_luong = tổng số lượng mọi loại, loai_hang = liệt kê từng loại kèm
-            // số lượng riêng (chỉ thêm "×N" khi N > 1, tránh lặp "×1" thừa).
+            // số lượng riêng, LUÔN ghi số ở đầu vd "1 Thùng xốp, 2 Thùng giấy" — trước đây chỉ
+            // thêm "×N" khi N > 1 (ẩn số lúc N = 1), đổi theo yêu cầu để số lượng luôn hiện rõ.
             const tongSoLuong = loaiHangItems.length ? loaiHangItems.reduce((s, i) => s + i.soLuong, 0) : 1
             const loaiHangText = loaiHangItems.length
-                ? loaiHangItems.map(i => i.soLuong > 1 ? `${i.ten} ×${i.soLuong}` : i.ten).join(', ')
+                ? loaiHangItems.map(i => `${i.soLuong} ${i.ten}`).join(', ')
                 : null
             const record = {
                 id: crypto.randomUUID(),
