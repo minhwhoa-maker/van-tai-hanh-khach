@@ -408,6 +408,13 @@
             document.querySelectorAll('#tinh-chips .chip').forEach(c => c.classList.remove('selected'))
             chipEl.classList.add('selected')
             selectedTinh = tinh
+            // Xoá sạch ô tìm kiếm + danh sách gợi ý của lượt chọn điểm TRƯỚC (nếu có) ngay khi
+            // chọn tỉnh — trước đây cả 2 giữ nguyên giá trị cũ cho tới khi loadDiem() (async)
+            // trả về, nên giữa lúc chờ mạng, "Nhập kiện tiếp theo" rồi chọn lại 1 tỉnh sẽ vẫn
+            // hiện thấy text đã gõ + điểm đã chọn của kiện TRƯỚC, dễ nhầm là gợi ý cho kiện mới.
+            document.getElementById('diem-search').value = ''
+            allDiemInTinh = []
+            renderDiemList([])
             loadDiem(tinh.ma)
             goToStep('step-diem')
         }
@@ -416,6 +423,10 @@
         // UNIQUE(tinh_ma, ten_norm) — DB tự chặn trùng khi insert.
         async function loadDiem(tinhMa) {
             const { data, error } = await sb.from('diem').select('id, ten, ten_norm, tinh_ma').eq('tinh_ma', tinhMa).order('ten')
+            // Bấm đổi tỉnh liên tiếp nhanh có thể khiến request TRƯỚC trả về SAU request MỚI
+            // (race condition) — chỉ áp dụng kết quả nếu vẫn đang chọn đúng tỉnh đã gọi, tránh
+            // ghi đè danh sách của tỉnh đang chọn bằng dữ liệu của tỉnh đã rời khỏi.
+            if (!selectedTinh || selectedTinh.ma !== tinhMa) return
             if (error) { showToast('Lỗi tải điểm: ' + error.message, 'error'); return }
             allDiemInTinh = data || []
             renderDiemList(allDiemInTinh)
