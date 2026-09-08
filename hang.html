@@ -162,6 +162,7 @@
     <!-- Step 3: ảnh + thông tin kiện -->
     <div class="step" id="step-anh">
         <p style="padding:16px 16px 0; font-weight:600;">3. Chụp ảnh kiện hàng</p>
+        <div id="anh-diem-info" style="margin:8px 16px 0; padding:10px 14px; border-radius:var(--radius-sm); background:#eaf2fc; color:var(--primary); font-weight:600; font-size:14px;"></div>
         <div class="camera-box" id="camera-box">
             <input type="file" accept="image/*" capture="environment" id="kien-camera-input" style="display:none;">
             <div>📷 Chạm để chụp ảnh</div>
@@ -270,6 +271,16 @@
         function renderStep(id) {
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'))
             document.getElementById(id).classList.add('active')
+            // Bước 3 (chụp ảnh) cách xa bước chọn điểm 1 màn hình — crew dễ quên đang nhập
+            // cho điểm nào, nhất là sau khi cuộn xuống lâu để chụp ảnh/nhập tiền. Hiện lại
+            // tỉnh + tên điểm đã chọn ngay trên khung chụp ảnh để đối chiếu tại chỗ, không
+            // cần lùi lại bước 2. Cập nhật ở đây (thay vì tại từng nơi gọi goToStep('step-anh'))
+            // vì mọi đường vào step-anh (chọn điểm có sẵn, tạo điểm mới, "Sửa lại kiện này")
+            // đều đã set xong selectedTinh/selectedDiem trước khi renderStep chạy.
+            if (id === 'step-anh') {
+                const info = document.getElementById('anh-diem-info')
+                info.textContent = selectedTinh && selectedDiem ? `📍 ${selectedDiem.ten} — ${selectedTinh.ten}` : ''
+            }
         }
 
         // opts.stack: dùng cho các chuyển bước KHÔNG phải "tiến thêm 1 bước" mà là "khởi
