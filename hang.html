@@ -238,10 +238,50 @@
             setTimeout(() => toast.className = 'toast', 3000)
         }
 
-        function goToStep(id) {
+        // Xử lý phím Back Android / vuốt back trong luồng nhiều bước: các bước chuyển bằng
+        // JS thuần (show/hide .step), không đổi URL nên mặc định KHÔNG có history entry nào
+        // để trình duyệt lùi lại — bấm Back ở bước 2/3/4 sẽ thoát thẳng ra khỏi PWA. Dùng
+        // pattern "1 history entry giả (guard) tái tạo mỗi lần" thay vì push 1 entry thật
+        // cho MỖI bước: chỉ cần tối đa 1 entry thừa trong history thật bất kể đang sâu bao
+        // nhiêu bước — nguồn sự thật duy nhất về "đang ở bước nào/lùi về đâu" là mảng
+        // `stepStack` tự quản lý trong JS, KHÔNG đọc từ `event.state` (tránh lệch nếu bấm
+        // Back nhanh liên tiếp). Bước gốc (`step-chuyen`, luôn hiện đầu tiên khi mở trang)
+        // không có guard — Back ở đó rơi về hành vi mặc định của trình duyệt/PWA (thoát app).
+        let stepStack = ['step-chuyen']
+        let backGuardActive = false
+
+        function pushBackGuard() {
+            if (backGuardActive) return
+            history.pushState({ hangGuard: true }, '', location.href)
+            backGuardActive = true
+        }
+
+        function renderStep(id) {
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'))
             document.getElementById(id).classList.add('active')
         }
+
+        // opts.stack: dùng cho các chuyển bước KHÔNG phải "tiến thêm 1 bước" mà là "khởi
+        // động lại luồng từ 1 mốc giữa chừng" (vd "Nhập kiện tiếp theo" quay về bước 1 để
+        // nhập kiện mới, "Sửa lại kiện này" quay về bước 3 với tỉnh/điểm đã chọn lại) — thay
+        // hẳn stepStack thay vì push nối đuôi, để Back sau đó lùi đúng ngữ cảnh mới.
+        function goToStep(id, opts = {}) {
+            renderStep(id)
+            if (opts.stack) {
+                stepStack = opts.stack.slice()
+            } else if (stepStack[stepStack.length - 1] !== id) {
+                stepStack.push(id)
+            }
+            if (stepStack.length > 1) pushBackGuard()
+        }
+
+        window.addEventListener('popstate', () => {
+            if (stepStack.length <= 1) return   // đang ở bước gốc — để hành vi mặc định xảy ra
+            backGuardActive = false   // entry guard vừa bị "tiêu thụ" bởi lần back này
+            stepStack.pop()
+            renderStep(stepStack[stepStack.length - 1])
+            if (stepStack.length > 1) pushBackGuard()   // còn sâu hơn bước gốc — tái lập bẫy cho lần Back kế tiếp
+        })
 
         function updateChuyenBar() {
             const bar = document.getElementById('current-chuyen-bar')
@@ -734,7 +774,7 @@
         document.getElementById('btn-review-next').addEventListener('click', () => {
             if (reviewPreviewUrl) { URL.revokeObjectURL(reviewPreviewUrl); reviewPreviewUrl = null }
             lastSaved = null
-            goToStep('step-tinh')
+            goToStep('step-tinh', { stack: ['step-chuyen', 'step-tinh'] })
         })
 
         // "Sửa lại kiện này" — huỷ kiện vừa lưu (cả local queue lẫn Supabase nếu đã kịp
@@ -779,7 +819,7 @@
                 document.getElementById('kien-preview').style.display = 'none'
             }
 
-            goToStep('step-anh')
+            goToStep('step-anh', { stack: ['step-chuyen', 'step-tinh', 'step-diem', 'step-anh'] })
         })
 
         async function updateQueueStatus() {
