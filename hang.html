@@ -697,6 +697,7 @@
 
         document.getElementById('btn-save-kien').addEventListener('click', async () => {
             if (!currentChuyen || !selectedTinh || !selectedDiem) { showToast('Thiếu chuyến/tỉnh/điểm', 'error'); return }
+            if (!loaiHangItems.length) { showToast('Chọn ít nhất 1 loại hàng trước khi lưu', 'error'); return }
             const thuHoActive = document.getElementById('btn-thu-ho-toggle').classList.contains('active')
             let tienThuHo = null
             if (thuHoActive) {
@@ -711,14 +712,12 @@
                 cuocDaThu = raw === '' ? NaN : Number(raw) * 1000
                 if (!Number.isFinite(cuocDaThu) || cuocDaThu <= 0) { showToast('Nhập số tiền cước hợp lệ', 'error'); return }
             }
-            // Không chọn loại nào → 1 kiện, không phân loại (như trước khi có tính năng này).
-            // Có chọn → so_luong = tổng số lượng mọi loại, loai_hang = liệt kê từng loại kèm
-            // số lượng riêng, LUÔN ghi số ở đầu vd "1 Thùng xốp, 2 Thùng giấy" — trước đây chỉ
-            // thêm "×N" khi N > 1 (ẩn số lúc N = 1), đổi theo yêu cầu để số lượng luôn hiện rõ.
-            const tongSoLuong = loaiHangItems.length ? loaiHangItems.reduce((s, i) => s + i.soLuong, 0) : 1
-            const loaiHangText = loaiHangItems.length
-                ? loaiHangItems.map(i => `${i.soLuong} ${i.ten}`).join(', ')
-                : null
+            // so_luong = tổng số lượng mọi loại, loai_hang = liệt kê từng loại kèm số lượng
+            // riêng, LUÔN ghi số ở đầu vd "1 Thùng xốp, 2 Thùng giấy" — trước đây chỉ thêm
+            // "×N" khi N > 1 (ẩn số lúc N = 1), đổi theo yêu cầu để số lượng luôn hiện rõ.
+            // loaiHangItems chắc chắn không rỗng ở đây nhờ validate bên trên.
+            const tongSoLuong = loaiHangItems.reduce((s, i) => s + i.soLuong, 0)
+            const loaiHangText = loaiHangItems.map(i => `${i.soLuong} ${i.ten}`).join(', ')
             const record = {
                 id: crypto.randomUUID(),
                 chuyen_id: currentChuyen.id,
