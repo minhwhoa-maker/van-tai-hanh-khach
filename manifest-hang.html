@@ -134,6 +134,7 @@
         const sb = createSb()
         let chuyenList = []
         let currentKienList = []   // kiện của chuyến đang chọn — dùng để bật/ẩn nút "Kết thúc chuyến" khi trạng thái giao đổi tại chỗ
+        let chuyenDaXong = false   // chuyến đang chọn đã trang_thai = 'xong' — khoá mọi thao tác sửa kiện, xem renderKienRowView
 
         // Gọi lại sau mỗi lần đổi trạng thái 1 kiện tại chỗ (không reload cả manifest) để nút
         // "Kết thúc chuyến" cập nhật đúng ngay, không phải đợi F5/đổi chuyến.
@@ -231,6 +232,7 @@
         async function loadManifest(chuyen) {
             const wrap = document.getElementById('list-wrap')
             wrap.textContent = ''
+            chuyenDaXong = chuyen.trang_thai === 'xong'
             updateEndTripButton(chuyen)   // ẩn nút trong lúc chờ tải kiện — bật lại đúng điều kiện bên dưới khi có kienList
 
             const { data: tinhList, error: tinhErr } = await sb
@@ -370,6 +372,7 @@
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
                 </div>
                 <span class="badge ${k.trang_thai}">${badgeLabel}</span>
+                ${chuyenDaXong ? '' : `
                 <div class="kien-actions">
                     ${chuaGiao ? '<button class="btn-primary-action" type="button">Hoàn thành</button>' : ''}
                     <button class="btn-menu-more" type="button" aria-label="Thêm thao tác">⋯</button>
@@ -383,17 +386,20 @@
                         ${traLai ? '<button type="button" class="menu-khoiphuc">↺ Khôi phục (bỏ trả hàng)</button>' : ''}
                     </div>
                 </div>
+                `}
             `
+            // chuyenDaXong: không render .kien-actions ở trên nên không có gì để gắn listener
+            // — mọi querySelector bên dưới trả về null, ?. tự bỏ qua an toàn.
             const btnPrimary = row.querySelector('.btn-primary-action')
             if (btnPrimary) btnPrimary.addEventListener('click', () => toggleDaGiao(row, k))
-            row.querySelector('.menu-sua').addEventListener('click', () => renderKienRowEdit(row, k))
+            row.querySelector('.menu-sua')?.addEventListener('click', () => renderKienRowEdit(row, k))
             row.querySelector('.menu-huygiao')?.addEventListener('click', () => toggleDaGiao(row, k))
             row.querySelector('.menu-thutien')?.addEventListener('click', () => renderKienRowThuTien(row, k))
             row.querySelector('.menu-dagoi')?.addEventListener('click', () => ghiNhanDaGoi(row, k))
             row.querySelector('.menu-tralai')?.addEventListener('click', () => traHang(row, k))
             row.querySelector('.menu-huydon')?.addEventListener('click', () => huyDon(row, k))
             row.querySelector('.menu-khoiphuc')?.addEventListener('click', () => khoiPhucTraLai(row, k))
-            row.querySelector('.btn-menu-more').addEventListener('click', (e) => {
+            row.querySelector('.btn-menu-more')?.addEventListener('click', (e) => {
                 e.stopPropagation()
                 const menu = row.querySelector('.kien-menu')
                 const wasOpen = menu.classList.contains('open')
