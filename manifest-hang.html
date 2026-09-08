@@ -184,19 +184,31 @@
             if (chuyen) loadManifest(chuyen)
         })
 
-        // Chỉ hiện nút khi chuyến chưa xong VÀ không còn kiện nào ở trạng thái 'chua_giao' —
-        // ép giao hết hàng rồi mới kết thúc được chuyến, tránh bấm nhầm khi còn hàng chưa
-        // giao xong. `kienList` optional: khi gọi sớm lúc chưa kịp tải kiện thì ẩn nút, chờ
-        // `loadManifest` gọi lại lần 2 kèm kienList thật.
+        // Nút luôn hiển thị (không ẩn hẳn) nhưng chỉ BẤM ĐƯỢC khi chuyến chưa xong VÀ không
+        // còn kiện nào ở trạng thái 'chua_giao' — ép giao hết hàng rồi mới kết thúc được
+        // chuyến, tránh bấm nhầm khi còn hàng chưa giao xong, nhưng crew vẫn thấy nút ở đó
+        // để biết còn thao tác gì cần làm (khác bản trước ẩn hẳn, dễ gây cảm giác "mất nút").
+        // `kienList` optional: khi gọi sớm lúc chưa kịp tải kiện thì khoá nút, chờ
+        // `loadManifest` gọi lại lần 2 kèm kienList thật. Chuyến đã 'xong' thì ẩn hẳn — không
+        // còn gì để kết thúc nữa.
         function updateEndTripButton(chuyen, kienList) {
             const btn = document.getElementById('btn-ket-thuc-chuyen')
-            const daXongHet = kienList && kienList.every(k => k.trang_thai === 'da_giao')
-            btn.style.display = chuyen && chuyen.trang_thai !== 'xong' && daXongHet ? 'block' : 'none'
+            if (!chuyen || chuyen.trang_thai === 'xong') { btn.style.display = 'none'; return }
+            btn.style.display = 'block'
+            const daXongHet = !!(kienList && kienList.every(k => k.trang_thai === 'da_giao'))
+            btn.disabled = !daXongHet
+            btn.style.opacity = daXongHet ? '1' : '0.5'
+            btn.style.cursor = daXongHet ? 'pointer' : 'not-allowed'
+            btn.title = daXongHet ? '' : 'Còn kiện hàng chưa giao — giao hết mới kết thúc được chuyến'
         }
 
         document.getElementById('btn-ket-thuc-chuyen').addEventListener('click', async () => {
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (!chuyen) return
+            if (chuyen.trang_thai !== 'xong' && !currentKienList.every(k => k.trang_thai === 'da_giao')) {
+                showToast('Còn kiện hàng chưa giao — giao hết mới kết thúc được chuyến', 'error')
+                return
+            }
             if (!(await confirmDialog('Kết thúc chuyến này? Sẽ không thể nhập thêm kiện mới cho chuyến này ở trang "Nhập kiện" nữa.'))) return
             const { error } = await sb.from('chuyen').update({ trang_thai: 'xong' }).eq('id', chuyen.id)
             if (error) { showToast('Lỗi kết thúc chuyến: ' + error.message, 'error'); return }
