@@ -77,7 +77,7 @@
                 .from('kien')
                 .select('chuyen_id, tien_thu, tien_thu_ho')
                 .in('chuyen_id', chuyenList.map(c => c.id))
-                .neq('trang_thai', 'huy')
+                .not('trang_thai', 'in', '(huy,tra_lai)')
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
             const dangChay = chuyenList.filter(c => c.trang_thai === 'dang_chay')

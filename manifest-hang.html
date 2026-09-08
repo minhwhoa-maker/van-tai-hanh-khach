@@ -31,7 +31,7 @@
         .kien-row .info { flex: 1; min-width: 0; }
         .kien-row .diem { font-weight: 600; }
         .kien-row .so-luong { color: var(--primary); font-weight: 600; font-size: 13px; }
-        .kien-row .mota { color: var(--text-muted); font-size: 13px; }
+        .kien-row .mota { color: var(--text-muted); font-size: 13px; white-space: pre-line; }
         .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
         .badge.chua_giao { background: #fdecea; color: var(--danger); }
         .badge.da_giao { background: #eafaf1; color: var(--success); }
@@ -240,7 +240,7 @@
                 .from('kien')
                 .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
-                .neq('trang_thai', 'huy')
+                .not('trang_thai', 'in', '(huy,tra_lai)')
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
             currentKienList = kienList
@@ -333,6 +333,14 @@
         // Chưa giao: chính = "Hoàn thành", menu chỉ có "Sửa". Đã giao: không có hành động
         // gấp nào (mọi thao tác ở đây là sửa sai, tần suất thấp) nên chỉ còn menu, gộp cả
         // "Sửa" / "Hủy giao" / "Sửa tiền".
+        // Đếm số dòng "[HH:mm dd/MM] ..." đã append vào ghi_chu qua "Ghi nhận đã gọi" — chỉ
+        // gợi ý hiển thị cho crew cân nhắc lúc nào bấm "Trả hàng", KHÔNG chặn hành động nào,
+        // KHÔNG giới hạn số lần thử (quyết định nghiệp vụ: để crew tự quyết).
+        function demSoLanThuLienLac(ghiChu) {
+            if (!ghiChu) return 0
+            return ghiChu.split('\n').filter(dong => dong.trimStart().startsWith('[')).length
+        }
+
         function renderKienRowView(row, k) {
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
@@ -341,12 +349,13 @@
             const thuTruocKhiGiao = coTien && !daGiao
             const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
             const thuHoConThieu = coThuHo && Number(k.tien_thu || 0) < Number(k.tien_thu_ho)
+            const soLanThuLienLac = demSoLanThuLienLac(k.ghi_chu)
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
-                    ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}</div>` : ''}
+                    ${k.nguoi_nhan_sdt ? `<div class="mota">SĐT: ${k.nguoi_nhan_sdt}${!daGiao && soLanThuLienLac ? ` — Đã thử liên lạc: ${soLanThuLienLac} lần` : ''}</div>` : ''}
                     ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
@@ -359,6 +368,8 @@
                         <button type="button" class="menu-sua">Sửa</button>
                         ${daGiao ? '<button type="button" class="menu-huygiao">Hủy giao</button>' : ''}
                         ${daGiao ? `<button type="button" class="menu-thutien">${coTien ? 'Sửa tiền' : 'Thu tiền'}</button>` : ''}
+                        ${!daGiao ? '<button type="button" class="menu-dagoi">📞 Ghi nhận đã gọi</button>' : ''}
+                        ${!daGiao ? '<button type="button" class="menu-tralai">↩️ Trả hàng</button>' : ''}
                         ${!daGiao ? '<button type="button" class="menu-huydon">Hủy đơn</button>' : ''}
                     </div>
                 </div>
@@ -368,6 +379,8 @@
             row.querySelector('.menu-sua').addEventListener('click', () => renderKienRowEdit(row, k))
             row.querySelector('.menu-huygiao')?.addEventListener('click', () => toggleDaGiao(row, k))
             row.querySelector('.menu-thutien')?.addEventListener('click', () => renderKienRowThuTien(row, k))
+            row.querySelector('.menu-dagoi')?.addEventListener('click', () => ghiNhanDaGoi(row, k))
+            row.querySelector('.menu-tralai')?.addEventListener('click', () => traHang(row, k))
             row.querySelector('.menu-huydon')?.addEventListener('click', () => huyDon(row, k))
             row.querySelector('.btn-menu-more').addEventListener('click', (e) => {
                 e.stopPropagation()
@@ -571,8 +584,8 @@
         // Hủy hẳn 1 kiện vì khách đổi ý không gửi nữa — khác "Hủy giao" (chỉ đảo trang_thai
         // giữa chua_giao/da_giao). Chỉ cho hủy khi chưa giao (xem điều kiện hiện nút ở
         // renderKienRowView). Không xoá bản ghi, set trang_thai = 'huy' để đối chiếu sau,
-        // ẩn khỏi manifest qua .neq('trang_thai', 'huy') ở loadManifest. Gọi lại loadManifest
-        // thay vì chỉ row.remove() để tự ẩn tiêu đề tỉnh nếu đó là kiện cuối cùng của tỉnh đó.
+        // ẩn khỏi manifest qua filter ở loadManifest. Gọi lại loadManifest thay vì chỉ
+        // row.remove() để tự ẩn tiêu đề tỉnh nếu đó là kiện cuối cùng của tỉnh đó.
         async function huyDon(row, k) {
             if (!(await confirmDialog(`Hủy đơn kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Không thể hoàn tác qua giao diện.`, { danger: true, okText: 'Hủy đơn' }))) return
             const { error } = await sb.from('kien').update({ trang_thai: 'huy' }).eq('id', k.id)
@@ -580,6 +593,43 @@
             showToast('Đã hủy đơn', 'success')
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (chuyen) loadManifest(chuyen)
+        }
+
+        // "Trả hàng" — crew đã tới điểm giao nhưng KHÔNG giao được (người nhận từ chối/không
+        // liên lạc được), khác hẳn "huy" (huy = hàng chưa từng rời điểm gửi). Hàng đã đi hết
+        // tuyến nên phải mang NGƯỢC LẠI trên chuyến chiều đối diện gần nhất — không có cơ chế
+        // tự động chuyển kiện qua chuyến khác trong v1, crew tự tạo kiện mới ở hang.html khi
+        // chuyến ngược bắt đầu chạy (xem kien_goc_id/"Liên kết kiện trả lại" ở hang.html).
+        // Không giới hạn số lần thử liên lạc bằng code (quyết định nghiệp vụ) — chỉ cảnh báo
+        // mềm nếu chưa "Ghi nhận đã gọi" lần nào, để tránh bấm nhầm ngay từ chuyến đi đầu.
+        async function traHang(row, k) {
+            const soLan = demSoLanThuLienLac(k.ghi_chu)
+            const canhBao = soLan === 0 ? '\n\n⚠ Chưa ghi nhận lần gọi nào cho kiện này.' : ''
+            if (!(await confirmDialog(`Đánh dấu TRẢ HÀNG kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ biến mất khỏi danh sách chuyến này, cần tạo kiện mới ở chuyến chiều ngược để mang về.${canhBao}`, { danger: true, okText: 'Trả hàng' }))) return
+            const { error } = await sb.from('kien').update({ trang_thai: 'tra_lai' }).eq('id', k.id)
+            if (error) { showToast('Lỗi trả hàng: ' + error.message, 'error'); return }
+            showToast('Đã đánh dấu trả hàng', 'success')
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            if (chuyen) loadManifest(chuyen)
+        }
+
+        // "Ghi nhận đã gọi" — append 1 dòng timestamp vào ghi_chu hiện có (KHÔNG ghi đè, KHÔNG
+        // thêm cột DB mới) mỗi lần crew thử liên lạc người nhận mà không được, để có căn cứ
+        // trước khi quyết định "Trả hàng". Chỉ là gợi ý hiển thị (xem demSoLanThuLienLac),
+        // không chặn/bắt buộc gì.
+        async function ghiNhanDaGoi(row, k) {
+            const now = new Date()
+            const hh = String(now.getHours()).padStart(2, '0')
+            const mm = String(now.getMinutes()).padStart(2, '0')
+            const dd = String(now.getDate()).padStart(2, '0')
+            const MM = String(now.getMonth() + 1).padStart(2, '0')
+            const dong = `[${hh}:${mm} ${dd}/${MM}] Thử liên lạc - không nghe máy`
+            const ghiChuMoi = k.ghi_chu ? `${k.ghi_chu}\n${dong}` : dong
+            const { error } = await sb.from('kien').update({ ghi_chu: ghiChuMoi }).eq('id', k.id)
+            if (error) { showToast('Lỗi ghi nhận: ' + error.message, 'error'); return }
+            k.ghi_chu = ghiChuMoi
+            showToast('Đã ghi nhận', 'success')
+            renderKienRowView(row, k)
         }
 
         const { open: openMenu } = renderSideMenu(sb)
