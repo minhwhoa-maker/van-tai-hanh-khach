@@ -613,13 +613,103 @@
         // chuyến ngược bắt đầu chạy (xem kien_goc_id/"Liên kết kiện trả lại" ở hang.html).
         // Không giới hạn số lần thử liên lạc bằng code (quyết định nghiệp vụ) — chỉ cảnh báo
         // mềm nếu chưa "Ghi nhận đã gọi" lần nào, để tránh bấm nhầm ngay từ chuyến đi đầu.
+        function formatNowStamp() {
+            const now = new Date()
+            const hh = String(now.getHours()).padStart(2, '0')
+            const mm = String(now.getMinutes()).padStart(2, '0')
+            const dd = String(now.getDate()).padStart(2, '0')
+            const MM = String(now.getMonth() + 1).padStart(2, '0')
+            return `${hh}:${mm} ${dd}/${MM}`
+        }
+
+        // Hỏi crew nhập 1 số tiền (đơn vị nghìn đồng, giống quy ước nhập ở hang.html), giới
+        // hạn trong [0, max]. Trả về số tiền (đồng) hoặc undefined nếu crew bấm Hủy hộp thoại,
+        // null nếu crew để trống (không tách phần tiền nào cho phần hoàn).
+        function hoiSoTienHoan(label, maxDong) {
+            const nhap = prompt(`${label} (đơn vị nghìn đồng, tối đa ${formatMoney(maxDong)}, để trống nếu không tách):`, '')
+            if (nhap === null) return undefined
+            if (nhap.trim() === '') return null
+            const so = Number(nhap.trim()) * 1000
+            if (!Number.isFinite(so) || so < 0 || so > maxDong) return NaN
+            return so
+        }
+
+        // Trả hàng — hỗ trợ TÁCH 1 PHẦN khi kiện gộp nhiều số lượng (vd 4 thùng, khách chỉ trả
+        // lại 1 thùng): kiện gốc giảm so_luong, tạo thêm 1 kiện mới ở trạng thái 'tra_lai' cho
+        // phần bị hoàn. Kiện chỉ có so_luong = 1 (đa số trường hợp) thì trả nguyên kiện như cũ,
+        // không hỏi số lượng. Tiền COD/cước gắn với cả kiện không tự chia theo tỷ lệ số lượng
+        // (hệ thống không có đơn giá/thùng) — hỏi tay số tiền tương ứng phần hoàn nếu có.
         async function traHang(row, k) {
             const soLan = demSoLanThuLienLac(k.ghi_chu)
-            const canhBao = soLan === 0 ? '\n\n⚠ Chưa ghi nhận lần gọi nào cho kiện này.' : ''
-            if (!(await confirmDialog(`Đánh dấu TRẢ HÀNG kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ chuyển sang trạng thái "Hàng hoàn" trong danh sách chuyến này, cần tạo kiện mới ở chuyến chiều ngược để mang về.${canhBao}`, { danger: true, okText: 'Trả hàng' }))) return
-            const { error } = await sb.from('kien').update({ trang_thai: 'tra_lai' }).eq('id', k.id)
-            if (error) { showToast('Lỗi trả hàng: ' + error.message, 'error'); return }
-            showToast('Đã đánh dấu trả hàng', 'success')
+            const canhBaoGoi = soLan === 0 ? '\n\n⚠ Chưa ghi nhận lần gọi nào cho kiện này.' : ''
+
+            let soLuongHoan = k.so_luong || 1
+            if (k.so_luong > 1) {
+                const nhap = prompt(`Kiện này gồm ${k.so_luong} kiện. Nhập số lượng muốn đánh dấu trả hàng (để trống = trả hết ${k.so_luong}):`, '')
+                if (nhap === null) return
+                if (nhap.trim() !== '') {
+                    const n = parseInt(nhap.trim(), 10)
+                    if (!Number.isFinite(n) || n < 1 || n > k.so_luong) { showToast('Số lượng không hợp lệ', 'error'); return }
+                    soLuongHoan = n
+                }
+            }
+            const traHetKien = soLuongHoan >= k.so_luong
+
+            if (!(await confirmDialog(
+                traHetKien
+                    ? `Đánh dấu TRẢ HÀNG kiện tại "${k.diem?.ten || '(không rõ điểm)'}"? Kiện sẽ chuyển sang trạng thái "Hàng hoàn" trong danh sách chuyến này, cần tạo kiện mới ở chuyến chiều ngược để mang về.${canhBaoGoi}`
+                    : `Tách ${soLuongHoan}/${k.so_luong} kiện tại "${k.diem?.ten || '(không rõ điểm)'}" sang trạng thái "Hàng hoàn"? Kiện gốc còn lại ${k.so_luong - soLuongHoan}.${canhBaoGoi}`,
+                { danger: true, okText: 'Trả hàng' }
+            ))) return
+
+            let tienThuHoHoan = null, tienThuHoan = null
+            if (!traHetKien) {
+                if (k.tien_thu_ho != null && k.tien_thu_ho > 0) {
+                    const so = hoiSoTienHoan('Số tiền thu hộ (COD) tương ứng phần hoàn', k.tien_thu_ho)
+                    if (so === undefined) return
+                    if (Number.isNaN(so)) { showToast('Số tiền thu hộ không hợp lệ', 'error'); return }
+                    tienThuHoHoan = so
+                }
+                if (k.tien_thu != null) {
+                    const so = hoiSoTienHoan('Số tiền cước/đã thu tương ứng phần hoàn', k.tien_thu)
+                    if (so === undefined) return
+                    if (Number.isNaN(so)) { showToast('Số tiền không hợp lệ', 'error'); return }
+                    tienThuHoan = so
+                }
+            }
+
+            if (traHetKien) {
+                const { error } = await sb.from('kien').update({ trang_thai: 'tra_lai' }).eq('id', k.id)
+                if (error) { showToast('Lỗi trả hàng: ' + error.message, 'error'); return }
+            } else {
+                const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+                const { error: insErr } = await sb.from('kien').insert({
+                    id: crypto.randomUUID(),
+                    chuyen_id: chuyen.id,
+                    diem_id: k.diem_id,
+                    anh_url: k.anh_url,
+                    nguoi_nhan_sdt: k.nguoi_nhan_sdt,
+                    trang_thai: 'tra_lai',
+                    ghi_chu: k.ghi_chu,
+                    so_luong: soLuongHoan,
+                    loai_hang: k.loai_hang,
+                    tien_thu: tienThuHoan,
+                    tien_thu_ho: tienThuHoHoan,
+                    created_at: new Date().toISOString()
+                })
+                if (insErr) { showToast('Lỗi tách kiện: ' + insErr.message, 'error'); return }
+
+                const ghiChuGhiNhan = `Đã tách ${soLuongHoan} kiện sang trạng thái trả hàng lúc ${formatNowStamp()}`
+                const { error: updErr } = await sb.from('kien').update({
+                    so_luong: k.so_luong - soLuongHoan,
+                    ghi_chu: k.ghi_chu ? `${k.ghi_chu}\n${ghiChuGhiNhan}` : ghiChuGhiNhan,
+                    tien_thu_ho: tienThuHoHoan != null ? (k.tien_thu_ho - tienThuHoHoan || null) : k.tien_thu_ho,
+                    tien_thu: tienThuHoan != null ? (k.tien_thu - tienThuHoan) : k.tien_thu
+                }).eq('id', k.id)
+                if (updErr) { showToast('Lỗi cập nhật kiện gốc: ' + updErr.message, 'error'); return }
+            }
+
+            showToast(traHetKien ? 'Đã đánh dấu trả hàng' : `Đã tách ${soLuongHoan} kiện sang trạng thái trả hàng`, 'success')
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (chuyen) loadManifest(chuyen)
         }
@@ -641,12 +731,7 @@
         // trước khi quyết định "Trả hàng". Chỉ là gợi ý hiển thị (xem demSoLanThuLienLac),
         // không chặn/bắt buộc gì.
         async function ghiNhanDaGoi(row, k) {
-            const now = new Date()
-            const hh = String(now.getHours()).padStart(2, '0')
-            const mm = String(now.getMinutes()).padStart(2, '0')
-            const dd = String(now.getDate()).padStart(2, '0')
-            const MM = String(now.getMonth() + 1).padStart(2, '0')
-            const dong = `[${hh}:${mm} ${dd}/${MM}] Thử liên lạc - không nghe máy`
+            const dong = `[${formatNowStamp()}] Thử liên lạc - không nghe máy`
             const ghiChuMoi = k.ghi_chu ? `${k.ghi_chu}\n${dong}` : dong
             const { error } = await sb.from('kien').update({ ghi_chu: ghiChuMoi }).eq('id', k.id)
             if (error) { showToast('Lỗi ghi nhận: ' + error.message, 'error'); return }
