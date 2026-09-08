@@ -189,6 +189,7 @@
             </div>
             <div class="form-group">
                 <label>SĐT người nhận</label>
+                <div class="chip-row" id="sdt-goi-y-chips" style="display:none; padding:0 0 8px;"></div>
                 <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
             </div>
             <div class="form-group">
@@ -290,7 +291,62 @@
             if (id === 'step-anh') {
                 const info = document.getElementById('anh-diem-info')
                 info.textContent = selectedTinh && selectedDiem ? `📍 ${selectedDiem.ten} — ${selectedTinh.ten}` : ''
+                // Xoá sạch gợi ý SĐT của điểm TRƯỚC ngay lập tức (đồng bộ) trước khi query điểm
+                // mới chạy (async) — cùng nguyên tắc đã áp dụng cho #diem-search/allDiemInTinh ở
+                // selectTinh, tránh hiện nhầm gợi ý cũ trong lúc chờ mạng.
+                renderSdtGoiYChips([])
+                if (selectedDiem) loadSdtGoiY(selectedDiem.id)
             }
+        }
+
+        // Gợi ý SĐT người nhận đã dùng TRƯỚC ĐÓ cho cùng điểm giao — giảm gõ tay lặp lại khi
+        // điểm giao lặp lại qua nhiều chuyến (rất phổ biến, xem diem.so_lan_giao). KHÔNG dùng
+        // SELECT DISTINCT kèm ORDER BY created_at — Postgres chặn cứng việc này (ORDER BY phải
+        // nằm trong SELECT list khi có DISTINCT) — fetch thô 20 dòng gần nhất rồi dedupe ở client,
+        // cùng pattern đã dùng cho diemMap trong manifest-hang.html. Không chặn UI, lỗi thì bỏ
+        // qua lặng lẽ (tính năng phụ trợ, không phải luồng chính).
+        async function loadSdtGoiY(diemId) {
+            let data
+            try {
+                const res = await sb
+                    .from('kien')
+                    .select('nguoi_nhan_sdt, created_at')
+                    .eq('diem_id', diemId)
+                    .not('nguoi_nhan_sdt', 'is', null)
+                    .neq('trang_thai', 'huy')
+                    .order('created_at', { ascending: false })
+                    .limit(20)
+                data = res.data
+            } catch {
+                return
+            }
+            // Guard race-condition: crew có thể đã đổi điểm khác trong lúc chờ query này trả về
+            // — chỉ áp kết quả nếu vẫn đang chọn đúng điểm đã gọi.
+            if (!selectedDiem || selectedDiem.id !== diemId) return
+
+            const seen = new Set()
+            const goiY = []
+            for (const row of data ?? []) {
+                if (!seen.has(row.nguoi_nhan_sdt)) {
+                    seen.add(row.nguoi_nhan_sdt)
+                    goiY.push(row.nguoi_nhan_sdt)
+                    if (goiY.length === 3) break
+                }
+            }
+            renderSdtGoiYChips(goiY)
+        }
+
+        function renderSdtGoiYChips(list) {
+            const wrap = document.getElementById('sdt-goi-y-chips')
+            wrap.textContent = ''
+            wrap.style.display = list.length ? 'flex' : 'none'
+            list.forEach(sdt => {
+                const chip = document.createElement('div')
+                chip.className = 'chip'
+                chip.textContent = sdt
+                chip.addEventListener('click', () => { document.getElementById('kien-sdt').value = sdt })
+                wrap.appendChild(chip)
+            })
         }
 
         // opts.stack: dùng cho các chuyển bước KHÔNG phải "tiến thêm 1 bước" mà là "khởi
