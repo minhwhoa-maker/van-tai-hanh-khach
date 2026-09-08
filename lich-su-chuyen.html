@@ -100,7 +100,7 @@
         }
 
         function createChuyenCard(c, kiens) {
-            const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+            const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
             const tongKien = kiens.length
             const tongThu = kiens.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
             const codChuaDu = kiens.filter(k => k.tien_thu_ho != null && k.tien_thu_ho > 0 && Number(k.tien_thu || 0) < Number(k.tien_thu_ho))

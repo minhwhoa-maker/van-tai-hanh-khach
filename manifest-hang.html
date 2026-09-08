@@ -165,7 +165,7 @@
                 return
             }
             chuyenList.forEach(c => {
-                const chieuLabel = c.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+                const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
                 const opt = document.createElement('option')
                 opt.value = c.id
                 opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : ''}`
@@ -215,7 +215,7 @@
             chuyen.trang_thai = 'xong'
             const opt = document.querySelector(`#chuyen-select option[value="${chuyen.id}"]`)
             if (opt) {
-                const chieuLabel = chuyen.chieu === 'bac' ? 'Bắc (ĐL → HD)' : 'Nam (HD → ĐL)'
+                const chieuLabel = chuyen.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
                 opt.textContent = `${chieuLabel} — ${formatDate(chuyen.khoi_hanh)} (đã xong)`
             }
             updateEndTripButton(chuyen)
