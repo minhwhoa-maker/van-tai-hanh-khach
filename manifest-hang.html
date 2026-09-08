@@ -91,10 +91,6 @@
            hàng với info, info sẽ bị bóp gần như bằng 0 thay vì tự xuống dòng (flex-wrap chỉ
            ngắt dòng theo từng flex-item, không cứu được item co giãn được), khiến tên
            điểm/SĐT/ghi chú vỡ chữ chồng chéo lên nhau. */
-        @media (max-width: 480px) {
-            .chuyen-select-wrap { flex-direction: column; }
-            #btn-ket-thuc-chuyen { width: 100%; }
-        }
         @media (max-width: 600px) {
             .kien-row { flex-wrap: wrap; align-items: flex-start; gap: 10px 12px; padding: 14px 16px; }
             .kien-row img { width: 56px; height: 56px; }
@@ -114,14 +110,17 @@
         <div></div>
     </div>
 
-    <div class="chuyen-select-wrap" style="display:flex; gap:8px; align-items:stretch;">
-        <select id="chuyen-select" style="flex:1; min-width:0; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
-        <button id="btn-ket-thuc-chuyen" type="button" class="btn-sm btn-undone" style="display:none; flex-shrink:0; padding:0 14px; font-size:14px;">🏁 Kết thúc chuyến</button>
+    <div class="chuyen-select-wrap">
+        <select id="chuyen-select" style="width:100%; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
     </div>
 
     <div class="cod-summary" id="cod-summary"></div>
 
     <div id="list-wrap"></div>
+
+    <div style="padding:8px 16px 16px;">
+        <button id="btn-ket-thuc-chuyen" type="button" class="btn-sm btn-undone" style="display:none; width:100%; padding:12px 14px; font-size:14px;">🏁 Kết thúc chuyến</button>
+    </div>
 
     <div class="toast" id="toast"></div>
     <div class="lightbox" id="lightbox"><img id="lightbox-img" alt=""></div>
@@ -132,6 +131,14 @@
     <script>
         const sb = createSb()
         let chuyenList = []
+        let currentKienList = []   // kiện của chuyến đang chọn — dùng để bật/ẩn nút "Kết thúc chuyến" khi trạng thái giao đổi tại chỗ
+
+        // Gọi lại sau mỗi lần đổi trạng thái 1 kiện tại chỗ (không reload cả manifest) để nút
+        // "Kết thúc chuyến" cập nhật đúng ngay, không phải đợi F5/đổi chuyến.
+        function refreshEndTripButton() {
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            updateEndTripButton(chuyen, currentKienList)
+        }
         loadTuyenChuanData().catch(() => {}) // nạp trước để cache sẵn cho khi bấm "Đã giao"
 
         function showToast(msg, type = '') {
@@ -177,9 +184,14 @@
             if (chuyen) loadManifest(chuyen)
         })
 
-        function updateEndTripButton(chuyen) {
+        // Chỉ hiện nút khi chuyến chưa xong VÀ không còn kiện nào ở trạng thái 'chua_giao' —
+        // ép giao hết hàng rồi mới kết thúc được chuyến, tránh bấm nhầm khi còn hàng chưa
+        // giao xong. `kienList` optional: khi gọi sớm lúc chưa kịp tải kiện thì ẩn nút, chờ
+        // `loadManifest` gọi lại lần 2 kèm kienList thật.
+        function updateEndTripButton(chuyen, kienList) {
             const btn = document.getElementById('btn-ket-thuc-chuyen')
-            btn.style.display = chuyen && chuyen.trang_thai !== 'xong' ? 'block' : 'none'
+            const daXongHet = kienList && kienList.every(k => k.trang_thai === 'da_giao')
+            btn.style.display = chuyen && chuyen.trang_thai !== 'xong' && daXongHet ? 'block' : 'none'
         }
 
         document.getElementById('btn-ket-thuc-chuyen').addEventListener('click', async () => {
@@ -204,7 +216,7 @@
         async function loadManifest(chuyen) {
             const wrap = document.getElementById('list-wrap')
             wrap.textContent = ''
-            updateEndTripButton(chuyen)
+            updateEndTripButton(chuyen)   // ẩn nút trong lúc chờ tải kiện — bật lại đúng điều kiện bên dưới khi có kienList
 
             const { data: tinhList, error: tinhErr } = await sb
                 .from('tinh_tuyen')
@@ -219,6 +231,8 @@
                 .neq('trang_thai', 'huy')
                 .order('created_at', { ascending: true })
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
+            currentKienList = kienList
+            updateEndTripButton(chuyen, kienList)
 
             // Dùng chung 1 object diem cho mọi kiện cùng diem_id — cập nhật 1 lần (vd sau khi
             // bắt GPS) thì mọi dòng kiện cùng điểm tự thấy giá trị mới ngay, tránh xin quyền
@@ -474,6 +488,7 @@
                 k.trang_thai = newStatus
                 showToast('Đã hủy đánh dấu giao', 'success')
                 renderKienRowView(row, k)
+                refreshEndTripButton()
                 return
             }
 
@@ -482,6 +497,7 @@
             // revert UI về lại view và báo lỗi. Nếu tien_thu đã có sẵn (khách trả cước
             // ngay lúc gửi ở hang.html) thì bỏ qua bước hỏi lại, tránh thu 2 lần.
             k.trang_thai = newStatus
+            refreshEndTripButton()
             const daCoTienSan = k.tien_thu !== null && k.tien_thu !== undefined
             if (daCoTienSan) {
                 renderKienRowView(row, k)
@@ -510,6 +526,7 @@
                 showToast('Lỗi cập nhật: ' + error.message, 'error')
                 k.trang_thai = 'chua_giao'
                 renderKienRowView(row, k)
+                refreshEndTripButton()
                 return
             }
 
