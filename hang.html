@@ -165,7 +165,7 @@
         <div id="anh-diem-info" style="margin:8px 16px 0; padding:10px 14px; border-radius:var(--radius-sm); background:#eaf2fc; color:var(--primary); font-weight:600; font-size:14px;"></div>
         <div class="camera-box" id="camera-box">
             <input type="file" accept="image/*" capture="environment" id="kien-camera-input" style="display:none;">
-            <div>📷 Chạm để chụp ảnh</div>
+            <div id="camera-box-label">📷 Chạm để chụp ảnh</div>
         </div>
         <div id="camera-live">
             <video id="camera-video" autoplay playsinline muted></video>
@@ -730,6 +730,14 @@
 
         // Pipeline xử lý ảnh dùng chung, không quan tâm nguồn ảnh đến từ đâu (file trả về từ
         // app Camera gốc trên iOS/fallback, hay Blob vẽ từ <canvas> của camera nhúng Android).
+        // Đã có ảnh (preview đang hiện) thì đổi nhãn khung "Chạm để chụp ảnh" thành "Chạm để
+        // chụp lại" — khung này KHÔNG tự ẩn đi sau khi chụp (vẫn đứng trên preview để bấm chụp
+        // lại nếu ảnh chưa ưng ý), nhãn cũ giữ nguyên "chụp ảnh" gây hiểu lầm là chưa chụp được.
+        function updateCameraBoxLabel() {
+            document.getElementById('camera-box-label').textContent =
+                activePreviewUrl ? '🔄 Chạm để chụp lại' : '📷 Chạm để chụp ảnh'
+        }
+
         function handleNewPhotoBlob(fileOrBlob) {
             // Hiện preview ngay bằng object URL — không đọc/encode base64 toàn bộ ảnh gốc
             // (FileReader.readAsDataURL mất 0.5-3s với ảnh camera vài MB chưa resize, đây
@@ -738,6 +746,7 @@
             activePreviewUrl = URL.createObjectURL(fileOrBlob)
             document.getElementById('kien-preview-img').src = activePreviewUrl
             document.getElementById('kien-preview').style.display = 'block'
+            updateCameraBoxLabel()
             activePhotoBlob = fileOrBlob // fallback nếu resize lỗi (vd định dạng canvas không decode được)
 
             // Resize chạy ngầm phía sau, không chặn preview vừa hiện ở trên.
@@ -901,6 +910,7 @@
             activePhotoBlob = null
             activePreviewUrl = null
             document.getElementById('kien-preview').style.display = 'none'
+            updateCameraBoxLabel()
             loaiHangItems = []
             renderLoaiHangItems()
             document.getElementById('kien-sdt').value = ''
@@ -979,6 +989,7 @@
             } else {
                 document.getElementById('kien-preview').style.display = 'none'
             }
+            updateCameraBoxLabel()
 
             goToStep('step-anh', { stack: ['step-chuyen', 'step-tinh', 'step-diem', 'step-anh'] })
         })
