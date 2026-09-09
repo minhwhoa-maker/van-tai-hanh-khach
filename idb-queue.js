@@ -21,7 +21,7 @@ function openQueueDb() {
     })
 }
 
-// record: { id, chuyen_id, diem_id, nguoi_nhan_sdt, ghi_chu, trang_thai, so_luong, loai_hang, tien_thu, tien_thu_ho, kien_goc_id, anh_blob, created_at, da_sync }
+// record: { id, chuyen_id, diem_id, nguoi_nhan_sdt, ghi_chu, trang_thai, so_luong, loai_hang, tien_thu, tien_thu_ho, anh_blob, created_at, da_sync }
 async function queueKien(record) {
     const db = await openQueueDb()
     return new Promise((resolve, reject) => {
@@ -105,7 +105,6 @@ async function trySyncQueue(sb) {
                 loai_hang: rec.loai_hang || null,
                 tien_thu: rec.tien_thu ?? null,
                 tien_thu_ho: rec.tien_thu_ho ?? null,
-                kien_goc_id: rec.kien_goc_id ?? null,
                 created_at: rec.created_at
             })
             if (insErr) throw insErr

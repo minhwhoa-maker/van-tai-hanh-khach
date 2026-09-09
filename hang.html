@@ -197,14 +197,6 @@
                 <textarea id="kien-ghichu" placeholder="Ghi chú kiện hàng (tùy chọn)" rows="3" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;"></textarea>
             </div>
             <div class="form-group">
-                <button class="btn-cod-toggle" id="btn-lienket-toggle" type="button" style="border-color:var(--text-muted); color:var(--text-muted);">🔗 Liên kết kiện trả lại</button>
-                <div id="lienket-wrap" style="display:none; margin-top:10px;">
-                    <div id="lienket-list" style="display:flex; flex-direction:column; gap:6px;"></div>
-                    <div id="lienket-empty" style="display:none; font-size:13px; color:var(--text-muted); padding:8px 0;">Không có kiện trả lại nào chưa liên kết.</div>
-                </div>
-                <div id="lienket-selected" style="display:none; margin-top:8px; padding:10px 14px; border-radius:var(--radius-sm); background:#eaf2fc; color:var(--primary); font-size:14px; font-weight:600; cursor:pointer;"></div>
-            </div>
-            <div class="form-group">
                 <button class="btn-cod-toggle" id="btn-thu-ho-toggle" type="button">💰 Thu hộ (COD)</button>
                 <div id="kien-thu-ho-wrap">
                     <input type="number" inputmode="numeric" id="kien-thu-ho" placeholder="Nhập theo nghìn đồng, vd 200 = 200.000đ" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
@@ -249,8 +241,6 @@
         let loaiHangItems = []   // [{ ten, soLuong }] — danh sách loại hàng + số lượng riêng từng loại
         let reviewPreviewUrl = null   // object URL của ảnh kiện vừa lưu, hiện ở step-review
         let lastSaved = null   // snapshot kiện vừa lưu, dùng để khôi phục form khi bấm "Sửa lại"
-        let selectedKienGocId = null   // id kiện trạng_thái 'tra_lai' đang liên kết (tùy chọn) — xem "🔗 Liên kết kiện trả lại"
-        let selectedKienGocLabel = ''
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -618,58 +608,6 @@
             })
         })
 
-        // "🔗 Liên kết kiện trả lại" — tính năng phụ trợ audit, HOÀN TOÀN tùy chọn: cho crew
-        // đánh dấu kiện mới này là "mang hàng về" ứng với 1 kiện đã bị đánh dấu 'tra_lai' ở
-        // chuyến chiều đi trước đó (xem manifest-hang.html traHang). Không bấm gì thì
-        // kien_goc_id để null như kiện thường — không chặn luồng lưu chính.
-        document.getElementById('btn-lienket-toggle').addEventListener('click', async () => {
-            const wrap = document.getElementById('lienket-wrap')
-            if (wrap.style.display === 'block') { wrap.style.display = 'none'; return }
-            wrap.style.display = 'block'
-            await loadKienTraLaiChuaLienKet()
-        })
-
-        // Chỉ hiện các kiện 'tra_lai' CHƯA có kiện nào khác link tới (kien_goc_id) — tránh
-        // link trùng 1 kiện trả lại cho 2 kiện "mang về" khác nhau.
-        async function loadKienTraLaiChuaLienKet() {
-            const list = document.getElementById('lienket-list')
-            const empty = document.getElementById('lienket-empty')
-            list.textContent = ''
-            const { data: traLaiList, error } = await sb
-                .from('kien').select('id, diem(ten)').eq('trang_thai', 'tra_lai').order('created_at', { ascending: false })
-            if (error) { showToast('Lỗi tải kiện trả lại: ' + error.message, 'error'); return }
-            const { data: linked, error: linkedErr } = await sb.from('kien').select('kien_goc_id').not('kien_goc_id', 'is', null)
-            if (linkedErr) { showToast('Lỗi tải kiện trả lại: ' + linkedErr.message, 'error'); return }
-            const linkedIds = new Set((linked || []).map(r => r.kien_goc_id))
-            const available = (traLaiList || []).filter(k => !linkedIds.has(k.id))
-            if (!available.length) { empty.style.display = 'block'; return }
-            empty.style.display = 'none'
-            available.forEach(k => {
-                const item = document.createElement('div')
-                item.className = 'diem-item'
-                item.textContent = k.diem?.ten || '(không rõ điểm)'
-                item.addEventListener('click', () => {
-                    selectedKienGocId = k.id
-                    selectedKienGocLabel = k.diem?.ten || '(không rõ điểm)'
-                    renderLienKetSelected()
-                    wrap.style.display = 'none'
-                })
-                list.appendChild(item)
-            })
-        }
-
-        function renderLienKetSelected() {
-            const el = document.getElementById('lienket-selected')
-            if (!selectedKienGocId) { el.style.display = 'none'; return }
-            el.style.display = 'block'
-            el.textContent = `🔗 Đã liên kết với kiện trả lại: ${selectedKienGocLabel} (bấm để bỏ)`
-        }
-        document.getElementById('lienket-selected').addEventListener('click', () => {
-            selectedKienGocId = null
-            selectedKienGocLabel = ''
-            renderLienKetSelected()
-        })
-
         document.getElementById('btn-thu-ho-toggle').addEventListener('click', function () {
             const active = this.classList.toggle('active')
             const wrap = document.getElementById('kien-thu-ho-wrap')
@@ -856,7 +794,6 @@
                 loai_hang: loaiHangText,
                 tien_thu: cuocDaThu,
                 tien_thu_ho: tienThuHo,
-                kien_goc_id: selectedKienGocId,
                 anh_blob: activePhotoBlob || null,
                 created_at: new Date().toISOString(),
                 da_sync: false
@@ -885,8 +822,6 @@
                 tienThuHo,
                 cuocActive,
                 cuocDaThu,
-                kienGocId: selectedKienGocId,
-                kienGocLabel: selectedKienGocLabel,
                 photoBlob: record.anh_blob,
                 previewUrl: reviewPreviewUrl
             }
@@ -904,9 +839,6 @@
             })
 
             // reset các field nhập cho kiện tiếp theo
-            selectedKienGocId = null
-            selectedKienGocLabel = ''
-            renderLienKetSelected()
             activePhotoBlob = null
             activePreviewUrl = null
             document.getElementById('kien-preview').style.display = 'none'
@@ -975,10 +907,6 @@
             document.getElementById('kien-cuoc-wrap').style.display = saved.cuocActive ? 'block' : 'none'
             document.getElementById('kien-cuoc').value = saved.cuocActive ? saved.cuocDaThu / 1000 : ''
             document.getElementById('kien-cuoc').dispatchEvent(new Event('input'))
-
-            selectedKienGocId = saved.kienGocId
-            selectedKienGocLabel = saved.kienGocLabel
-            renderLienKetSelected()
 
             activePhotoBlob = saved.photoBlob
             activePreviewUrl = saved.previewUrl
