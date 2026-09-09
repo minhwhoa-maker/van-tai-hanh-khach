@@ -86,6 +86,16 @@
             border-radius: var(--radius-sm); font-size: 16px; font-family: inherit;
         }
         .empty { padding: 24px; text-align: center; color: var(--text-muted); }
+        .doichieu-summary {
+            margin: 0 16px 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+            background: var(--white); border: 1.5px solid var(--border); box-shadow: var(--shadow);
+        }
+        .doichieu-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+        .doichieu-row:first-child { border-top: none; }
+        .doichieu-row img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+        .doichieu-row .info { flex: 1; min-width: 0; font-size: 13px; }
+        .doichieu-row .sdt-cu { color: var(--text-muted); }
+        .doichieu-row .sdt-ai { color: var(--danger); font-weight: 600; }
 
         /* Dưới 600px: img+info+badge dùng chung 1 hàng, nút hành động (kể cả nút chính +
            menu "⋯" của renderKienRowView, kể cả form Lưu/Hủy) luôn xuống hàng riêng chiếm
@@ -120,7 +130,10 @@
 
     <div id="list-wrap"></div>
 
-    <div style="padding:8px 16px 16px;">
+    <div class="doichieu-summary" id="doichieu-summary" style="display:none;"></div>
+
+    <div style="padding:8px 16px 16px; display:flex; flex-direction:column; gap:8px;">
+        <button id="btn-doi-chieu-sdt" type="button" class="btn-sm" style="display:none; width:100%; padding:12px 14px; font-size:14px;">🔍 Đối chiếu SĐT bằng AI</button>
         <button id="btn-ket-thuc-chuyen" type="button" class="btn-sm btn-undone" style="display:none; width:100%; padding:12px 14px; font-size:14px;">🏁 Kết thúc chuyến</button>
     </div>
 
@@ -234,6 +247,12 @@
             wrap.textContent = ''
             chuyenDaXong = chuyen.trang_thai === 'xong'
             updateEndTripButton(chuyen)   // ẩn nút trong lúc chờ tải kiện — bật lại đúng điều kiện bên dưới khi có kienList
+            // Chuyến đã xong khoá luôn nút đối chiếu — nút "Sửa" trong banner lệch gọi thẳng
+            // renderKienRowEdit, không đi qua .kien-actions nên không tự động bị khoá bởi
+            // chuyenDaXong như các thao tác khác; ẩn hẳn nút kích hoạt là cách đơn giản nhất để
+            // không mở lại đường sửa kiện của 1 chuyến đã chốt số liệu.
+            document.getElementById('btn-doi-chieu-sdt').style.display = chuyenDaXong ? 'none' : 'block'
+            document.getElementById('doichieu-summary').style.display = 'none'
 
             const { data: tinhList, error: tinhErr } = await sb
                 .from('tinh_tuyen')
@@ -306,6 +325,7 @@
         function createKienRow(k) {
             const row = document.createElement('div')
             row.className = 'kien-row'
+            row.dataset.kienId = k.id
             renderKienRowView(row, k)
             return row
         }
@@ -745,6 +765,104 @@
             showToast('Đã ghi nhận', 'success')
             renderKienRowView(row, k)
         }
+
+        // "🔍 Đối chiếu SĐT bằng AI" — lớp kiểm tra chéo SĐT gõ tay (#kien-sdt ở hang.html) với
+        // số viết tay đọc lại từ ảnh kiện hàng qua qwen-vl-ocr (api/doi-chieu-sdt.js). KHÔNG lưu
+        // persistent — tính lại mỗi lần bấm, đóng trang là mất, chấp nhận được cho v1.
+        // Kích thước lô nhỏ (BATCH_SIZE) để né rủi ro timeout serverless (repo chưa có
+        // vercel.json/maxDuration, chưa xác minh Fluid Compute có bật cho project này hay
+        // không) — khởi điểm thận trọng, điều chỉnh sau khi đo latency thật của qwen-vl-ocr.
+        const BATCH_SIZE = 3
+
+        async function chayDoiChieuSdt() {
+            const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
+            if (!chuyen) return
+            const btn = document.getElementById('btn-doi-chieu-sdt')
+            const summaryEl = document.getElementById('doichieu-summary')
+
+            // Query riêng, KHÔNG dùng lại currentKienList (chỉ loại 'huy', kiện 'tra_lai' vẫn
+            // nằm trong đó) — ở đây cũng chỉ loại 'huy', giữ nguyên chua_giao/da_giao/tra_lai,
+            // vì SĐT sai có thể chính là lý do 1 kiện bị "Trả hàng", đáng để đối chiếu lại.
+            const { data: dsKien, error } = await sb
+                .from('kien')
+                .select('id, anh_url, nguoi_nhan_sdt')
+                .eq('chuyen_id', chuyen.id)
+                .neq('trang_thai', 'huy')
+                .not('anh_url', 'is', null)
+                .not('nguoi_nhan_sdt', 'is', null)
+            if (error) { showToast('Lỗi tải danh sách đối chiếu: ' + error.message, 'error'); return }
+            if (!dsKien.length) { showToast('Không có kiện nào đủ ảnh + SĐT để đối chiếu', 'error'); return }
+
+            btn.disabled = true
+            const tongSo = dsKien.length
+            let daXong = 0
+            const ketQua = []
+
+            for (let i = 0; i < dsKien.length; i += BATCH_SIZE) {
+                const lo = dsKien.slice(i, i + BATCH_SIZE)
+                btn.textContent = `🔍 Đang đối chiếu ${daXong}/${tongSo}...`
+                try {
+                    const res = await fetch('/api/doi-chieu-sdt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            items: lo.map(k => ({ kien_id: k.id, anh_url: k.anh_url, sdt_da_nhap: k.nguoi_nhan_sdt }))
+                        })
+                    })
+                    if (!res.ok) throw new Error('HTTP ' + res.status)
+                    const data = await res.json()
+                    ketQua.push(...(data.ketQua || []))
+                } catch (err) {
+                    // Cả lô lỗi (không phải lỗi 1 item) — đánh dấu toàn bộ kiện trong lô, tiếp
+                    // tục lô kế tiếp, không mất kết quả các lô đã chạy xong trước đó.
+                    ketQua.push(...lo.map(k => ({ kien_id: k.id, loi: true })))
+                }
+                daXong += lo.length
+            }
+
+            btn.disabled = false
+            btn.textContent = '🔍 Đối chiếu SĐT bằng AI'
+
+            const kienMap = new Map(dsKien.map(k => [k.id, k]))
+            const lech = ketQua.filter(r => r.loi || r.khong_doc_duoc || !r.khop)
+
+            if (!lech.length) {
+                summaryEl.style.display = 'block'
+                summaryEl.innerHTML = `<div>✅ Đã đối chiếu ${tongSo} kiện, không phát hiện sai lệch.</div>`
+                return
+            }
+
+            summaryEl.style.display = 'block'
+            summaryEl.innerHTML = `<div style="font-weight:600; margin-bottom:8px;">⚠️ ${lech.length}/${tongSo} kiện có thể lệch SĐT — kiểm tra lại:</div>` +
+                lech.map(r => {
+                    const k = kienMap.get(r.kien_id)
+                    if (!k) return ''
+                    const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.sdt_ai_doc
+                    return `
+                        <div class="doichieu-row" data-kien-id="${k.id}">
+                            ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                            <div class="info">
+                                <div class="sdt-cu">Đã gõ: ${k.nguoi_nhan_sdt}</div>
+                                <div class="sdt-ai">AI đọc: ${nhan}</div>
+                            </div>
+                            <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
+                        </div>
+                    `
+                }).join('')
+
+            summaryEl.querySelectorAll('.btn-sua-lech').forEach(btn2 => {
+                btn2.addEventListener('click', () => {
+                    const kienId = btn2.closest('.doichieu-row').dataset.kienId
+                    const row = document.querySelector(`.kien-row[data-kien-id="${kienId}"]`)
+                    const k = currentKienList.find(kk => kk.id === kienId)
+                    if (!row || !k) { showToast('Không tìm thấy dòng kiện (có thể chưa tải trong danh sách hiện tại)', 'error'); return }
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    renderKienRowEdit(row, k)
+                })
+            })
+        }
+
+        document.getElementById('btn-doi-chieu-sdt').addEventListener('click', chayDoiChieuSdt)
 
         const { open: openMenu } = renderSideMenu(sb)
         document.getElementById('btn-open-menu').addEventListener('click', openMenu)
