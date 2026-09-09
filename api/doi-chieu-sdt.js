@@ -33,7 +33,10 @@ async function docSdtTuAnh(anhUrl, apiKey) {
             }]
         })
     })
-    if (!res.ok) throw new Error(`DashScope HTTP ${res.status}`)
+    if (!res.ok) {
+        const bodyText = await res.text().catch(() => '')
+        throw new Error(`DashScope HTTP ${res.status}: ${bodyText.slice(0, 500)}`)
+    }
     const data = await res.json()
     const raw = (data?.choices?.[0]?.message?.content || '').trim()
     if (raw === 'KHONG_DOC_DUOC') return { khong_doc_duoc: true }
@@ -61,6 +64,7 @@ export default async function handler(req, res) {
                 ketQua.push({ kien_id, sdt_ai_doc, khop })
             }
         } catch (err) {
+            console.error('[doi-chieu-sdt]', kien_id, err.message)
             ketQua.push({ kien_id, loi: true })
         }
     }
