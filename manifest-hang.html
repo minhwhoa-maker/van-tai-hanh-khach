@@ -532,19 +532,13 @@
             document.querySelectorAll('.kien-menu.open').forEach(m => m.classList.remove('open'))
         })
 
-        // prefillSdt: CHỈ set giá trị hiển thị ban đầu của ô input, KHÔNG được gán vào
-        // k.nguoi_nhan_sdt trước khi render — dùng cho nút "Điền" ở khối "🆕 kiện thiếu SĐT"
-        // (chayDoiChieuSdt), số AI gợi ý chỉ là gợi ý hiển thị trong FORM, nếu crew bấm "Hủy"
-        // thay vì "Lưu" thì renderKienRowView phải quay về đúng trạng thái CHƯA CÓ SĐT (đọc từ
-        // k.nguoi_nhan_sdt thật) — nếu mutate k trước khi render, bấm Hủy sẽ hiện nhầm số AI gợi
-        // ý như thể đã lưu thật dù chưa hề qua DB.
-        function renderKienRowEdit(row, k, prefillSdt) {
+        function renderKienRowEdit(row, k) {
             row.classList.add('kien-row-edit')
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info" style="display:flex; flex-direction:column; gap:6px;">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
-                    <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${prefillSdt || k.nguoi_nhan_sdt || ''}">
+                    <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${k.nguoi_nhan_sdt || ''}">
                     <textarea class="edit-ghichu" placeholder="Ghi chú" rows="2">${k.ghi_chu || ''}</textarea>
                 </div>
                 <div class="kien-actions">
@@ -887,10 +881,9 @@
                                 <div class="info">
                                     <div class="sdt-goi-y">AI đọc: ${r.sdt_ai_doc}</div>
                                 </div>
-                                <button type="button" class="btn-sm btn-dien-goi-y">Điền</button>
                             </div>
-                        `
-                    }).join('')
+                        ` }).join('') +
+                    `<button type="button" class="btn-sm" id="btn-dien-tat-ca" style="margin-top:8px; width:100%; padding:10px;">⚡ Điền tất cả ${goiY.length} số</button>`
             }
             if (khongChac.length) {
                 html += `<div style="font-weight:600; margin:${(lech.length || goiY.length) ? '14px' : '0'} 0 8px;">🤔 ${khongChac.length} kiện AI đọc không chắc — cần xem ảnh gốc:</div>` +
@@ -911,20 +904,53 @@
             summaryEl.style.display = 'block'
             summaryEl.innerHTML = html
 
-            // "Sửa" (lệch) — mở form sửa bình thường, KHÔNG prefill (2 giá trị xung đột, để
-            // trống chọn nhầm bên sai). "Điền" (thiếu SĐT) — mở form sửa, prefill số AI gợi ý
-            // vào ô input (không mutate k, xem ghi chú ở renderKienRowEdit) — crew vẫn phải
-            // bấm "Lưu" mới thật sự ghi vào DB.
-            function moFormSua(btnEl, prefillSdt) {
+            // "Sửa" (lệch/không chắc) — mở form sửa bình thường, KHÔNG prefill (2 giá trị xung
+            // đột nhau — SĐT đã gõ tay vs AI đọc, hoặc 2 lần AI đọc khác nhau — để trống tránh
+            // chọn nhầm bên sai). Đây là kiện ĐÃ có SĐT (crew tự gõ) hoặc AI không đủ tin cậy,
+            // khác hẳn khối "thiếu SĐT hoàn toàn" bên dưới nên KHÔNG tự động ghi.
+            function moFormSua(btnEl) {
                 const kienId = btnEl.closest('.doichieu-row').dataset.kienId
                 const row = document.querySelector(`.kien-row[data-kien-id="${kienId}"]`)
                 const k = currentKienList.find(kk => kk.id === kienId)
                 if (!row || !k) { showToast('Không tìm thấy dòng kiện (có thể chưa tải trong danh sách hiện tại)', 'error'); return }
                 row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                renderKienRowEdit(row, k, prefillSdt)
+                renderKienRowEdit(row, k)
             }
             summaryEl.querySelectorAll('.btn-sua-lech').forEach(b => b.addEventListener('click', () => moFormSua(b)))
-            summaryEl.querySelectorAll('.btn-dien-goi-y').forEach(b => b.addEventListener('click', () => moFormSua(b, b.closest('.doichieu-row').dataset.goiY)))
+
+            // "⚡ Điền tất cả" — kiện HOÀN TOÀN THIẾU SĐT (khác khối lệch ở trên, không có gì để
+            // xung đột) tự động ghi thẳng nguoi_nhan_sdt, theo quyết định owner (2026-09-10):
+            // ưu tiên giảm thao tác, chấp nhận rủi ro còn lại của OCR chữ viết tay thay vì bắt
+            // xác nhận tay từng kiện. 1 confirmDialog() duy nhất cho cả lô, không mở form Sửa.
+            document.getElementById('btn-dien-tat-ca')?.addEventListener('click', async (e) => {
+                const btnDien = e.currentTarget
+                if (!(await confirmDialog(
+                    `Tự động điền SĐT cho ${goiY.length} kiện bằng số AI đọc được? Đây là số do AI OCR đọc từ ảnh, không phải crew gõ tay xác nhận — vẫn có thể sai nếu chữ viết tay mờ, sửa lại tay từng kiện sau nếu phát hiện sai.`,
+                    { danger: true, okText: 'Điền tất cả' }
+                ))) return
+
+                btnDien.disabled = true
+                let thanhCong = 0
+                for (const r of goiY) {
+                    const k = kienMap.get(r.kien_id)
+                    if (!k) continue
+                    // Guard `.is('nguoi_nhan_sdt', null)` — phòng trường hợp crew đã tự gõ SĐT
+                    // cho đúng kiện này (qua "Sửa" ở dòng kiện chính) trong lúc đang xem khối gợi
+                    // ý này, tránh ghi đè giá trị crew vừa nhập bằng số AI đọc trong danh sách cũ.
+                    const { data, error } = await sb.from('kien')
+                        .update({ nguoi_nhan_sdt: r.sdt_ai_doc })
+                        .eq('id', k.id)
+                        .is('nguoi_nhan_sdt', null)
+                        .select('id')
+                    if (error || !data?.length) continue
+                    thanhCong++
+                    const dongAudit = `[${formatNowStamp()}] AI tự điền SĐT: ${r.sdt_ai_doc}`
+                    const ghiChuMoi = k.ghi_chu ? `${k.ghi_chu}\n${dongAudit}` : dongAudit
+                    sb.from('kien').update({ ghi_chu: ghiChuMoi }).eq('id', k.id).then(() => {}) // best-effort, không chặn
+                }
+                showToast(`Đã tự động điền SĐT cho ${thanhCong}/${goiY.length} kiện`, 'success')
+                loadManifest(chuyen)
+            })
         }
 
         document.getElementById('btn-doi-chieu-sdt').addEventListener('click', chayDoiChieuSdt)
