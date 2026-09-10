@@ -191,6 +191,7 @@
                 <label>SĐT người nhận</label>
                 <div class="chip-row" id="sdt-goi-y-chips" style="display:none; padding:0 0 8px;"></div>
                 <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
+                <div id="sdt-ai-hint" style="display:none; font-size:13px; color:var(--text-muted); margin-top:4px;">✨ AI đọc từ ảnh — kiểm tra lại trước khi lưu</div>
             </div>
             <div class="form-group">
                 <label>Ghi chú</label>
@@ -241,6 +242,16 @@
         let loaiHangItems = []   // [{ ten, soLuong }] — danh sách loại hàng + số lượng riêng từng loại
         let reviewPreviewUrl = null   // object URL của ảnh kiện vừa lưu, hiện ở step-review
         let lastSaved = null   // snapshot kiện vừa lưu, dùng để khôi phục form khi bấm "Sửa lại"
+
+        // Token đại diện cho "phiên kiện đang nhập" — KHÔNG phải chỉ riêng ảnh — dùng để chặn
+        // race-condition khi AI đọc SĐT ngầm (tryAutoReadSdt) trả về CHẬM, sau khi crew đã lưu
+        // kiện và chuyển sang kiện KHÁC (chưa kịp chụp ảnh mới cho kiện đó). Nếu chỉ so token
+        // theo ảnh (bump lúc chụp ảnh mới) thì không đủ: giữa lúc "lưu kiện A" và "chụp ảnh cho
+        // kiện B" chưa có ảnh mới nào nên token đó không đổi, kết quả AI trễ của ảnh A vẫn khớp
+        // token và có thể điền nhầm vào #kien-sdt đang trống chờ nhập cho kiện B. Vì vậy phải
+        // bump ở MỌI điểm làm mới ngữ cảnh nhập liệu (chụp ảnh mới, sau khi lưu, "+ Nhập kiện
+        // tiếp theo", "← Sửa lại kiện này"), không chỉ lúc có ảnh mới.
+        let kienSessionToken = 0
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -326,6 +337,13 @@
             renderSdtGoiYChips(goiY)
         }
 
+        // Crew tự sửa tay sau khi AI điền (hoặc bấm chip gợi ý) — bỏ nhãn "AI đọc từ ảnh", giá
+        // trị hiện tại không còn chắc chắn là do AI đọc nữa.
+        document.getElementById('kien-sdt').addEventListener('input', e => {
+            delete e.target.dataset.nguon
+            document.getElementById('sdt-ai-hint').style.display = 'none'
+        })
+
         function renderSdtGoiYChips(list) {
             const wrap = document.getElementById('sdt-goi-y-chips')
             wrap.textContent = ''
@@ -334,7 +352,12 @@
                 const chip = document.createElement('div')
                 chip.className = 'chip'
                 chip.textContent = sdt
-                chip.addEventListener('click', () => { document.getElementById('kien-sdt').value = sdt })
+                chip.addEventListener('click', () => {
+                    const input = document.getElementById('kien-sdt')
+                    input.value = sdt
+                    delete input.dataset.nguon
+                    document.getElementById('sdt-ai-hint').style.display = 'none'
+                })
                 wrap.appendChild(chip)
             })
         }
@@ -677,6 +700,12 @@
         }
 
         function handleNewPhotoBlob(fileOrBlob) {
+            // Ảnh mới (chụp mới/chọn lại/chụp lại) — bump token trước tiên để bất kỳ kết quả
+            // AI đọc SĐT nào đang chờ từ ảnh TRƯỚC đó (nếu có) bị loại ngay, không điền nhầm
+            // vào ảnh này.
+            kienSessionToken++
+            document.getElementById('sdt-ai-hint').style.display = 'none'
+
             // Hiện preview ngay bằng object URL — không đọc/encode base64 toàn bộ ảnh gốc
             // (FileReader.readAsDataURL mất 0.5-3s với ảnh camera vài MB chưa resize, đây
             // là nguyên nhân chính của độ trễ "chậm sau khi chụp" trước đây).
@@ -687,10 +716,65 @@
             updateCameraBoxLabel()
             activePhotoBlob = fileOrBlob // fallback nếu resize lỗi (vd định dạng canvas không decode được)
 
-            // Resize chạy ngầm phía sau, không chặn preview vừa hiện ở trên.
+            // Resize chạy ngầm phía sau, không chặn preview vừa hiện ở trên. Đọc SĐT bằng AI
+            // CHỈ chạy sau khi có bản đã resize (payload nhỏ hơn gửi cho DashScope) — chấp
+            // nhận đợi thêm <1s, không tự đọc từ ảnh gốc chưa resize.
+            const tokenLucChup = kienSessionToken
             resizeImage(fileOrBlob, 1600)
-                .then(blob => { activePhotoBlob = blob })
+                .then(blob => { activePhotoBlob = blob; tryAutoReadSdt(blob, tokenLucChup) })
                 .catch(err => console.error('[resizeImage] lỗi, giữ ảnh gốc', err))
+        }
+
+        // Đọc SĐT trực tiếp từ ảnh (mode 'read', gửi base64 vì ảnh CHƯA upload lên Storage lúc
+        // này — chỉ upload lúc idb-queue.js sync nền) để tự điền #kien-sdt, giảm phụ thuộc gõ
+        // tay. Tính năng phụ trợ chạy nền: lỗi mạng/model đọc không ra/ảnh mờ → bỏ qua lặng lẽ,
+        // không toast, không console.error ồn ào (khác chayDoiChieuSdt ở manifest-hang.html vốn
+        // là thao tác chủ động của crew nên có thể log lỗi chi tiết). KHÔNG ghi đè nếu #kien-sdt
+        // đã có giá trị (crew gõ tay trước, hoặc đã bấm chip gợi ý) — cùng nguyên tắc chip gợi ý.
+        async function tryAutoReadSdt(resizedBlob, token) {
+            try {
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader()
+                    reader.onload = () => resolve(reader.result)
+                    reader.onerror = reject
+                    reader.readAsDataURL(resizedBlob)
+                })
+                const res = await fetch('/api/doi-chieu-sdt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'read', anh_base64: base64, mime_type: 'image/jpeg' })
+                })
+                if (!res.ok) return
+                const data = await res.json()
+                if (data.loi || data.khong_doc_duoc || !data.sdt_ai_doc) return
+
+                // Guard race-condition: so token phiên kiện lúc gửi với hiện tại — lệch (đã
+                // chụp ảnh khác, đã lưu kiện, đã sang kiện tiếp theo, hoặc đã "Sửa lại") thì bỏ
+                // kết quả, không điền vào bất kỳ ô nào.
+                if (token !== kienSessionToken) return
+
+                const sdtInput = document.getElementById('kien-sdt')
+                if (sdtInput.value.trim()) return // crew đã gõ tay/bấm chip — không ghi đè
+
+                const chuan = sdtDocDuocHopLe(data.sdt_ai_doc)
+                if (!chuan) return
+
+                sdtInput.value = chuan
+                sdtInput.dataset.nguon = 'ai'
+                const hint = document.getElementById('sdt-ai-hint')
+                hint.style.display = 'block'
+            } catch {
+                // Lỗi mạng/parse — bỏ qua lặng lẽ, đây chỉ là tính năng phụ trợ.
+            }
+        }
+
+        // Chuẩn hoá + validate cơ bản SĐT AI đọc được trước khi tự điền — chỉ chấp nhận dạng
+        // số VN 10 số sau chuẩn hoá (04 dấu + \D), tránh điền rác nếu model trả về gì đó khác
+        // định dạng dù đã dặn trong prompt.
+        function sdtDocDuocHopLe(raw) {
+            const d = (raw || '').replace(/\D/g, '')
+            const daChuan = d.startsWith('84') ? '0' + d.slice(2).replace(/^0+/, '') : d
+            return /^0\d{9}$/.test(daChuan) ? daChuan : null
         }
 
         // Chụp ảnh: input file (mở app Camera gốc) luôn dùng trên iOS — PWA standalone trên
@@ -838,7 +922,13 @@
                 photoUrl: reviewPreviewUrl
             })
 
-            // reset các field nhập cho kiện tiếp theo
+            // reset các field nhập cho kiện tiếp theo — bump token phiên kiện ngay ở đây (KHÔNG
+            // đợi tới "+ Nhập kiện tiếp theo"): từ thời điểm này #kien-sdt đã coi như thuộc
+            // kiện MỚI (rỗng), nếu không bump thì kết quả AI trễ của ảnh kiện vừa lưu (token cũ
+            // vẫn còn khớp vì chưa ai đổi) có thể điền nhầm vào đây trước khi crew kịp bấm "+
+            // Nhập kiện tiếp theo" hay chụp ảnh mới.
+            kienSessionToken++
+            document.getElementById('sdt-ai-hint').style.display = 'none'
             activePhotoBlob = null
             activePreviewUrl = null
             document.getElementById('kien-preview').style.display = 'none'
@@ -873,6 +963,7 @@
         document.getElementById('btn-review-next').addEventListener('click', () => {
             if (reviewPreviewUrl) { URL.revokeObjectURL(reviewPreviewUrl); reviewPreviewUrl = null }
             lastSaved = null
+            kienSessionToken++   // đã bump lúc reset field sau khi lưu — bump lại ở đây cho chắc, vô hại
             goToStep('step-tinh', { stack: ['step-chuyen', 'step-tinh'] })
         })
 
@@ -883,6 +974,8 @@
             if (!lastSaved) return
             const saved = lastSaved
             lastSaved = null
+            kienSessionToken++   // chặn kết quả AI trễ từ 1 lần chụp-lại trước đó lúc đang sửa
+            document.getElementById('sdt-ai-hint').style.display = 'none'
 
             await deleteKienLocal(saved.id)
             sb.from('kien').delete().eq('id', saved.id).then(() => {})
@@ -896,6 +989,7 @@
             loaiHangItems = saved.loaiHangItems
             renderLoaiHangItems()
             document.getElementById('kien-sdt').value = saved.sdt || ''
+            delete document.getElementById('kien-sdt').dataset.nguon
             document.getElementById('kien-ghichu').value = saved.ghiChu || ''
 
             document.getElementById('btn-thu-ho-toggle').classList.toggle('active', saved.thuHoActive)
