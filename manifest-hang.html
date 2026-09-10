@@ -96,6 +96,7 @@
         .doichieu-row .info { flex: 1; min-width: 0; font-size: 13px; }
         .doichieu-row .sdt-cu { color: var(--text-muted); }
         .doichieu-row .sdt-ai { color: var(--danger); font-weight: 600; }
+        .doichieu-row .sdt-goi-y { color: var(--primary); font-weight: 600; }
 
         /* Dưới 600px: img+info+badge dùng chung 1 hàng, nút hành động (kể cả nút chính +
            menu "⋯" của renderKienRowView, kể cả form Lưu/Hủy) luôn xuống hàng riêng chiếm
@@ -531,13 +532,19 @@
             document.querySelectorAll('.kien-menu.open').forEach(m => m.classList.remove('open'))
         })
 
-        function renderKienRowEdit(row, k) {
+        // prefillSdt: CHỈ set giá trị hiển thị ban đầu của ô input, KHÔNG được gán vào
+        // k.nguoi_nhan_sdt trước khi render — dùng cho nút "Điền" ở khối "🆕 kiện thiếu SĐT"
+        // (chayDoiChieuSdt), số AI gợi ý chỉ là gợi ý hiển thị trong FORM, nếu crew bấm "Hủy"
+        // thay vì "Lưu" thì renderKienRowView phải quay về đúng trạng thái CHƯA CÓ SĐT (đọc từ
+        // k.nguoi_nhan_sdt thật) — nếu mutate k trước khi render, bấm Hủy sẽ hiện nhầm số AI gợi
+        // ý như thể đã lưu thật dù chưa hề qua DB.
+        function renderKienRowEdit(row, k, prefillSdt) {
             row.classList.add('kien-row-edit')
             row.innerHTML = `
                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                 <div class="info" style="display:flex; flex-direction:column; gap:6px;">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
-                    <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${k.nguoi_nhan_sdt || ''}">
+                    <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${prefillSdt || k.nguoi_nhan_sdt || ''}">
                     <textarea class="edit-ghichu" placeholder="Ghi chú" rows="2">${k.ghi_chu || ''}</textarea>
                 </div>
                 <div class="kien-actions">
@@ -774,6 +781,30 @@
         // không) — khởi điểm thận trọng, điều chỉnh sau khi đo latency thật của qwen-vl-ocr.
         const BATCH_SIZE = 3
 
+        // Gọi /api/doi-chieu-sdt theo LÔ (BATCH_SIZE), tuần tự từng lô — dùng chung cho cả 2
+        // nhánh compare/read bên dưới. Lô nào cả request lỗi (không phải lỗi 1 item) → đánh dấu
+        // toàn bộ kiện trong lô `loi: true`, tiếp tục lô kế tiếp, không mất kết quả lô đã xong.
+        async function goiTheoLo(items, body, onProgress) {
+            const ketQua = []
+            for (let i = 0; i < items.length; i += BATCH_SIZE) {
+                const lo = items.slice(i, i + BATCH_SIZE)
+                try {
+                    const res = await fetch('/api/doi-chieu-sdt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body(lo))
+                    })
+                    if (!res.ok) throw new Error('HTTP ' + res.status)
+                    const data = await res.json()
+                    ketQua.push(...(data.ketQua || []))
+                } catch (err) {
+                    ketQua.push(...lo.map(k => ({ kien_id: k.id, loi: true })))
+                }
+                onProgress?.(lo.length)
+            }
+            return ketQua
+        }
+
         async function chayDoiChieuSdt() {
             const chuyen = chuyenList.find(c => c.id === document.getElementById('chuyen-select').value)
             if (!chuyen) return
@@ -783,83 +814,97 @@
             // Query riêng, KHÔNG dùng lại currentKienList (chỉ loại 'huy', kiện 'tra_lai' vẫn
             // nằm trong đó) — ở đây cũng chỉ loại 'huy', giữ nguyên chua_giao/da_giao/tra_lai,
             // vì SĐT sai có thể chính là lý do 1 kiện bị "Trả hàng", đáng để đối chiếu lại.
+            // KHÔNG đòi nguoi_nhan_sdt khác null (khác bản trước) — kiện thiếu hẳn SĐT (crew
+            // quên gõ) vẫn đủ điều kiện, xử lý ở nhánh 'read' bên dưới thay vì bị loại thẳng.
             const { data: dsKien, error } = await sb
                 .from('kien')
                 .select('id, anh_url, nguoi_nhan_sdt')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
                 .not('anh_url', 'is', null)
-                .not('nguoi_nhan_sdt', 'is', null)
             if (error) { showToast('Lỗi tải danh sách đối chiếu: ' + error.message, 'error'); return }
-            if (!dsKien.length) { showToast('Không có kiện nào đủ ảnh + SĐT để đối chiếu', 'error'); return }
+            if (!dsKien.length) { showToast('Không có kiện nào có ảnh để đối chiếu', 'error'); return }
+
+            const coSdt = dsKien.filter(k => k.nguoi_nhan_sdt)
+            const thieuSdt = dsKien.filter(k => !k.nguoi_nhan_sdt)
 
             btn.disabled = true
-            const tongSo = dsKien.length
             let daXong = 0
-            const ketQua = []
+            const tongSo = dsKien.length
+            btn.textContent = `🔍 Đang đối chiếu 0/${tongSo}...`
+            const capNhatTienDo = n => { daXong += n; btn.textContent = `🔍 Đang đối chiếu ${daXong}/${tongSo}...` }
+            const kienMap = new Map(dsKien.map(k => [k.id, k]))
 
-            for (let i = 0; i < dsKien.length; i += BATCH_SIZE) {
-                const lo = dsKien.slice(i, i + BATCH_SIZE)
-                btn.textContent = `🔍 Đang đối chiếu ${daXong}/${tongSo}...`
-                try {
-                    const res = await fetch('/api/doi-chieu-sdt', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            items: lo.map(k => ({ kien_id: k.id, anh_url: k.anh_url, sdt_da_nhap: k.nguoi_nhan_sdt }))
-                        })
-                    })
-                    if (!res.ok) throw new Error('HTTP ' + res.status)
-                    const data = await res.json()
-                    ketQua.push(...(data.ketQua || []))
-                } catch (err) {
-                    // Cả lô lỗi (không phải lỗi 1 item) — đánh dấu toàn bộ kiện trong lô, tiếp
-                    // tục lô kế tiếp, không mất kết quả các lô đã chạy xong trước đó.
-                    ketQua.push(...lo.map(k => ({ kien_id: k.id, loi: true })))
-                }
-                daXong += lo.length
-            }
+            const [ketQuaCompare, ketQuaRead] = await Promise.all([
+                goiTheoLo(coSdt, lo => ({ items: lo.map(k => ({ kien_id: k.id, anh_url: k.anh_url, sdt_da_nhap: k.nguoi_nhan_sdt })) }), capNhatTienDo),
+                goiTheoLo(thieuSdt, lo => ({ mode: 'read', items: lo.map(k => ({ kien_id: k.id, anh_url: k.anh_url })) }), capNhatTienDo)
+            ])
 
             btn.disabled = false
             btn.textContent = '🔍 Đối chiếu SĐT bằng AI'
 
-            const kienMap = new Map(dsKien.map(k => [k.id, k]))
-            const lech = ketQua.filter(r => r.loi || r.khong_doc_duoc || !r.khop)
+            const lech = ketQuaCompare.filter(r => r.loi || r.khong_doc_duoc || !r.khop)
+            // Chỉ gợi ý kiện AI đọc RA được số hợp lệ — đọc không được/lỗi thì không có gì để gợi ý.
+            const goiY = ketQuaRead.filter(r => !r.loi && !r.khong_doc_duoc && r.sdt_ai_doc)
 
-            if (!lech.length) {
+            if (!lech.length && !goiY.length) {
                 summaryEl.style.display = 'block'
-                summaryEl.innerHTML = `<div>✅ Đã đối chiếu ${tongSo} kiện, không phát hiện sai lệch.</div>`
+                summaryEl.innerHTML = `<div>✅ Đã đối chiếu ${coSdt.length} kiện, không phát hiện sai lệch${thieuSdt.length ? ` (${thieuSdt.length} kiện thiếu SĐT, AI không đọc được số nào)` : ''}.</div>`
                 return
             }
 
-            summaryEl.style.display = 'block'
-            summaryEl.innerHTML = `<div style="font-weight:600; margin-bottom:8px;">⚠️ ${lech.length}/${tongSo} kiện có thể lệch SĐT — kiểm tra lại:</div>` +
-                lech.map(r => {
-                    const k = kienMap.get(r.kien_id)
-                    if (!k) return ''
-                    const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.sdt_ai_doc
-                    return `
-                        <div class="doichieu-row" data-kien-id="${k.id}">
-                            ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
-                            <div class="info">
-                                <div class="sdt-cu">Đã gõ: ${k.nguoi_nhan_sdt}</div>
-                                <div class="sdt-ai">AI đọc: ${nhan}</div>
+            let html = ''
+            if (lech.length) {
+                html += `<div style="font-weight:600; margin-bottom:8px;">⚠️ ${lech.length}/${coSdt.length} kiện có thể lệch SĐT — kiểm tra lại:</div>` +
+                    lech.map(r => {
+                        const k = kienMap.get(r.kien_id)
+                        if (!k) return ''
+                        const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.sdt_ai_doc
+                        return `
+                            <div class="doichieu-row" data-kien-id="${k.id}">
+                                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                                <div class="info">
+                                    <div class="sdt-cu">Đã gõ: ${k.nguoi_nhan_sdt}</div>
+                                    <div class="sdt-ai">AI đọc: ${nhan}</div>
+                                </div>
+                                <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
                             </div>
-                            <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
-                        </div>
-                    `
-                }).join('')
+                        `
+                    }).join('')
+            }
+            if (goiY.length) {
+                html += `<div style="font-weight:600; margin:${lech.length ? '14px' : '0'} 0 8px;">🆕 ${goiY.length} kiện thiếu SĐT — AI gợi ý số:</div>` +
+                    goiY.map(r => {
+                        const k = kienMap.get(r.kien_id)
+                        if (!k) return ''
+                        return `
+                            <div class="doichieu-row" data-kien-id="${k.id}" data-goi-y="${r.sdt_ai_doc}">
+                                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                                <div class="info">
+                                    <div class="sdt-goi-y">AI đọc: ${r.sdt_ai_doc}</div>
+                                </div>
+                                <button type="button" class="btn-sm btn-dien-goi-y">Điền</button>
+                            </div>
+                        `
+                    }).join('')
+            }
+            summaryEl.style.display = 'block'
+            summaryEl.innerHTML = html
 
-            summaryEl.querySelectorAll('.btn-sua-lech').forEach(btn2 => {
-                btn2.addEventListener('click', () => {
-                    const kienId = btn2.closest('.doichieu-row').dataset.kienId
-                    const row = document.querySelector(`.kien-row[data-kien-id="${kienId}"]`)
-                    const k = currentKienList.find(kk => kk.id === kienId)
-                    if (!row || !k) { showToast('Không tìm thấy dòng kiện (có thể chưa tải trong danh sách hiện tại)', 'error'); return }
-                    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                    renderKienRowEdit(row, k)
-                })
-            })
+            // "Sửa" (lệch) — mở form sửa bình thường, KHÔNG prefill (2 giá trị xung đột, để
+            // trống chọn nhầm bên sai). "Điền" (thiếu SĐT) — mở form sửa, prefill số AI gợi ý
+            // vào ô input (không mutate k, xem ghi chú ở renderKienRowEdit) — crew vẫn phải
+            // bấm "Lưu" mới thật sự ghi vào DB.
+            function moFormSua(btnEl, prefillSdt) {
+                const kienId = btnEl.closest('.doichieu-row').dataset.kienId
+                const row = document.querySelector(`.kien-row[data-kien-id="${kienId}"]`)
+                const k = currentKienList.find(kk => kk.id === kienId)
+                if (!row || !k) { showToast('Không tìm thấy dòng kiện (có thể chưa tải trong danh sách hiện tại)', 'error'); return }
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                renderKienRowEdit(row, k, prefillSdt)
+            }
+            summaryEl.querySelectorAll('.btn-sua-lech').forEach(b => b.addEventListener('click', () => moFormSua(b)))
+            summaryEl.querySelectorAll('.btn-dien-goi-y').forEach(b => b.addEventListener('click', () => moFormSua(b, b.closest('.doichieu-row').dataset.goiY)))
         }
 
         document.getElementById('btn-doi-chieu-sdt').addEventListener('click', chayDoiChieuSdt)
