@@ -13,9 +13,24 @@
 //         'compare') — cùng lô 'read' này với (a) chỉ khác input, không phải mode riêng.
 // Xử lý TUẦN TỰ từng ảnh trong 1 lô ('compare' hoặc 'read' dạng items), lỗi 1 item không chặn
 // các item còn lại.
+//
+// Độ tin cậy đọc số — 2 lớp phòng vệ (phát hiện sau khi test batch thật gặp: cùng 1 ảnh đọc ra
+// 2 số KHÁC NHAU giữa các lần gọi, và 1 lần model trả về chuỗi 13 số không thể là SĐT VN nhưng
+// vẫn lọt ra UI như gợi ý hợp lệ):
+//   1. `temperature: 0` trong request DashScope — giảm ngẫu nhiên, đọc cùng 1 ảnh nhiều lần ra
+//      cùng 1 kết quả (không đảm bảo ĐÚNG, chỉ đảm bảo NHẤT QUÁN — cần thiết để self-consistency
+//      ở lớp 3 có ý nghĩa).
+//   2. `laSdtHopLe()` validate CỨNG sau `chuanHoaSdt()` — đúng 10 số, đầu số di động VN hợp lệ
+//      (03/05/07/08/09). Không khớp → LUÔN coi như không đọc được, bất kể model "tự tin" thế
+//      nào — áp dụng ở server (không phải chỉ client) nên nhánh gọi thẳng từ hang.html cũng được
+//      bảo vệ.
+//   3. `docSdtTinCay()` gọi model 2 LẦN cho cùng 1 ảnh, so kết quả sau chuẩn hoá — khớp nhau mới
+//      trả về như kết quả đáng tin; lệch nhau (hoặc chỉ 1 trong 2 lần đọc ra số hợp lệ) → trả
+//      `khong_chac: true` kèm cả 2 lần đọc, KHÔNG tự chọn liều 1 trong 2. Chi phí tăng gấp đôi
+//      nhưng vẫn không đáng kể (~$0.0003/ảnh).
 
 const DASHSCOPE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
-const PROMPT_TEXT = 'Đọc số điện thoại viết tay trên kiện hàng trong ảnh này. Trả lời CHỈ bằng chuỗi số (không khoảng trắng, không dấu gạch, không giải thích gì thêm). Nếu không thấy số điện thoại nào trên ảnh, trả lời đúng 1 từ: KHONG_DOC_DUOC.'
+const PROMPT_TEXT = 'Trong ảnh có 1 số điện thoại di động Việt Nam viết tay (10 chữ số, bắt đầu bằng 03/05/07/08/09). Đọc CHÍNH XÁC từng chữ số viết tay trong ảnh, không tự suy luận hay "làm tròn" thành 1 số nghe hợp lý nếu nét chữ không rõ ràng. Chú ý các cặp chữ số viết tay dễ nhầm: 3 và 8, 4 và 9, 1 và 7, 0 và 6. Nếu không chắc chắn về BẤT KỲ chữ số nào, hoặc ảnh không có số điện thoại nào, trả lời "KHONG_DOC_DUOC". Nếu đọc được, CHỈ trả về đúng 10 chữ số, không thêm khoảng trắng, dấu chấm, hay chữ giải thích nào khác.'
 
 function chuanHoaSdt(s) {
     let d = (s || '').replace(/\D/g, '')
@@ -24,6 +39,10 @@ function chuanHoaSdt(s) {
         d = rest.startsWith('0') ? rest : '0' + rest
     }
     return d
+}
+
+function laSdtHopLe(daChuanHoa) {
+    return /^0(3|5|7|8|9)\d{8}$/.test(daChuanHoa)
 }
 
 async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
@@ -38,6 +57,7 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
             },
             body: JSON.stringify({
                 model: 'qwen-vl-ocr',
+                temperature: 0,
                 messages: [{
                     role: 'user',
                     content: [
@@ -55,10 +75,27 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
         const data = await res.json()
         const raw = (data?.choices?.[0]?.message?.content || '').trim()
         if (raw === 'KHONG_DOC_DUOC') return { khong_doc_duoc: true }
-        return { sdt_ai_doc: raw }
+        const chuan = chuanHoaSdt(raw)
+        if (!laSdtHopLe(chuan)) return { khong_doc_duoc: true } // sai định dạng → coi như không đọc được, không lộ ra UI
+        return { sdt_ai_doc: chuan }
     } finally {
         if (timer) clearTimeout(timer)
     }
+}
+
+// Gọi model 2 LẦN cho cùng 1 ảnh, chỉ tin kết quả nếu cả 2 lần khớp nhau — xem ghi chú lớp 3 ở
+// đầu file. Lỗi mạng/timeout ở 1 trong 2 lần gọi → coi cả phép thử là lỗi (`loi: true`), không
+// cố gọi bù — giữ đơn giản, lỗi mạng vốn đã hiếm và không nên kéo dài thêm latency để retry.
+async function docSdtTinCay(imageUrl, apiKey, timeoutMs) {
+    const [a, b] = await Promise.all([
+        docSdtTuAnh(imageUrl, apiKey, timeoutMs),
+        docSdtTuAnh(imageUrl, apiKey, timeoutMs)
+    ])
+    if (a.khong_doc_duoc && b.khong_doc_duoc) return { khong_doc_duoc: true }
+    if (a.sdt_ai_doc && b.sdt_ai_doc && a.sdt_ai_doc === b.sdt_ai_doc) return { sdt_ai_doc: a.sdt_ai_doc }
+    // 1 trong 2 đọc ra số, 1 không, HOẶC cả 2 đọc ra nhưng khác nhau — không đủ tin cậy để chọn
+    // liều 1 bên, trả về cả 2 để hiển thị "không chắc" thay vì tự quyết định thay crew.
+    return { khong_chac: true, sdt_lan_1: a.sdt_ai_doc || null, sdt_lan_2: b.sdt_ai_doc || null }
 }
 
 export default async function handler(req, res) {
@@ -80,8 +117,8 @@ export default async function handler(req, res) {
             for (const item of readItems) {
                 const { kien_id, anh_url } = item
                 try {
-                    const { sdt_ai_doc, khong_doc_duoc } = await docSdtTuAnh(anh_url, apiKey)
-                    ketQua.push(khong_doc_duoc ? { kien_id, khong_doc_duoc: true } : { kien_id, sdt_ai_doc })
+                    const kq = await docSdtTinCay(anh_url, apiKey)
+                    ketQua.push({ kien_id, ...kq })
                 } catch (err) {
                     console.error('[doi-chieu-sdt:read-batch]', kien_id, err.message)
                     ketQua.push({ kien_id, loi: true })
@@ -91,13 +128,14 @@ export default async function handler(req, res) {
             return
         }
 
-        // Dạng (a): 1 ảnh chưa upload (hang.html) — giữ nguyên hành vi cũ.
+        // Dạng (a): 1 ảnh chưa upload (hang.html) — timeout 8s/lần gọi (x2 lần ~16s tối đa,
+        // vẫn chạy nền không chặn UI).
         const { anh_base64, mime_type } = req.body || {}
         if (!anh_base64) { res.status(400).json({ error: 'Thiếu anh_base64 hoặc items' }); return }
         const dataUrl = anh_base64.startsWith('data:') ? anh_base64 : `data:${mime_type || 'image/jpeg'};base64,${anh_base64}`
         try {
-            const { sdt_ai_doc, khong_doc_duoc } = await docSdtTuAnh(dataUrl, apiKey, 8000)
-            res.status(200).json(khong_doc_duoc ? { khong_doc_duoc: true } : { sdt_ai_doc })
+            const kq = await docSdtTinCay(dataUrl, apiKey, 8000)
+            res.status(200).json(kq)
         } catch (err) {
             console.error('[doi-chieu-sdt:read]', err.message)
             res.status(200).json({ loi: true })
@@ -105,7 +143,7 @@ export default async function handler(req, res) {
         return
     }
 
-    // mode 'compare' — hành vi cũ, giữ nguyên 100%.
+    // mode 'compare' — so khớp SĐT đã gõ tay với ảnh, có self-consistency + validate như 'read'.
     const items = Array.isArray(req.body?.items) ? req.body.items : []
     if (!items.length) { res.status(400).json({ error: 'Thiếu items' }); return }
 
@@ -113,12 +151,14 @@ export default async function handler(req, res) {
     for (const item of items) {
         const { kien_id, anh_url, sdt_da_nhap } = item
         try {
-            const { sdt_ai_doc, khong_doc_duoc } = await docSdtTuAnh(anh_url, apiKey)
-            if (khong_doc_duoc) {
+            const kq = await docSdtTinCay(anh_url, apiKey)
+            if (kq.khong_doc_duoc) {
                 ketQua.push({ kien_id, khong_doc_duoc: true, khop: false })
+            } else if (kq.khong_chac) {
+                ketQua.push({ kien_id, ...kq, khop: false })
             } else {
-                const khop = chuanHoaSdt(sdt_ai_doc) === chuanHoaSdt(sdt_da_nhap)
-                ketQua.push({ kien_id, sdt_ai_doc, khop })
+                const khop = kq.sdt_ai_doc === chuanHoaSdt(sdt_da_nhap)
+                ketQua.push({ kien_id, sdt_ai_doc: kq.sdt_ai_doc, khop })
             }
         } catch (err) {
             console.error('[doi-chieu-sdt:compare]', kien_id, err.message)

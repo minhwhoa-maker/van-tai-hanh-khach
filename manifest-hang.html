@@ -844,10 +844,14 @@
             btn.textContent = '🔍 Đối chiếu SĐT bằng AI'
 
             const lech = ketQuaCompare.filter(r => r.loi || r.khong_doc_duoc || !r.khop)
-            // Chỉ gợi ý kiện AI đọc RA được số hợp lệ — đọc không được/lỗi thì không có gì để gợi ý.
-            const goiY = ketQuaRead.filter(r => !r.loi && !r.khong_doc_duoc && r.sdt_ai_doc)
+            // Chỉ gợi ý kiện AI đọc RA được số hợp lệ VÀ đọc nhất quán (2 lần gọi khớp nhau) —
+            // đọc không được/lỗi/không chắc thì không có gì đáng tin để gợi ý.
+            const goiY = ketQuaRead.filter(r => !r.loi && !r.khong_doc_duoc && !r.khong_chac && r.sdt_ai_doc)
+            // "Không chắc" — 2 lần gọi model ra 2 kết quả khác nhau (hoặc chỉ 1 lần đọc ra số) —
+            // không đủ tin cậy để tự chọn 1 bên, hiện riêng cả 2 lần đọc để crew tự xem ảnh gốc.
+            const khongChac = ketQuaRead.filter(r => r.khong_chac)
 
-            if (!lech.length && !goiY.length) {
+            if (!lech.length && !goiY.length && !khongChac.length) {
                 summaryEl.style.display = 'block'
                 summaryEl.innerHTML = `<div>✅ Đã đối chiếu ${coSdt.length} kiện, không phát hiện sai lệch${thieuSdt.length ? ` (${thieuSdt.length} kiện thiếu SĐT, AI không đọc được số nào)` : ''}.</div>`
                 return
@@ -859,7 +863,7 @@
                     lech.map(r => {
                         const k = kienMap.get(r.kien_id)
                         if (!k) return ''
-                        const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.sdt_ai_doc
+                        const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.khong_chac ? `Không chắc (${r.sdt_lan_1 || '?'} / ${r.sdt_lan_2 || '?'})` : r.sdt_ai_doc
                         return `
                             <div class="doichieu-row" data-kien-id="${k.id}">
                                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
@@ -884,6 +888,22 @@
                                     <div class="sdt-goi-y">AI đọc: ${r.sdt_ai_doc}</div>
                                 </div>
                                 <button type="button" class="btn-sm btn-dien-goi-y">Điền</button>
+                            </div>
+                        `
+                    }).join('')
+            }
+            if (khongChac.length) {
+                html += `<div style="font-weight:600; margin:${(lech.length || goiY.length) ? '14px' : '0'} 0 8px;">🤔 ${khongChac.length} kiện AI đọc không chắc — cần xem ảnh gốc:</div>` +
+                    khongChac.map(r => {
+                        const k = kienMap.get(r.kien_id)
+                        if (!k) return ''
+                        return `
+                            <div class="doichieu-row" data-kien-id="${k.id}">
+                                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                                <div class="info">
+                                    <div class="sdt-goi-y">2 lần đọc: ${r.sdt_lan_1 || '?'} / ${r.sdt_lan_2 || '?'}</div>
+                                </div>
+                                <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
                             </div>
                         `
                     }).join('')
