@@ -375,6 +375,15 @@
             return ghiChu.split('\n').filter(dong => dong.trimStart().startsWith('[')).length
         }
 
+        // Ẩn dòng audit "AI tự điền SĐT: ..." (append lúc bấm "⚡ Điền tất cả") khỏi hiển thị —
+        // SĐT đã hiện sẵn ở dòng riêng ngay bên trên nên dòng này chỉ lặp lại thông tin, không
+        // cần crew đọc thêm. Dòng vẫn giữ nguyên trong ghi_chu thật (DB, ô sửa ghi chú) để còn
+        // truy lại nguồn gốc số nếu cần sau này, xem CLAUDE.md mục audit trail.
+        function locGhiChuHienThi(ghiChu) {
+            if (!ghiChu) return ghiChu
+            return ghiChu.split('\n').filter(dong => !dong.trimStart().startsWith('[') || !dong.includes('AI tự điền SĐT:')).join('\n')
+        }
+
         function renderKienRowView(row, k) {
             row.classList.remove('kien-row-edit')
             const daGiao = k.trang_thai === 'da_giao'
@@ -382,6 +391,7 @@
             const chuaGiao = !daGiao && !traLai
             row.classList.toggle('kien-row-da-giao', daGiao)
             row.classList.toggle('kien-row-tra-lai', traLai)
+            const ghiChuHienThi = locGhiChuHienThi(k.ghi_chu)
             const coTien = k.tien_thu !== null && k.tien_thu !== undefined
             const thuTruocKhiGiao = coTien && chuaGiao
             const coThuHo = k.tien_thu_ho != null && k.tien_thu_ho > 0
@@ -393,7 +403,7 @@
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
                     ${k.nguoi_nhan_sdt ? `<div class="mota sdt-row">SĐT: ${k.nguoi_nhan_sdt} <a class="btn-goi" href="tel:${k.nguoi_nhan_sdt}">📞 Gọi</a></div>` : ''}
-                    ${k.ghi_chu ? `<div class="mota">${k.ghi_chu}</div>` : ''}
+                    ${ghiChuHienThi ? `<div class="mota">${ghiChuHienThi}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : traLai ? ' (đã hoàn, không thu nữa)' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
                 </div>
