@@ -33,12 +33,13 @@
         .kien-row .diem { font-weight: 600; }
         .kien-row .so-luong { color: var(--primary); font-weight: 600; font-size: 13px; }
         .kien-row .mota { color: var(--text-muted); font-size: 13px; white-space: pre-line; }
-        .sdt-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--text-muted); }
-        .sdt-so { font-size: 29px; font-weight: 600; color: var(--text); }
+        .sdt-row { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; font-size: 13px; color: var(--text-muted); }
+        .sdt-so { font-size: 29px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .btn-goi {
             display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;
             border: 1px solid var(--primary); color: var(--primary); border-radius: 14px;
-            font-size: 14px; font-weight: 600; text-decoration: none; background: #fff; flex-shrink: 0;
+            font-size: 14px; font-weight: 600; text-decoration: none; background: #fff;
+            flex-shrink: 0; margin-left: auto;
         }
         .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
         .badge.chua_giao { background: #fdecea; color: var(--danger); }
