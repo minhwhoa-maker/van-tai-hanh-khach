@@ -167,6 +167,8 @@
             <input type="file" accept="image/*" capture="environment" id="kien-camera-input" style="display:none;">
             <div id="camera-box-label">📷 Chạm để chụp ảnh</div>
         </div>
+        <button type="button" id="btn-chon-thu-vien" class="btn" style="display:block; margin:0 16px; background:var(--white); color:var(--text); border:1.5px solid var(--border);">🖼️ Chọn ảnh có sẵn</button>
+        <input type="file" accept="image/*" id="kien-thuvien-input" style="display:none;">
         <div id="camera-live">
             <video id="camera-video" autoplay playsinline muted></video>
             <div class="camera-live-actions">
@@ -191,6 +193,11 @@
                 <label>SĐT người nhận</label>
                 <input type="tel" id="kien-sdt" placeholder="SĐT người nhận (tùy chọn)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
                 <div id="sdt-ai-hint" style="display:none; font-size:13px; color:var(--text-muted); margin-top:4px;">✨ AI đọc từ ảnh — kiểm tra lại trước khi lưu</div>
+            </div>
+            <div class="form-group">
+                <label>SĐT người gửi</label>
+                <input type="tel" id="kien-nguoi-gui-sdt" placeholder="SĐT người gửi (tùy chọn)" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;">
+                <div id="nguoi-gui-sdt-ai-hint" style="display:none; font-size:13px; color:var(--text-muted); margin-top:4px;">✨ AI đọc từ ảnh — kiểm tra lại trước khi lưu</div>
             </div>
             <div class="form-group">
                 <label>Ghi chú</label>
@@ -299,6 +306,10 @@
         document.getElementById('kien-sdt').addEventListener('input', e => {
             delete e.target.dataset.nguon
             document.getElementById('sdt-ai-hint').style.display = 'none'
+        })
+        document.getElementById('kien-nguoi-gui-sdt').addEventListener('input', e => {
+            delete e.target.dataset.nguon
+            document.getElementById('nguoi-gui-sdt-ai-hint').style.display = 'none'
         })
 
         // opts.stack: dùng cho các chuyển bước KHÔNG phải "tiến thêm 1 bước" mà là "khởi
@@ -644,6 +655,7 @@
             // vào ảnh này.
             kienSessionToken++
             document.getElementById('sdt-ai-hint').style.display = 'none'
+            document.getElementById('nguoi-gui-sdt-ai-hint').style.display = 'none'
 
             // Hiện preview ngay bằng object URL — không đọc/encode base64 toàn bộ ảnh gốc
             // (FileReader.readAsDataURL mất 0.5-3s với ảnh camera vài MB chưa resize, đây
@@ -664,12 +676,25 @@
                 .catch(err => console.error('[resizeImage] lỗi, giữ ảnh gốc', err))
         }
 
+        // Điền 1 ô SĐT (người nhận HOẶC người gửi) từ 1 role-result của API — dùng chung cho cả
+        // 2 ô vì cùng nguyên tắc: chỉ điền nếu đọc được + tin cậy (không phải khong_doc_duoc/
+        // khong_chac) + ô đang trống (không ghi đè crew đã gõ tay).
+        function apDungKetQuaVaiTro(roleResult, inputId, hintId) {
+            if (!roleResult || roleResult.khong_doc_duoc || roleResult.khong_chac || !roleResult.sdt_ai_doc) return
+            const input = document.getElementById(inputId)
+            if (input.value.trim()) return // crew đã gõ tay/bấm chip — không ghi đè
+            const chuan = sdtDocDuocHopLe(roleResult.sdt_ai_doc)
+            if (!chuan) return
+            input.value = chuan
+            input.dataset.nguon = 'ai'
+            document.getElementById(hintId).style.display = 'block'
+        }
+
         // Đọc SĐT trực tiếp từ ảnh (mode 'read', gửi base64 vì ảnh CHƯA upload lên Storage lúc
-        // này — chỉ upload lúc idb-queue.js sync nền) để tự điền #kien-sdt, giảm phụ thuộc gõ
-        // tay. Tính năng phụ trợ chạy nền: lỗi mạng/model đọc không ra/ảnh mờ → bỏ qua lặng lẽ,
-        // không toast, không console.error ồn ào (khác chayDoiChieuSdt ở manifest-hang.html vốn
-        // là thao tác chủ động của crew nên có thể log lỗi chi tiết). KHÔNG ghi đè nếu #kien-sdt
-        // đã có giá trị (crew gõ tay trước) — không tự tiện ghi đè dữ liệu crew đã nhập.
+        // này — chỉ upload lúc idb-queue.js sync nền) để tự điền #kien-sdt VÀ #kien-nguoi-gui-sdt,
+        // giảm phụ thuộc gõ tay. Tính năng phụ trợ chạy nền: lỗi mạng/model đọc không ra/ảnh mờ →
+        // bỏ qua lặng lẽ, không toast, không console.error ồn ào (khác chayDoiChieuSdt ở
+        // manifest-hang.html vốn là thao tác chủ động của crew nên có thể log lỗi chi tiết).
         async function tryAutoReadSdt(resizedBlob, token) {
             try {
                 const base64 = await new Promise((resolve, reject) => {
@@ -685,23 +710,17 @@
                 })
                 if (!res.ok) return
                 const data = await res.json()
-                if (data.loi || data.khong_doc_duoc || !data.sdt_ai_doc) return
+                if (data.loi) return
 
                 // Guard race-condition: so token phiên kiện lúc gửi với hiện tại — lệch (đã
                 // chụp ảnh khác, đã lưu kiện, đã sang kiện tiếp theo, hoặc đã "Sửa lại") thì bỏ
                 // kết quả, không điền vào bất kỳ ô nào.
                 if (token !== kienSessionToken) return
 
-                const sdtInput = document.getElementById('kien-sdt')
-                if (sdtInput.value.trim()) return // crew đã gõ tay/bấm chip — không ghi đè
-
-                const chuan = sdtDocDuocHopLe(data.sdt_ai_doc)
-                if (!chuan) return
-
-                sdtInput.value = chuan
-                sdtInput.dataset.nguon = 'ai'
-                const hint = document.getElementById('sdt-ai-hint')
-                hint.style.display = 'block'
+                // 2 vai trò độc lập — người nhận đọc tin cậy không có nghĩa người gửi cũng vậy
+                // (và ngược lại), mỗi field tự quyết định điền hay bỏ qua.
+                apDungKetQuaVaiTro(data.nguoi_nhan, 'kien-sdt', 'sdt-ai-hint')
+                apDungKetQuaVaiTro(data.nguoi_gui, 'kien-nguoi-gui-sdt', 'nguoi-gui-sdt-ai-hint')
             } catch {
                 // Lỗi mạng/parse — bỏ qua lặng lẽ, đây chỉ là tính năng phụ trợ.
             }
@@ -783,6 +802,22 @@
             handleNewPhotoBlob(this.files[0])
         })
 
+        // "🖼️ Chọn ảnh có sẵn" — nút RIÊNG, độc lập với openCameraFlow(). Trên Android,
+        // openCameraFlow() khi getUserMedia thành công (đa số trường hợp) mở thẳng camera nhúng
+        // sống, không bao giờ đụng tới #kien-camera-input — nếu chỉ bỏ `capture` khỏi input đó,
+        // crew Android sẽ không có cách nào bấm vào để chọn thư viện. Input ẩn riêng này KHÔNG
+        // có attribute `capture` nên trình duyệt tự hiện picker "Chụp ảnh"/"Chọn từ thư viện".
+        // Đi qua ĐÚNG pipeline handleNewPhotoBlob() như ảnh chụp trực tiếp — không viết luồng
+        // preview/resize/race-guard riêng.
+        document.getElementById('btn-chon-thu-vien').addEventListener('click', () => {
+            document.getElementById('kien-thuvien-input').click()
+        })
+        document.getElementById('kien-thuvien-input').addEventListener('change', function () {
+            if (!this.files || !this.files[0]) return
+            handleNewPhotoBlob(this.files[0])
+            this.value = '' // cho phép chọn lại đúng file đó lần nữa nếu cần
+        })
+
         document.getElementById('btn-save-kien').addEventListener('click', async () => {
             if (!currentChuyen || !selectedTinh || !selectedDiem) { showToast('Thiếu chuyến/tỉnh/điểm', 'error'); return }
             if (!loaiHangItems.length) { showToast('Chọn ít nhất 1 loại hàng trước khi lưu', 'error'); return }
@@ -811,6 +846,7 @@
                 chuyen_id: currentChuyen.id,
                 diem_id: selectedDiem.id,
                 nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
+                nguoi_gui_sdt: document.getElementById('kien-nguoi-gui-sdt').value.trim() || null,
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
                 trang_thai: 'chua_giao',
                 so_luong: tongSoLuong,
@@ -840,6 +876,7 @@
                 diem: selectedDiem,
                 loaiHangItems: loaiHangItems.map(i => ({ ...i })),
                 sdt: record.nguoi_nhan_sdt,
+                guiSdt: record.nguoi_gui_sdt,
                 ghiChu: record.ghi_chu,
                 thuHoActive,
                 tienThuHo,
@@ -853,6 +890,7 @@
                 tenDiem: selectedDiem.ten,
                 tenTinh: selectedTinh.ten,
                 sdt: record.nguoi_nhan_sdt,
+                guiSdt: record.nguoi_gui_sdt,
                 ghiChu: record.ghi_chu,
                 soLuong: record.so_luong,
                 loaiHang: record.loai_hang,
@@ -868,6 +906,7 @@
             // Nhập kiện tiếp theo" hay chụp ảnh mới.
             kienSessionToken++
             document.getElementById('sdt-ai-hint').style.display = 'none'
+            document.getElementById('nguoi-gui-sdt-ai-hint').style.display = 'none'
             activePhotoBlob = null
             activePreviewUrl = null
             document.getElementById('kien-preview').style.display = 'none'
@@ -875,6 +914,7 @@
             loaiHangItems = []
             renderLoaiHangItems()
             document.getElementById('kien-sdt').value = ''
+            document.getElementById('kien-nguoi-gui-sdt').value = ''
             document.getElementById('kien-ghichu').value = ''
             document.getElementById('btn-thu-ho-toggle').classList.remove('active')
             document.getElementById('kien-thu-ho-wrap').style.display = 'none'
@@ -892,6 +932,7 @@
                 ${data.photoUrl ? `<img src="${data.photoUrl}" alt="">` : ''}
                 <div class="diem">${data.tenDiem} — ${data.tenTinh}</div>
                 ${data.sdt ? `<div class="mota">SĐT: ${data.sdt}</div>` : ''}
+                ${data.guiSdt ? `<div class="mota">SĐT người gửi: ${data.guiSdt}</div>` : ''}
                 ${data.ghiChu ? `<div class="mota">${data.ghiChu}</div>` : ''}
                 ${data.loaiHang ? `<div class="mota">${data.loaiHang}</div>` : (data.soLuong > 1 ? `<div class="mota">Số lượng: ×${data.soLuong}</div>` : '')}
                 ${data.tienThuHo != null && data.tienThuHo > 0 ? `<div class="cod">💰 Thu hộ: ${formatMoney(data.tienThuHo)}</div>` : ''}
@@ -915,6 +956,7 @@
             lastSaved = null
             kienSessionToken++   // chặn kết quả AI trễ từ 1 lần chụp-lại trước đó lúc đang sửa
             document.getElementById('sdt-ai-hint').style.display = 'none'
+            document.getElementById('nguoi-gui-sdt-ai-hint').style.display = 'none'
 
             await deleteKienLocal(saved.id)
             sb.from('kien').delete().eq('id', saved.id).then(() => {})
@@ -929,6 +971,8 @@
             renderLoaiHangItems()
             document.getElementById('kien-sdt').value = saved.sdt || ''
             delete document.getElementById('kien-sdt').dataset.nguon
+            document.getElementById('kien-nguoi-gui-sdt').value = saved.guiSdt || ''
+            delete document.getElementById('kien-nguoi-gui-sdt').dataset.nguon
             document.getElementById('kien-ghichu').value = saved.ghiChu || ''
 
             document.getElementById('btn-thu-ho-toggle').classList.toggle('active', saved.thuHoActive)

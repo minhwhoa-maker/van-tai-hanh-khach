@@ -272,7 +272,7 @@
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
-                .select('id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, nguoi_gui_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
                 .order('created_at', { ascending: true })
@@ -406,6 +406,7 @@
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
                     ${k.nguoi_nhan_sdt ? `<div class="mota sdt-row">SĐT: <span class="sdt-num-wrap"><span class="sdt-so">${k.nguoi_nhan_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_nhan_sdt}">📞 Gọi</a></span></div>` : ''}
+                    ${k.nguoi_gui_sdt ? `<div class="mota">SĐT người gửi: ${k.nguoi_gui_sdt}</div>` : ''}
                     ${ghiChuHienThi ? `<div class="mota">${ghiChuHienThi}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : traLai ? ' (đã hoàn, không thu nữa)' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
@@ -557,6 +558,7 @@
                 <div class="info" style="display:flex; flex-direction:column; gap:6px;">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}</div>
                     <input type="tel" class="edit-sdt" placeholder="SĐT người nhận" value="${k.nguoi_nhan_sdt || ''}">
+                    <input type="tel" class="edit-gui-sdt" placeholder="SĐT người gửi" value="${k.nguoi_gui_sdt || ''}">
                     <textarea class="edit-ghichu" placeholder="Ghi chú" rows="2">${k.ghi_chu || ''}</textarea>
                 </div>
                 <div class="kien-actions">
@@ -566,10 +568,12 @@
             `
             row.querySelector('.btn-save').addEventListener('click', async () => {
                 const sdt = row.querySelector('.edit-sdt').value.trim() || null
+                const guiSdt = row.querySelector('.edit-gui-sdt').value.trim() || null
                 const ghichu = row.querySelector('.edit-ghichu').value.trim() || null
-                const { error } = await sb.from('kien').update({ nguoi_nhan_sdt: sdt, ghi_chu: ghichu }).eq('id', k.id)
+                const { error } = await sb.from('kien').update({ nguoi_nhan_sdt: sdt, nguoi_gui_sdt: guiSdt, ghi_chu: ghichu }).eq('id', k.id)
                 if (error) { showToast('Lỗi lưu: ' + error.message, 'error'); return }
                 k.nguoi_nhan_sdt = sdt
+                k.nguoi_gui_sdt = guiSdt
                 k.ghi_chu = ghichu
                 showToast('Đã lưu', 'success')
                 renderKienRowView(row, k)
@@ -734,6 +738,7 @@
                     diem_id: k.diem_id,
                     anh_url: k.anh_url,
                     nguoi_nhan_sdt: k.nguoi_nhan_sdt,
+                    nguoi_gui_sdt: k.nguoi_gui_sdt,
                     trang_thai: 'tra_lai',
                     ghi_chu: k.ghi_chu,
                     so_luong: soLuongHoan,
@@ -828,9 +833,11 @@
             // vì SĐT sai có thể chính là lý do 1 kiện bị "Trả hàng", đáng để đối chiếu lại.
             // KHÔNG đòi nguoi_nhan_sdt khác null (khác bản trước) — kiện thiếu hẳn SĐT (crew
             // quên gõ) vẫn đủ điều kiện, xử lý ở nhánh 'read' bên dưới thay vì bị loại thẳng.
+            // Có `nguoi_gui_sdt` để biết kiện nào ĐÃ có (crew gõ tay trước) — ẩn khỏi khối gợi ý
+            // SĐT người gửi bên dưới, không đọc đè cái đã có.
             const { data: dsKien, error } = await sb
                 .from('kien')
-                .select('id, anh_url, nguoi_nhan_sdt')
+                .select('id, anh_url, nguoi_nhan_sdt, nguoi_gui_sdt')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
                 .not('anh_url', 'is', null)
@@ -855,15 +862,33 @@
             btn.disabled = false
             btn.textContent = '🔍 Đối chiếu SĐT bằng AI'
 
-            const lech = ketQuaCompare.filter(r => r.loi || r.khong_doc_duoc || !r.khop)
+            // response shape mới: mỗi kết quả là { kien_id, nguoi_nhan: <role-result>, nguoi_gui:
+            // <role-result> } (hoặc { kien_id, loi: true } nếu cả lô lỗi mạng) — <role-result> là
+            // { sdt_ai_doc } | { khong_doc_duoc: true } | { khong_chac, sdt_lan_1, sdt_lan_2 }.
+            // Chỉ `nguoi_nhan` có thêm `khop` (từ nhánh compare). Khối SĐT người nhận (lệch/gợi
+            // ý/không chắc) giữ nguyên logic cũ, chỉ đổi chỗ đọc field sang r.nguoi_nhan.*.
+            const lech = ketQuaCompare.filter(r => r.loi || r.nguoi_nhan?.khong_doc_duoc || !r.nguoi_nhan?.khop)
             // Chỉ gợi ý kiện AI đọc RA được số hợp lệ VÀ đọc nhất quán (2 lần gọi khớp nhau) —
             // đọc không được/lỗi/không chắc thì không có gì đáng tin để gợi ý.
-            const goiY = ketQuaRead.filter(r => !r.loi && !r.khong_doc_duoc && !r.khong_chac && r.sdt_ai_doc)
+            const goiY = ketQuaRead.filter(r => !r.loi && !r.nguoi_nhan?.khong_doc_duoc && !r.nguoi_nhan?.khong_chac && r.nguoi_nhan?.sdt_ai_doc)
             // "Không chắc" — 2 lần gọi model ra 2 kết quả khác nhau (hoặc chỉ 1 lần đọc ra số) —
             // không đủ tin cậy để tự chọn 1 bên, hiện riêng cả 2 lần đọc để crew tự xem ảnh gốc.
-            const khongChac = ketQuaRead.filter(r => r.khong_chac)
+            // Riêng nhánh compare, "không chắc" đã được gộp vào `lech` ở trên (API set khop:false
+            // cho case này) nên chỉ lọc từ ketQuaRead ở đây để tránh trùng.
+            const khongChac = ketQuaRead.filter(r => r.nguoi_nhan?.khong_chac)
 
-            if (!lech.length && !goiY.length && !khongChac.length) {
+            // Gợi ý SĐT NGƯỜI GỬI — đọc từ CẢ 2 nhánh compare và read (đa số kiện thật đã có sẵn
+            // nguoi_nhan_sdt nên đi qua nhánh compare, không phải read — nếu chỉ đọc từ read thì
+            // bỏ sót phần lớn kiện). Chỉ gợi ý khi AI đọc được + nhất quán VÀ kiện CHƯA có sẵn
+            // nguoi_gui_sdt (không đọc đè giá trị crew đã gõ tay) — KHÔNG có cơ chế tự động ghi,
+            // xem CLAUDE.md.
+            const goiYNguoiGui = [...ketQuaCompare, ...ketQuaRead].filter(r => {
+                if (r.loi || !r.nguoi_gui?.sdt_ai_doc) return false
+                const k = kienMap.get(r.kien_id)
+                return k && !k.nguoi_gui_sdt
+            })
+
+            if (!lech.length && !goiY.length && !khongChac.length && !goiYNguoiGui.length) {
                 summaryEl.style.display = 'block'
                 summaryEl.innerHTML = `<div>✅ Đã đối chiếu ${coSdt.length} kiện, không phát hiện sai lệch${thieuSdt.length ? ` (${thieuSdt.length} kiện thiếu SĐT, AI không đọc được số nào)` : ''}.</div>`
                 return
@@ -875,7 +900,8 @@
                     lech.map(r => {
                         const k = kienMap.get(r.kien_id)
                         if (!k) return ''
-                        const nhan = r.loi ? 'Lỗi khi đọc' : r.khong_doc_duoc ? 'Không đọc được' : r.khong_chac ? `Không chắc (${r.sdt_lan_1 || '?'} / ${r.sdt_lan_2 || '?'})` : r.sdt_ai_doc
+                        const nn = r.nguoi_nhan
+                        const nhan = r.loi ? 'Lỗi khi đọc' : nn?.khong_doc_duoc ? 'Không đọc được' : nn?.khong_chac ? `Không chắc (${nn.sdt_lan_1 || '?'} / ${nn.sdt_lan_2 || '?'})` : nn?.sdt_ai_doc
                         return `
                             <div class="doichieu-row" data-kien-id="${k.id}">
                                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
@@ -894,10 +920,10 @@
                         const k = kienMap.get(r.kien_id)
                         if (!k) return ''
                         return `
-                            <div class="doichieu-row" data-kien-id="${k.id}" data-goi-y="${r.sdt_ai_doc}">
+                            <div class="doichieu-row" data-kien-id="${k.id}" data-goi-y="${r.nguoi_nhan.sdt_ai_doc}">
                                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                                 <div class="info">
-                                    <div class="sdt-goi-y">AI đọc: ${r.sdt_ai_doc}</div>
+                                    <div class="sdt-goi-y">AI đọc: ${r.nguoi_nhan.sdt_ai_doc}</div>
                                 </div>
                             </div>
                         ` }).join('') +
@@ -912,7 +938,26 @@
                             <div class="doichieu-row" data-kien-id="${k.id}">
                                 ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
                                 <div class="info">
-                                    <div class="sdt-goi-y">2 lần đọc: ${r.sdt_lan_1 || '?'} / ${r.sdt_lan_2 || '?'}</div>
+                                    <div class="sdt-goi-y">2 lần đọc: ${r.nguoi_nhan.sdt_lan_1 || '?'} / ${r.nguoi_nhan.sdt_lan_2 || '?'}</div>
+                                </div>
+                                <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
+                            </div>
+                        `
+                    }).join('')
+            }
+            if (goiYNguoiGui.length) {
+                // KHÔNG có nút "Điền tất cả"/tự động ghi — nguyên tắc cốt lõi của SĐT người gửi
+                // (dữ liệu khách hàng tiềm năng): sai số nằm âm thầm trong DB, không ai phát hiện
+                // cho tới khi thật sự gọi lại, nên luôn cần crew xác nhận bằng mắt qua nút "Sửa".
+                html += `<div style="font-weight:600; margin:${(lech.length || goiY.length || khongChac.length) ? '14px' : '0'} 0 8px;">📇 ${goiYNguoiGui.length} SĐT người gửi AI gợi ý — xác nhận trước khi lưu:</div>` +
+                    goiYNguoiGui.map(r => {
+                        const k = kienMap.get(r.kien_id)
+                        if (!k) return ''
+                        return `
+                            <div class="doichieu-row" data-kien-id="${k.id}">
+                                ${k.anh_url ? `<img src="${k.anh_url}" alt="">` : ''}
+                                <div class="info">
+                                    <div class="sdt-goi-y">Người gửi — AI đọc: ${r.nguoi_gui.sdt_ai_doc}</div>
                                 </div>
                                 <button type="button" class="btn-sm btn-sua-lech">Sửa</button>
                             </div>
@@ -956,13 +1001,13 @@
                     // cho đúng kiện này (qua "Sửa" ở dòng kiện chính) trong lúc đang xem khối gợi
                     // ý này, tránh ghi đè giá trị crew vừa nhập bằng số AI đọc trong danh sách cũ.
                     const { data, error } = await sb.from('kien')
-                        .update({ nguoi_nhan_sdt: r.sdt_ai_doc })
+                        .update({ nguoi_nhan_sdt: r.nguoi_nhan.sdt_ai_doc })
                         .eq('id', k.id)
                         .is('nguoi_nhan_sdt', null)
                         .select('id')
                     if (error || !data?.length) continue
                     thanhCong++
-                    const dongAudit = `[${formatNowStamp()}] AI tự điền SĐT: ${r.sdt_ai_doc}`
+                    const dongAudit = `[${formatNowStamp()}] AI tự điền SĐT: ${r.nguoi_nhan.sdt_ai_doc}`
                     const ghiChuMoi = k.ghi_chu ? `${k.ghi_chu}\n${dongAudit}` : dongAudit
                     sb.from('kien').update({ ghi_chu: ghiChuMoi }).eq('id', k.id).then(() => {}) // best-effort, không chặn
                 }
