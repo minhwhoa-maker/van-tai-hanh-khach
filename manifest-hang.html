@@ -237,6 +237,59 @@
                 return
             }
             if (!(await confirmDialog('Kết thúc chuyến này? Sẽ không thể nhập thêm kiện mới cho chuyến này ở trang "Nhập kiện" nữa.'))) return
+
+            // Tự động điền SĐT người gửi còn thiếu trước khi đóng chuyến — KHÔNG PHẢI checkpoint
+            // làm tăng độ tin cậy đọc số: "chuyến xong" là mốc nghiệp vụ, không liên quan gì tới
+            // việc model đọc đúng chữ viết tay hay không, rủi ro đọc nhầm 1 chữ số ra số khác vẫn
+            // hợp lệ (vd 4↔9) không giảm đi chút nào so với tự ghi giữa chuyến. Đây THUẦN là
+            // quyết định "giảm phiền cho crew, chấp nhận rủi ro còn lại giống hệt cơ chế '⚡ Điền
+            // tất cả' của người nhận" — KHÔNG mở rộng nguyên tắc "không tự ghi DB cho
+            // nguoi_gui_sdt" ra bất kỳ nơi nào khác (nút "🔍 Đối chiếu SĐT bằng AI"/khối "📇 gợi ý"
+            // giữa chuyến vẫn giữ nguyên hành vi cũ, chỉ gợi ý qua "Sửa").
+            const btnKetThuc = document.getElementById('btn-ket-thuc-chuyen')
+            const labelGocKetThuc = btnKetThuc.textContent
+            btnKetThuc.disabled = true
+            btnKetThuc.textContent = 'Đang kiểm tra SĐT người gửi...'
+            try {
+                const { data: thieuNguoiGui, error: loiTaiThieu } = await sb
+                    .from('kien')
+                    .select('id, anh_url, ghi_chu')
+                    .eq('chuyen_id', chuyen.id)
+                    .neq('trang_thai', 'huy')
+                    .not('anh_url', 'is', null)
+                    .is('nguoi_gui_sdt', null)
+                if (!loiTaiThieu && thieuNguoiGui?.length) {
+                    const ketQuaNguoiGui = await goiTheoLo(thieuNguoiGui, lo => ({
+                        mode: 'read',
+                        items: lo.map(k => ({ kien_id: k.id, anh_url: k.anh_url }))
+                    }))
+                    const kienMapNguoiGui = new Map(thieuNguoiGui.map(k => [k.id, k]))
+                    for (const r of ketQuaNguoiGui) {
+                        if (r.loi || !r.nguoi_gui?.sdt_ai_doc) continue
+                        const k = kienMapNguoiGui.get(r.kien_id)
+                        if (!k) continue
+                        // Guard .is('nguoi_gui_sdt', null) — phòng crew vừa gõ tay đúng lúc quét
+                        // đang chạy, không ghi đè giá trị crew vừa nhập.
+                        const { data: rowsCapNhat, error: loiCapNhat } = await sb.from('kien')
+                            .update({ nguoi_gui_sdt: r.nguoi_gui.sdt_ai_doc })
+                            .eq('id', k.id)
+                            .is('nguoi_gui_sdt', null)
+                            .select('id')
+                        if (loiCapNhat || !rowsCapNhat?.length) continue
+                        // Cố ý khác câu chữ audit của "⚡ Điền tất cả" (người nhận) để sau này
+                        // truy được đúng nguồn gốc + thời điểm 1 số bị ghi tự động.
+                        const dongAudit = `[${formatNowStamp()}] AI tự điền SĐT người gửi lúc kết thúc chuyến: ${r.nguoi_gui.sdt_ai_doc}`
+                        const ghiChuMoi = k.ghi_chu ? `${k.ghi_chu}\n${dongAudit}` : dongAudit
+                        sb.from('kien').update({ ghi_chu: ghiChuMoi }).eq('id', k.id).then(() => {}) // best-effort, không chặn
+                    }
+                }
+            } catch (err) {
+                console.error('[ket-thuc-chuyen: tự điền SĐT người gửi]', err)
+                // Lỗi ở bước quét không được chặn việc kết thúc chuyến — bỏ qua, tiếp tục bình thường.
+            }
+            btnKetThuc.disabled = false
+            btnKetThuc.textContent = labelGocKetThuc
+
             const { error } = await sb.from('chuyen').update({ trang_thai: 'xong' }).eq('id', chuyen.id)
             if (error) { showToast('Lỗi kết thúc chuyến: ' + error.message, 'error'); return }
             chuyen.trang_thai = 'xong'
