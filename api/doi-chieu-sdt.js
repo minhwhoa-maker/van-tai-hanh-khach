@@ -1,5 +1,5 @@
 // api/doi-chieu-sdt.js — đọc/đối chiếu SĐT người gửi + người nhận viết tay trên ảnh kiện hàng,
-// dùng model OCR chuyên dụng qwen3.5-ocr (region Beijing) qua Alibaba Cloud Model Studio. 2 mode:
+// dùng model OCR chuyên dụng qwen-vl-ocr qua Alibaba Cloud Model Studio (DashScope). 2 mode:
 //   - 'compare': đối chiếu SĐT NGƯỜI NHẬN đã gõ tay với ảnh đã upload (anh_url), xử lý theo LÔ
 //     nhiều kiện (`items: [{kien_id, anh_url, sdt_da_nhap}]`) — dùng bởi nút "🔍 Đối chiếu SĐT
 //     bằng AI" ở manifest-hang.html cho kiện ĐÃ CÓ sdt_da_nhap (người nhận). SĐT người gửi KHÔNG
@@ -48,10 +48,7 @@
 // gán nhầm thì cả 2 lần gọi self-consistency vẫn khớp nhau (đồng ý với chính lỗi của nó). Đây là
 // lý do KHÔNG cho phép tự động ghi thẳng DB cho SĐT người gửi (xem CLAUDE.md/manifest-hang.html).
 
-// Region Beijing, domain riêng theo workspace (ws-16bskmklygzkaeuu) — qwen3.5-ocr kích hoạt ở
-// region này, dùng DASHSCOPE_API_KEY_BEIJING (key riêng theo region, không dùng chung được với
-// key Singapore DASHSCOPE_API_KEY cũ — key cũ vẫn giữ nguyên trên Vercel để rollback nhanh).
-const DASHSCOPE_URL = 'https://ws-16bskmklygzkaeuu.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions'
+const DASHSCOPE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 // Yêu cầu model trả đúng 2 dòng theo thứ tự cố định — chọn format 2-dòng-cố-định thay vì JSON để
 // giữ gần nhất có thể với sentinel đơn giản cũ (đã chứng minh ổn định với model OCR chuyên dụng
@@ -125,7 +122,7 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
                 Authorization: `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'qwen3.5-ocr',
+                model: 'qwen-vl-ocr',
                 temperature: 0,
                 messages: [{
                     role: 'user',
@@ -177,8 +174,8 @@ async function docSdtTinCay(imageUrl, apiKey, timeoutMs) {
 export default async function handler(req, res) {
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
 
-    const apiKey = process.env.DASHSCOPE_API_KEY_BEIJING
-    if (!apiKey) { res.status(500).json({ error: 'Thiếu DASHSCOPE_API_KEY_BEIJING trên server' }); return }
+    const apiKey = process.env.DASHSCOPE_API_KEY
+    if (!apiKey) { res.status(500).json({ error: 'Thiếu DASHSCOPE_API_KEY trên server' }); return }
 
     const mode = req.body?.mode === 'read' ? 'read' : 'compare'
 
