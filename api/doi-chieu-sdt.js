@@ -1,5 +1,5 @@
 // api/doi-chieu-sdt.js — đọc/đối chiếu SĐT người gửi + người nhận viết tay trên ảnh kiện hàng,
-// dùng model OCR chuyên dụng qwen3.5-ocr qua Alibaba Cloud Model Studio (DashScope). 2 mode:
+// dùng model OCR chuyên dụng qwen-vl-ocr qua Alibaba Cloud Model Studio (DashScope). 2 mode:
 //   - 'compare': đối chiếu SĐT NGƯỜI NHẬN đã gõ tay với ảnh đã upload (anh_url), xử lý theo LÔ
 //     nhiều kiện (`items: [{kien_id, anh_url, sdt_da_nhap}]`) — dùng bởi nút "🔍 Đối chiếu SĐT
 //     bằng AI" ở manifest-hang.html cho kiện ĐÃ CÓ sdt_da_nhap (người nhận). SĐT người gửi KHÔNG
@@ -122,7 +122,7 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
                 Authorization: `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'qwen3.5-ocr',
+                model: 'qwen-vl-ocr',
                 temperature: 0,
                 messages: [{
                     role: 'user',
