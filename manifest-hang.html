@@ -36,6 +36,7 @@
         .sdt-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--text-muted); }
         .sdt-num-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; flex: 1 1 auto; justify-content: space-between; }
         .sdt-so { font-size: 29px; font-weight: 600; color: var(--text); white-space: nowrap; }
+        .sdt-so-gui { font-size: 29px; font-weight: 600; color: #7b3fa0; white-space: nowrap; }
         .btn-goi {
             display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;
             border: 1px solid var(--primary); color: var(--primary); border-radius: 14px;
@@ -459,7 +460,7 @@
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
                     ${k.nguoi_nhan_sdt ? `<div class="mota sdt-row">SĐT: <span class="sdt-num-wrap"><span class="sdt-so">${k.nguoi_nhan_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_nhan_sdt}">📞 Gọi</a></span></div>` : ''}
-                    ${k.nguoi_gui_sdt ? `<div class="mota sdt-row">SĐT người gửi: <span class="sdt-num-wrap"><span>${k.nguoi_gui_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_gui_sdt}">📞 Gọi</a></span></div>` : ''}
+                    ${k.nguoi_gui_sdt ? `<div class="mota sdt-row">SĐT người gửi: <span class="sdt-num-wrap"><span class="sdt-so-gui">${k.nguoi_gui_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_gui_sdt}">📞 Gọi</a></span></div>` : ''}
                     ${ghiChuHienThi ? `<div class="mota">${ghiChuHienThi}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : traLai ? ' (đã hoàn, không thu nữa)' : ''}</div>` : ''}
                     ${coTien ? `<div class="mota tien-thu">${thuTruocKhiGiao ? '💵 Đã thu cước lúc gửi' : 'Đã thu'}: ${formatMoney(k.tien_thu)}${k.hinh_thuc_thu ? ` (${k.hinh_thuc_thu === 'tien_mat' ? 'Tiền mặt' : 'Chuyển khoản'})` : ''}</div>` : ''}
