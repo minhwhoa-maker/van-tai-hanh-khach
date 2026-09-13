@@ -137,6 +137,10 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
         }
         const data = await res.json()
         const raw = (data?.choices?.[0]?.message?.content || '').trim()
+        // DEBUG tạm thời — xác định model có thực sự trả đúng 2 dòng NGUOI_GUI/NGUOI_NHAN hay
+        // không trước khi parse, để tách bug tầng prompt/model khỏi bug tầng parse/client. Xoá
+        // sau khi xác định xong nguyên nhân bug "SĐT người gửi không tự điền dù ảnh có nhãn rõ".
+        console.error('[DEBUG raw model output]', raw)
         return parseKetQua2VaiTro(raw)
     } finally {
         if (timer) clearTimeout(timer)
