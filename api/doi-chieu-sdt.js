@@ -1,5 +1,5 @@
 // api/doi-chieu-sdt.js — đọc/đối chiếu SĐT người gửi + người nhận viết tay trên ảnh kiện hàng,
-// dùng model OCR chuyên dụng qwen3.5-ocr qua Alibaba Cloud Model Studio (DashScope). 2 mode:
+// dùng model OCR chuyên dụng qwen-vl-ocr qua Alibaba Cloud Model Studio (DashScope). 2 mode:
 //   - 'compare': đối chiếu SĐT NGƯỜI NHẬN đã gõ tay với ảnh đã upload (anh_url), xử lý theo LÔ
 //     nhiều kiện (`items: [{kien_id, anh_url, sdt_da_nhap}]`) — dùng bởi nút "🔍 Đối chiếu SĐT
 //     bằng AI" ở manifest-hang.html cho kiện ĐÃ CÓ sdt_da_nhap (người nhận). SĐT người gửi KHÔNG
@@ -48,9 +48,7 @@
 // gán nhầm thì cả 2 lần gọi self-consistency vẫn khớp nhau (đồng ý với chính lỗi của nó). Đây là
 // lý do KHÔNG cho phép tự động ghi thẳng DB cho SĐT người gửi (xem CLAUDE.md/manifest-hang.html).
 
-// Domain theo workspace (khuyến nghị Alibaba thay cho domain chung dashscope-intl.aliyuncs.com cũ)
-// — bắt buộc để gọi được model qwen3.5-ocr, domain cũ trả 404 model_not_found dù model tồn tại.
-const DASHSCOPE_URL = 'https://ws-snuz1pka1sqyqip2.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1/chat/completions'
+const DASHSCOPE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
 
 // Yêu cầu model trả đúng 2 dòng theo thứ tự cố định — chọn format 2-dòng-cố-định thay vì JSON để
 // giữ gần nhất có thể với sentinel đơn giản cũ (đã chứng minh ổn định với model OCR chuyên dụng
@@ -124,7 +122,7 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
                 Authorization: `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'qwen3.5-ocr',
+                model: 'qwen-vl-ocr',
                 temperature: 0,
                 messages: [{
                     role: 'user',
