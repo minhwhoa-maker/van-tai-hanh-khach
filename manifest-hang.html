@@ -459,7 +459,7 @@
                 <div class="info">
                     <div class="diem">${k.diem?.ten || '(không rõ điểm)'}${k.so_luong > 1 && !k.loai_hang ? ` <span class="so-luong">×${k.so_luong}</span>` : ''}</div>
                     ${k.loai_hang ? `<div class="mota">${k.loai_hang}</div>` : ''}
-                    ${k.nguoi_nhan_sdt ? `<div class="mota sdt-row">SĐT: <span class="sdt-num-wrap"><span class="sdt-so">${k.nguoi_nhan_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_nhan_sdt}">📞 Gọi</a></span></div>` : ''}
+                    ${k.nguoi_nhan_sdt ? `<div class="mota sdt-row">SĐT người nhận: <span class="sdt-num-wrap"><span class="sdt-so">${k.nguoi_nhan_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_nhan_sdt}">📞 Gọi</a></span></div>` : ''}
                     ${k.nguoi_gui_sdt ? `<div class="mota sdt-row">SĐT người gửi: <span class="sdt-num-wrap"><span class="sdt-so-gui">${k.nguoi_gui_sdt}</span><a class="btn-goi" href="tel:${k.nguoi_gui_sdt}">📞 Gọi</a></span></div>` : ''}
                     ${ghiChuHienThi ? `<div class="mota">${ghiChuHienThi}</div>` : ''}
                     ${coThuHo ? `<div class="mota cod">💰 Thu hộ: ${formatMoney(k.tien_thu_ho)}${thuHoConThieu ? ' ⚠ chưa thu đủ' : traLai ? ' (đã hoàn, không thu nữa)' : ''}</div>` : ''}
