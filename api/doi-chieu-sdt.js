@@ -140,6 +140,7 @@ async function docSdtTuAnh(imageUrl, apiKey, timeoutMs) {
         }
         const data = await res.json()
         const raw = (data?.choices?.[0]?.message?.content || '').trim()
+        console.error('[DEBUG raw model output]', raw)
         return parseKetQua2VaiTro(raw)
     } finally {
         if (timer) clearTimeout(timer)
