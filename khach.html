@@ -25,22 +25,24 @@
             box-shadow: var(--shadow); padding: 12px;
         }
         .tang-block h3 { margin: 0 0 10px; font-size: 15px; text-align: center; }
-        .giuong-hang-thuong { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
-        .giuong-hang-cuoi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+        .giuong-hang-thuong { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+        .giuong-hang-cuoi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
         .giuong-icon {
-            position: relative; height: 46px; border: 2px solid #c3c9d1;
-            border-radius: 10px 10px 4px 4px; background: var(--white);
-            display: flex; align-items: flex-end; justify-content: center; cursor: pointer;
+            position: relative; height: 62px; border: 3px solid #c3c9d1;
+            border-radius: 14px; background: var(--white);
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
             transition: border-color 0.15s, background 0.15s, box-shadow 0.15s; font-family: inherit;
             box-shadow: 0 1px 2px rgba(0,0,0,.04);
         }
+        /* Thanh "tựa lưng" vẽ dạng viền rỗng (không phải thanh đặc), nằm gần đáy — khớp icon
+           giường tham khảo, khác bản trước (thanh đặc nằm sát đỉnh kiểu tựa đầu). */
         .giuong-icon::before {
-            content: ''; position: absolute; top: 7px; left: 7px; right: 7px; height: 3px;
-            border-radius: 2px; background: #c3c9d1;
+            content: ''; position: absolute; left: 24%; right: 24%; bottom: 16%; height: 16%;
+            border: 3px solid #c3c9d1; border-radius: 999px; background: var(--white);
         }
         .giuong-icon.da-dat { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 1px 3px rgba(21,101,192,.15); }
-        .giuong-icon.da-dat::before { background: var(--primary); }
-        .giuong-icon .ma-giuong { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+        .giuong-icon.da-dat::before { border-color: var(--primary); background: var(--primary-light); }
+        .giuong-icon .ma-giuong { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px; }
         .giuong-icon.da-dat .ma-giuong { color: var(--primary); }
         .chu-thich-giuong { display: flex; gap: 16px; padding: 0 16px 12px; }
         .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
