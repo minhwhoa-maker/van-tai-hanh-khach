@@ -4,6 +4,7 @@ const STATIC_ASSETS = [
     './auth-callback.html',
     './hang.html',
     './manifest-hang.html',
+    './khach.html',
     './style.css',
     './manifest.json',
     './idb-queue.js',

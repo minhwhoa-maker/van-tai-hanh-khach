@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>Hành khách</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: var(--bg); padding-bottom: 40px; }
+        .chuyen-select-wrap { padding: 16px; }
+        .chuyen-select-wrap select#chuyen-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .doanhthu-ve-summary {
+            display: none; margin: 0 16px 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+            background: #e9f7ef; border: 1.5px solid var(--success); color: var(--success);
+            font-size: 14px; font-weight: 600;
+        }
+        .tang-wrap { display: flex; gap: 12px; padding: 0 16px 16px; overflow-x: auto; }
+        .tang-block {
+            flex: 1 1 0; min-width: 160px; background: var(--white); border-radius: var(--radius);
+            box-shadow: var(--shadow); padding: 12px;
+        }
+        .tang-block h3 { margin: 0 0 10px; font-size: 15px; text-align: center; }
+        .hang-giuong { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .hang-giuong.hang-cuoi { gap: 4px; }
+        .giuong-btn {
+            flex: 1; aspect-ratio: 1; min-width: 0; border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border); background: var(--white); color: var(--text-muted);
+            font-size: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center;
+            justify-content: center; padding: 2px; line-height: 1.2; font-family: inherit;
+        }
+        .giuong-btn.da-dat { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .ve-modal, .diemkhach-modal {
+            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+        }
+        .ve-modal.open, .diemkhach-modal.open { display: flex; }
+        .ve-modal-backdrop, .diemkhach-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+        .ve-modal-card, .diemkhach-modal-card {
+            position: relative; width: 100%; max-width: 480px; background: var(--white);
+            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+            max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow);
+        }
+        .ve-modal-card h3, .diemkhach-modal-card h3 { margin: 0 0 14px; font-size: 17px; }
+        .ve-modal-card label, .diemkhach-modal-card label { display: block; font-size: 13px; color: var(--text-muted); margin: 12px 0 4px; }
+        .ve-modal-card input, .ve-modal-card select, .diemkhach-modal-card input, .diemkhach-modal-card select {
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
+        }
+        .diem-row { display: flex; gap: 8px; align-items: flex-end; }
+        .diem-row select { flex: 1; }
+        .btn-them-diem {
+            flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--radius-sm);
+            border: 1.5px solid var(--primary); background: var(--white); color: var(--primary);
+            font-size: 20px; cursor: pointer; font-family: inherit;
+        }
+        .tien-chu { font-size: 12px; color: var(--text-muted); margin-top: 4px; min-height: 16px; }
+        .ve-modal-actions, .diemkhach-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+        .ve-modal-actions button, .diemkhach-modal-actions button {
+            flex: 1; padding: 12px; border-radius: var(--radius-sm); border: none; font-size: 15px;
+            font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .btn-ve-luu { background: var(--primary); color: #fff; }
+        .btn-ve-huy-ve { background: var(--danger); color: #fff; }
+        .btn-ve-dong { background: var(--border); color: var(--text); }
+        .legend { display: flex; gap: 16px; padding: 0 16px 12px; font-size: 12px; color: var(--text-muted); align-items: center; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid var(--border); }
+        .legend-swatch.da-dat { background: var(--primary-light); border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="btn-open-menu" class="btn-icon" aria-label="Menu" style="background:none;border:none;color:white;font-size:22px;cursor:pointer;">☰</button>
+        <h2 style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
+            <span class="header-text">💺 Hành khách</span>
+        </h2>
+        <div></div>
+    </div>
+
+    <div class="chuyen-select-wrap">
+        <select id="chuyen-select" style="width:100%; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
+    </div>
+
+    <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
+
+    <div class="legend">
+        <div class="legend-item"><span class="legend-swatch"></span> Trống</div>
+        <div class="legend-item"><span class="legend-swatch da-dat"></span> Đã đặt</div>
+    </div>
+
+    <div class="tang-wrap" id="tang-wrap"></div>
+
+    <div class="ve-modal" id="ve-modal">
+        <div class="ve-modal-backdrop"></div>
+        <div class="ve-modal-card">
+            <h3 id="ve-modal-title">Đặt giường</h3>
+            <label>Tên khách</label>
+            <input type="text" id="ve-ten-khach" placeholder="Tên khách">
+            <label>SĐT khách</label>
+            <input type="tel" id="ve-sdt-khach" placeholder="SĐT khách">
+            <label>Điểm lên</label>
+            <div class="diem-row">
+                <select id="ve-diem-len"><option value="">— Chọn điểm lên —</option></select>
+                <button type="button" class="btn-them-diem" id="btn-them-diem-len">+</button>
+            </div>
+            <label>Điểm xuống</label>
+            <div class="diem-row">
+                <select id="ve-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
+                <button type="button" class="btn-them-diem" id="btn-them-diem-xuong">+</button>
+            </div>
+            <label>Giá vé (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
+            <input type="number" inputmode="numeric" id="ve-gia" placeholder="vd 200">
+            <div class="tien-chu" id="ve-gia-chu"></div>
+            <div class="ve-modal-actions">
+                <button type="button" class="btn-ve-dong" id="btn-ve-dong">Đóng</button>
+                <button type="button" class="btn-ve-huy-ve" id="btn-ve-huy-ve" style="display:none;">Huỷ vé</button>
+                <button type="button" class="btn-ve-luu" id="btn-ve-luu">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="diemkhach-modal" id="diemkhach-modal">
+        <div class="diemkhach-modal-backdrop"></div>
+        <div class="diemkhach-modal-card">
+            <h3>Thêm điểm đón/trả mới</h3>
+            <label>Tên điểm</label>
+            <input type="text" id="diemkhach-ten" placeholder="vd Bến xe Hải Dương">
+            <label>Tỉnh</label>
+            <select id="diemkhach-tinh"></select>
+            <div class="diemkhach-modal-actions">
+                <button type="button" class="btn-ve-dong" id="btn-diemkhach-dong">Đóng</button>
+                <button type="button" class="btn-ve-luu" id="btn-diemkhach-luu">Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script>
+        const sb = createSb()
+        let chuyenList = []
+        let giuongList = []
+        let tinhList = []
+        let diemKhachList = []
+        let veMap = new Map()          // giuong_id -> vé 'da_dat' hiện tại của chuyến đang chọn
+        let currentChuyen = null
+        let editingVeId = null         // null = đang tạo vé mới; có giá trị = đang sửa vé đó
+        let selectedGiuongId = null
+        let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        async function loadGiuongList() {
+            const { data, error } = await sb.from('giuong').select('id, tang, hang, vi_tri, ma').order('tang').order('hang').order('vi_tri')
+            if (error) { showToast('Lỗi tải sơ đồ giường: ' + error.message, 'error'); return }
+            giuongList = data || []
+        }
+
+        async function loadTinhList() {
+            const { data, error } = await sb.from('tinh_tuyen').select('ma, ten, thu_tu').order('thu_tu')
+            if (error) { showToast('Lỗi tải tỉnh: ' + error.message, 'error'); return }
+            tinhList = data || []
+        }
+
+        async function loadDiemKhachList() {
+            const { data, error } = await sb.from('diem_khach').select('id, ten, tinh_ma, thu_tu')
+            if (error) { showToast('Lỗi tải điểm đón: ' + error.message, 'error'); return }
+            diemKhachList = data || []
+        }
+
+        // Sắp điểm đón theo thứ tự tuyến (tinh_tuyen.thu_tu), đảo chiều theo chuyen.chieu — cùng
+        // quy ước với sapXepTrongTinh bên hàng hoá (bac = ASC, nam = DESC).
+        function renderDiemKhachOptions(selectEl, chieu, selectedId) {
+            const thuTuMap = new Map(tinhList.map(t => [t.ma, t.thu_tu]))
+            const sorted = [...diemKhachList].sort((a, b) => {
+                const ta = thuTuMap.get(a.tinh_ma) ?? 0
+                const tb = thuTuMap.get(b.tinh_ma) ?? 0
+                const d = chieu === 'nam' ? tb - ta : ta - tb
+                if (d !== 0) return d
+                return (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi')
+            })
+            selectEl.textContent = ''
+            const optEmpty = document.createElement('option')
+            optEmpty.value = ''
+            optEmpty.textContent = '— Chọn điểm —'
+            selectEl.appendChild(optEmpty)
+            sorted.forEach(d => {
+                const tinh = tinhList.find(t => t.ma === d.tinh_ma)
+                const opt = document.createElement('option')
+                opt.value = d.id
+                opt.textContent = `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
+                selectEl.appendChild(opt)
+            })
+            selectEl.value = selectedId || ''
+        }
+
+        function renderGiuongGrid() {
+            const wrap = document.getElementById('tang-wrap')
+            wrap.textContent = ''
+            ;[1, 2].forEach(tang => {
+                const block = document.createElement('div')
+                block.className = 'tang-block'
+                const h3 = document.createElement('h3')
+                h3.textContent = tang === 1 ? 'Tầng dưới' : 'Tầng trên'
+                block.appendChild(h3)
+
+                const giuongTang = giuongList.filter(g => g.tang === tang)
+                const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
+                for (let hang = 1; hang <= soHang; hang++) {
+                    const row = document.createElement('div')
+                    const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
+                    row.className = 'hang-giuong' + (giuongHang.length > 3 ? ' hang-cuoi' : '')
+                    giuongHang.forEach(g => {
+                        const ve = veMap.get(g.id)
+                        const btn = document.createElement('button')
+                        btn.type = 'button'
+                        btn.className = 'giuong-btn' + (ve ? ' da-dat' : '')
+                        btn.textContent = ve ? (ve.ten_khach || g.ma) : g.ma
+                        btn.title = ve ? `${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : g.ma
+                        btn.addEventListener('click', () => openVeModal(g))
+                        row.appendChild(btn)
+                    })
+                    block.appendChild(row)
+                }
+                wrap.appendChild(block)
+            })
+        }
+
+        function renderDoanhThuVe(veList) {
+            const el = document.getElementById('doanhthu-ve-summary')
+            const daDat = veList.filter(v => v.trang_thai === 'da_dat')
+            const tong = daDat.reduce((s, v) => s + Number(v.gia || 0), 0)
+            el.style.display = 'block'
+            el.textContent = `💺 ${daDat.length}/44 khách — Tổng doanh thu vé: ${formatMoney(tong)}`
+        }
+
+        async function loadVeChoChuyen(chuyen) {
+            const { data, error } = await sb.from('ve')
+                .select('id, chuyen_id, giuong_id, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu')
+                .eq('chuyen_id', chuyen.id)
+                .neq('trang_thai', 'huy')
+            if (error) { showToast('Lỗi tải vé: ' + error.message, 'error'); return }
+            veMap = new Map((data || []).map(v => [v.giuong_id, v]))
+            renderDoanhThuVe(data || [])
+            renderGiuongGrid()
+        }
+
+        async function loadChuyenOptions() {
+            const { data, error } = await sb.from('chuyen')
+                .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .order('created_at', { ascending: false })
+                .limit(50)
+            if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
+            chuyenList = data || []
+            const sel = document.getElementById('chuyen-select')
+            sel.textContent = ''
+            if (!chuyenList.length) {
+                sel.innerHTML = '<option value="">Chưa có chuyến nào</option>'
+                document.getElementById('doanhthu-ve-summary').style.display = 'none'
+                return
+            }
+            chuyenList.forEach(c => {
+                const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
+                const opt = document.createElement('option')
+                opt.value = c.id
+                opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : ''}`
+                sel.appendChild(opt)
+            })
+            const preselectId = new URLSearchParams(location.search).get('chuyen_id')
+            const preselect = preselectId && chuyenList.find(c => c.id === preselectId)
+            const initial = preselect || chuyenList[0]
+            sel.value = initial.id
+            currentChuyen = initial
+            await loadVeChoChuyen(initial)
+        }
+
+        document.getElementById('chuyen-select').addEventListener('change', e => {
+            const chuyen = chuyenList.find(c => c.id === e.target.value)
+            if (chuyen) { currentChuyen = chuyen; loadVeChoChuyen(chuyen) }
+        })
+
+        // === Modal đặt/sửa/huỷ vé ===
+        function capNhatGiaChu() {
+            const raw = document.getElementById('ve-gia').value.trim()
+            const el = document.getElementById('ve-gia-chu')
+            const so = raw === '' ? null : Number(raw) * 1000
+            el.textContent = so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+        }
+        document.getElementById('ve-gia').addEventListener('input', capNhatGiaChu)
+
+        function openVeModal(giuong) {
+            if (!currentChuyen) { showToast('Chưa chọn chuyến', 'error'); return }
+            selectedGiuongId = giuong.id
+            const ve = veMap.get(giuong.id)
+            editingVeId = ve ? ve.id : null
+            document.getElementById('ve-modal-title').textContent = ve ? `Giường ${giuong.ma} — ${ve.ten_khach || '(chưa có tên)'}` : `Đặt giường ${giuong.ma}`
+            document.getElementById('ve-ten-khach').value = ve?.ten_khach || ''
+            document.getElementById('ve-sdt-khach').value = ve?.sdt_khach || ''
+            document.getElementById('ve-gia').value = ve?.gia != null ? ve.gia / 1000 : ''
+            capNhatGiaChu()
+            renderDiemKhachOptions(document.getElementById('ve-diem-len'), currentChuyen.chieu, ve?.diem_len_id)
+            renderDiemKhachOptions(document.getElementById('ve-diem-xuong'), currentChuyen.chieu, ve?.diem_xuong_id)
+            document.getElementById('btn-ve-huy-ve').style.display = ve ? 'block' : 'none'
+            document.getElementById('ve-modal').classList.add('open')
+        }
+        function closeVeModal() {
+            document.getElementById('ve-modal').classList.remove('open')
+            editingVeId = null
+            selectedGiuongId = null
+        }
+        document.querySelector('#ve-modal .ve-modal-backdrop').addEventListener('click', closeVeModal)
+        document.getElementById('btn-ve-dong').addEventListener('click', closeVeModal)
+
+        document.getElementById('btn-ve-luu').addEventListener('click', async () => {
+            const tenKhach = document.getElementById('ve-ten-khach').value.trim() || null
+            const sdtKhach = document.getElementById('ve-sdt-khach').value.trim() || null
+            const diemLenId = document.getElementById('ve-diem-len').value || null
+            const diemXuongId = document.getElementById('ve-diem-xuong').value || null
+            const giaRaw = document.getElementById('ve-gia').value.trim()
+            const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
+            if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
+
+            if (editingVeId) {
+                const { error } = await sb.from('ve').update({
+                    ten_khach: tenKhach, sdt_khach: sdtKhach,
+                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
+                }).eq('id', editingVeId)
+                if (error) { showToast('Lỗi lưu vé: ' + error.message, 'error'); return }
+            } else {
+                const { error } = await sb.from('ve').insert({
+                    chuyen_id: currentChuyen.id, giuong_id: selectedGiuongId,
+                    ten_khach: tenKhach, sdt_khach: sdtKhach,
+                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
+                })
+                if (error) {
+                    // Trùng giường active (race condition 2 crew cùng bấm 1 giường gần như đồng thời)
+                    if (error.code === '23505') showToast('Giường này vừa được đặt bởi thao tác khác — tải lại', 'error')
+                    else showToast('Lỗi lưu vé: ' + error.message, 'error')
+                    return
+                }
+            }
+            showToast('Đã lưu vé', 'success')
+            closeVeModal()
+            loadVeChoChuyen(currentChuyen)
+        })
+
+        document.getElementById('btn-ve-huy-ve').addEventListener('click', async () => {
+            if (!editingVeId) return
+            if (!(await confirmDialog('Huỷ vé này? Giường sẽ trống lại để đặt cho khách khác.', { danger: true }))) return
+            const { error } = await sb.from('ve').update({ trang_thai: 'huy' }).eq('id', editingVeId)
+            if (error) { showToast('Lỗi huỷ vé: ' + error.message, 'error'); return }
+            showToast('Đã huỷ vé', 'success')
+            closeVeModal()
+            loadVeChoChuyen(currentChuyen)
+        })
+
+        // === Modal thêm điểm đón/trả mới ===
+        function renderDiemKhachTinhOptions() {
+            const sel = document.getElementById('diemkhach-tinh')
+            sel.textContent = ''
+            tinhList.forEach(t => {
+                const opt = document.createElement('option')
+                opt.value = t.ma
+                opt.textContent = t.ten
+                sel.appendChild(opt)
+            })
+        }
+        function openDiemKhachModal(target) {
+            diemKhachTarget = target
+            document.getElementById('diemkhach-ten').value = ''
+            renderDiemKhachTinhOptions()
+            document.getElementById('diemkhach-modal').classList.add('open')
+        }
+        function closeDiemKhachModal() {
+            document.getElementById('diemkhach-modal').classList.remove('open')
+            diemKhachTarget = null
+        }
+        document.getElementById('btn-them-diem-len').addEventListener('click', () => openDiemKhachModal('len'))
+        document.getElementById('btn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('xuong'))
+        document.querySelector('#diemkhach-modal .diemkhach-modal-backdrop').addEventListener('click', closeDiemKhachModal)
+        document.getElementById('btn-diemkhach-dong').addEventListener('click', closeDiemKhachModal)
+
+        document.getElementById('btn-diemkhach-luu').addEventListener('click', async () => {
+            const ten = document.getElementById('diemkhach-ten').value.trim()
+            const tinhMa = document.getElementById('diemkhach-tinh').value
+            if (!ten) { showToast('Nhập tên điểm', 'error'); return }
+            const { data, error } = await sb.from('diem_khach').insert({ ten, tinh_ma: tinhMa }).select('id, ten, tinh_ma, thu_tu').single()
+            if (error) { showToast('Lỗi thêm điểm: ' + error.message, 'error'); return }
+            diemKhachList.push(data)
+            const target = diemKhachTarget === 'len' ? document.getElementById('ve-diem-len') : document.getElementById('ve-diem-xuong')
+            renderDiemKhachOptions(target, currentChuyen.chieu, data.id)
+            showToast('Đã thêm điểm', 'success')
+            closeDiemKhachModal()
+        })
+
+        const { open: openMenu } = renderSideMenu(sb)
+        document.getElementById('btn-open-menu').addEventListener('click', openMenu)
+
+        async function initPage() {
+            const auth = await requireSession(sb)
+            if (!auth) return
+            await Promise.all([loadGiuongList(), loadTinhList(), loadDiemKhachList()])
+            await loadChuyenOptions()
+        }
+
+        setupLogoutListener(sb)
+        initPage()
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => console.error('SW register failed:', err))
+            })
+        }
+    </script>
+</body>
+</html>

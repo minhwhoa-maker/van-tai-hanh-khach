@@ -108,6 +108,7 @@ function renderSideMenu(sb) {
         { href: 'hang.html', label: '📦 Nhập kiện' },
         { href: 'manifest-hang.html', label: '📋 Danh sách kiện' },
         { href: 'lich-su-chuyen.html', label: '🕐 Lịch sử' },
+        { href: 'khach.html', label: '💺 Hành khách' },
     ]
 
     const drawer = document.createElement('div')
