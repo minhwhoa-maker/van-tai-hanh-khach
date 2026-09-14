@@ -25,15 +25,25 @@
             box-shadow: var(--shadow); padding: 12px;
         }
         .tang-block h3 { margin: 0 0 10px; font-size: 15px; text-align: center; }
-        .hang-giuong { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-        .hang-giuong.hang-cuoi { gap: 4px; }
-        .giuong-btn {
-            flex: 1; aspect-ratio: 1; min-width: 0; border-radius: var(--radius-sm);
-            border: 1.5px solid var(--border); background: var(--white); color: var(--text-muted);
-            font-size: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center;
-            justify-content: center; padding: 2px; line-height: 1.2; font-family: inherit;
+        .giuong-hang-thuong { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+        .giuong-hang-cuoi { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+        .giuong-icon {
+            position: relative; height: 40px; border: 2px solid var(--border);
+            border-radius: var(--radius-sm) var(--radius-sm) 3px 3px; background: var(--white);
+            display: flex; align-items: flex-end; justify-content: center; cursor: pointer;
+            transition: border-color 0.15s, background 0.15s; font-family: inherit;
         }
-        .giuong-btn.da-dat { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .giuong-icon::before {
+            content: ''; position: absolute; top: 6px; left: 5px; right: 5px; height: 2px;
+            border-radius: 1px; background: var(--border);
+        }
+        .giuong-icon.da-dat { border-color: var(--primary); background: var(--primary-light); }
+        .giuong-icon.da-dat::before { background: var(--primary); }
+        .giuong-icon .ma-giuong { font-size: 10px; color: var(--text-muted); margin-bottom: 3px; }
+        .giuong-icon.da-dat .ma-giuong { color: var(--primary); }
+        .chu-thich-giuong { display: flex; gap: 16px; padding: 0 16px 12px; }
+        .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+        .chu-thich-item .giuong-icon { width: 28px; height: 34px; cursor: default; flex-shrink: 0; }
         .ve-modal, .diemkhach-modal {
             display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
         }
@@ -66,10 +76,6 @@
         .btn-ve-luu { background: var(--primary); color: #fff; }
         .btn-ve-huy-ve { background: var(--danger); color: #fff; }
         .btn-ve-dong { background: var(--border); color: var(--text); }
-        .legend { display: flex; gap: 16px; padding: 0 16px 12px; font-size: 12px; color: var(--text-muted); align-items: center; }
-        .legend-item { display: flex; align-items: center; gap: 6px; }
-        .legend-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid var(--border); }
-        .legend-swatch.da-dat { background: var(--primary-light); border-color: var(--primary); }
     </style>
 </head>
 <body>
@@ -87,9 +93,9 @@
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
 
-    <div class="legend">
-        <div class="legend-item"><span class="legend-swatch"></span> Trống</div>
-        <div class="legend-item"><span class="legend-swatch da-dat"></span> Đã đặt</div>
+    <div class="chu-thich-giuong">
+        <div class="chu-thich-item"><div class="giuong-icon"></div> Trống</div>
+        <div class="chu-thich-item"><div class="giuong-icon da-dat"></div> Đã đặt</div>
     </div>
 
     <div class="tang-wrap" id="tang-wrap"></div>
@@ -218,16 +224,23 @@
                 const giuongTang = giuongList.filter(g => g.tang === tang)
                 const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
                 for (let hang = 1; hang <= soHang; hang++) {
-                    const row = document.createElement('div')
                     const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
-                    row.className = 'hang-giuong' + (giuongHang.length > 3 ? ' hang-cuoi' : '')
+                    const row = document.createElement('div')
+                    row.className = giuongHang.length > 3 ? 'giuong-hang-cuoi' : 'giuong-hang-thuong'
                     giuongHang.forEach(g => {
                         const ve = veMap.get(g.id)
-                        const btn = document.createElement('button')
-                        btn.type = 'button'
-                        btn.className = 'giuong-btn' + (ve ? ' da-dat' : '')
-                        btn.textContent = ve ? (ve.ten_khach || g.ma) : g.ma
+                        // Mã hiển thị rút gọn — chỉ số thứ tự trong tầng (bỏ tiền tố "T1-"/"T2-"
+                        // vì đã tách khối "Tầng dưới"/"Tầng trên" riêng), giữ nguyên g.ma đầy đủ ở
+                        // tầng dữ liệu/DB, chỉ rút gọn lúc hiển thị.
+                        const maRutGon = g.ma.split('-')[1] || g.ma
+                        const btn = document.createElement('div')
+                        btn.className = 'giuong-icon' + (ve ? ' da-dat' : '')
+                        btn.dataset.giuongId = g.id
                         btn.title = ve ? `${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : g.ma
+                        const span = document.createElement('span')
+                        span.className = 'ma-giuong'
+                        span.textContent = maRutGon
+                        btn.appendChild(span)
                         btn.addEventListener('click', () => openVeModal(g))
                         row.appendChild(btn)
                     })
