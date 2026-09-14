@@ -91,6 +91,11 @@
             background: #fdf3e5; border: 1.5px solid var(--warning); color: var(--warning);
             font-size: 14px; font-weight: 600;
         }
+        .doanhthu-summary {
+            display: none; margin: 0 16px 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+            background: #e9f7ef; border: 1.5px solid var(--success); color: var(--success);
+            font-size: 14px; font-weight: 600;
+        }
         .kien-row-edit input, .kien-row-edit textarea {
             width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
             border-radius: var(--radius-sm); font-size: 16px; font-family: inherit;
@@ -137,6 +142,7 @@
         <select id="chuyen-select" style="width:100%; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
     </div>
 
+    <div class="doanhthu-summary" id="doanhthu-summary"></div>
     <div class="cod-summary" id="cod-summary"></div>
 
     <div id="list-wrap"></div>
@@ -345,6 +351,7 @@
             })
 
             renderCodSummary(kienList)
+            renderDoanhThuSummary(kienList)
 
             let any = false
             tinhList.forEach(tinh => {
@@ -383,6 +390,19 @@
             const tongDaThu = codKiens.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
             el.style.display = 'block'
             el.textContent = `⚠️ ${codKiens.length} kiện thu hộ (COD) — cần thu ${formatMoney(tongThuHo)}, đã thu ${formatMoney(tongDaThu)}, còn ${chuaThuDu.length} kiện chưa thu đủ`
+        }
+
+        // Tổng doanh thu = tổng kien.tien_thu (cước thực thu, KHÔNG tính tien_thu_ho vì đó là
+        // tiền hộ khách, không phải doanh thu nhà xe) của cả chuyến — cộng CẢ kiện 'tra_lai' nếu
+        // đã thu cước trước lúc gửi (tiền đã thu thật, không hoàn lại dù hàng bị trả), chỉ loại
+        // 'huy' (đã bị loại sẵn từ query nguồn của loadManifest). Tính lại ở client mỗi lần
+        // render — không thêm cột DB, cùng cách renderCodSummary đang làm.
+        function renderDoanhThuSummary(kienList) {
+            const el = document.getElementById('doanhthu-summary')
+            const tong = kienList.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
+            if (tong <= 0) { el.style.display = 'none'; return }
+            el.style.display = 'block'
+            el.textContent = `💰 Tổng doanh thu chuyến: ${formatMoney(tong)}`
         }
 
         // kien(id, diem_id, anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at, diem(ten, tinh_ma))
@@ -571,6 +591,7 @@
                 k.hinh_thuc_thu = tien === null ? null : hinhThuc
                 showToast('Đã lưu tiền thu', 'success')
                 renderKienRowView(row, k)
+                renderDoanhThuSummary(currentKienList)
             }))
         }
 
