@@ -1,4 +1,4 @@
-const CACHE_NAME = 'eakar-hang-v1';
+const CACHE_NAME = 'eakar-hang-v2';
 const STATIC_ASSETS = [
     './login.html',
     './auth-callback.html',
@@ -60,24 +60,19 @@ self.addEventListener('fetch', e => {
     const url = new URL(e.request.url);
     if (url.origin !== self.location.origin) return;
 
+    // Network-first cho MỌI request cùng-origin (không chỉ navigate) — luôn lấy bản mới nhất khi
+    // có mạng, chỉ rơi về cache lúc offline. Trước đây các asset không phải navigate (style.css/
+    // idb-queue.js/km-moc.js/2 file JSON) dùng cache-first, khiến crew kẹt vĩnh viễn ở bản cũ sau
+    // mỗi lần deploy (cache không bao giờ tự invalidate nếu CACHE_NAME không đổi) — phát hiện lúc
+    // review trước khi bật đăng ký service worker (2026-09-14), sửa luôn trước khi kích hoạt.
     e.respondWith((async () => {
         const cache = await caches.open(CACHE_NAME);
-
-        if (e.request.mode === 'navigate') {
-            try {
-                const response = await fetch(e.request);
-                if (response.ok) await cache.put(e.request, response.clone());
-                return response;
-            } catch {
-                return (await cache.match(e.request)) || cache.match('./login.html');
-            }
+        try {
+            const response = await fetch(e.request);
+            if (response.ok) await cache.put(e.request, response.clone());
+            return response;
+        } catch {
+            return (await cache.match(e.request)) || (e.request.mode === 'navigate' ? cache.match('./login.html') : undefined);
         }
-
-        const cached = await cache.match(e.request);
-        if (cached) return cached;
-
-        const response = await fetch(e.request);
-        if (response.ok) await cache.put(e.request, response.clone());
-        return response;
     })());
 });
