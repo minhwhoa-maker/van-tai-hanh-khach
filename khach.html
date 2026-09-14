@@ -19,39 +19,42 @@
             background: #e9f7ef; border: 1.5px solid var(--success); color: var(--success);
             font-size: 14px; font-weight: 600;
         }
-        .tang-wrap {
-            display: flex; gap: 16px; padding: 0 16px 16px; overflow-x: auto;
-            max-width: 480px; margin: 0 auto;
+        /* Đổi theo mẫu design handoff (2026-09-15): 1 tầng/lượt qua tab thay vì 2 tầng cạnh nhau,
+           icon giường là SVG thật (khung + gối) thay vì CSS box+pseudo-element, có thêm trạng
+           thái "Đang chọn" (đang mở form cho giường đó) ngoài trống/đã đặt. Container sơ đồ giới
+           hạn max-width:260px (giống mẫu) — đây cũng là cách fix triệt để hơn bug "icon phình to
+           trên PWA desktop" đã sửa tạm bằng cột px cố định trước đó: giờ cột vẫn dùng 1fr nhưng
+           tổng chiều rộng hàng luôn bị khoá ở 260px bất kể màn hình rộng bao nhiêu.
+           Không seed/dùng số lượng 23/5-hàng-cuối như mockup gốc — giữ đúng số liệu thật đã seed
+           (22 giường/tầng: 6 hàng×3 + 1 hàng×4), README của mockup cũng tự dặn xác minh lại số
+           liệu thật trước khi dùng. */
+        .floor-tabs { display: flex; gap: 8px; padding: 14px 16px 10px; max-width: 300px; margin: 0 auto; }
+        .floor-tab {
+            flex: 1; padding: 10px 0; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+            background: var(--white); color: var(--text); font-size: 14px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
         }
-        .tang-block {
-            flex: 1 1 0; min-width: 160px; background: var(--white); border-radius: var(--radius);
-            box-shadow: var(--shadow); padding: 12px;
+        .floor-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .availability-caption { text-align: center; font-size: 12px; color: var(--text-muted); padding-bottom: 10px; }
+        .chu-thich-giuong { display: flex; justify-content: center; gap: 20px; padding: 0 16px 16px; }
+        .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+        .chu-thich-item svg { flex-shrink: 0; }
+        .seat-grid-wrap { display: flex; flex-direction: column; gap: 14px; padding: 0 24px 28px; align-items: center; }
+        .giuong-hang-thuong {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; width: 100%; max-width: 260px;
         }
-        .tang-block h3 { margin: 0 0 10px; font-size: 15px; text-align: center; }
-        /* Cột grid CỐ ĐỊNH theo px (không phải 1fr) + justify-content: center — icon giữ đúng
-           48×56px bất kể màn hình rộng hay hẹp (PWA desktop resize được, web full màn hình lớn),
-           chỉ khoảng trống 2 bên đổi. Bug cũ: 1fr co giãn theo container khiến icon phình to bất
-           thường trên khung rộng (phát hiện qua ảnh chụp PWA desktop, 2026-09-15). */
-        .giuong-hang-thuong, .giuong-hang-cuoi {
-            display: grid; justify-content: center; gap: 10px; margin-bottom: 10px;
+        .giuong-hang-cuoi {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; max-width: 260px;
         }
-        .giuong-hang-thuong { grid-template-columns: repeat(3, 48px); }
-        .giuong-hang-cuoi { grid-template-columns: repeat(4, 48px); gap: 8px; }
         .giuong-icon {
-            position: relative; width: 48px; height: 56px; max-width: 48px;
-            border: 2px solid var(--border); border-radius: var(--radius-sm) var(--radius-sm) 3px 3px;
-            background: var(--white); cursor: pointer; justify-self: center;
-            transition: border-color 0.15s, background 0.15s; font-family: inherit;
+            aspect-ratio: 2/3; min-width: 0; border-radius: 14px; border: 2px solid var(--border);
+            background: var(--white); display: flex; align-items: center; justify-content: center;
+            padding: 6px; cursor: pointer; color: var(--text-muted); font-family: inherit;
+            transition: border-color 0.15s, background 0.15s, color 0.15s;
         }
-        .giuong-icon::before {
-            content: ''; position: absolute; top: 8px; left: 6px; right: 6px; height: 3px;
-            border-radius: 1.5px; background: var(--border);
-        }
-        .giuong-icon.da-dat { border-color: var(--primary); background: var(--primary-light); }
-        .giuong-icon.da-dat::before { background: var(--primary); }
-        .chu-thich-giuong { display: flex; gap: 16px; padding: 0 16px 12px; }
-        .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
-        .chu-thich-item .giuong-icon { width: 28px; height: 34px; cursor: default; flex-shrink: 0; }
+        .giuong-icon svg { width: 100%; height: 100%; display: block; }
+        .giuong-icon.da-dat { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .giuong-icon.dang-chon { background: var(--primary); border-color: var(--primary); color: #fff; }
         .ve-modal, .diemkhach-modal {
             display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
         }
@@ -84,6 +87,8 @@
         .btn-ve-luu { background: var(--primary); color: #fff; }
         .btn-ve-huy-ve { background: var(--danger); color: #fff; }
         .btn-ve-dong { background: var(--border); color: var(--text); }
+        .btn-ve-luu:disabled { background: #90a4ae; cursor: not-allowed; }
+        .ve-cancel-banner { background: #f8d7da; color: #721c24; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -101,38 +106,64 @@
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
 
-    <div class="chu-thich-giuong">
-        <div class="chu-thich-item"><div class="giuong-icon"></div> Trống</div>
-        <div class="chu-thich-item"><div class="giuong-icon da-dat"></div> Đã đặt</div>
+    <div class="floor-tabs">
+        <button type="button" class="floor-tab active" id="tab-tang-1">Tầng dưới</button>
+        <button type="button" class="floor-tab" id="tab-tang-2">Tầng trên</button>
     </div>
 
-    <div class="tang-wrap" id="tang-wrap"></div>
+    <div class="availability-caption" id="availability-caption"></div>
+
+    <div class="chu-thich-giuong">
+        <div class="chu-thich-item">
+            <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+            Trống
+        </div>
+        <div class="chu-thich-item">
+            <svg viewBox="0 0 40 64" width="16" height="24" style="color:#fff"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+            Đang chọn
+        </div>
+        <div class="chu-thich-item">
+            <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--primary)"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+            Đã đặt
+        </div>
+    </div>
+
+    <div class="seat-grid-wrap" id="seat-grid-wrap"></div>
 
     <div class="ve-modal" id="ve-modal">
         <div class="ve-modal-backdrop"></div>
         <div class="ve-modal-card">
             <h3 id="ve-modal-title">Đặt giường</h3>
-            <label>Tên khách</label>
-            <input type="text" id="ve-ten-khach" placeholder="Tên khách">
-            <label>SĐT khách</label>
-            <input type="tel" id="ve-sdt-khach" placeholder="SĐT khách">
-            <label>Điểm lên</label>
-            <div class="diem-row">
-                <select id="ve-diem-len"><option value="">— Chọn điểm lên —</option></select>
-                <button type="button" class="btn-them-diem" id="btn-them-diem-len">+</button>
+            <div id="ve-form-section">
+                <label>Tên khách</label>
+                <input type="text" id="ve-ten-khach" placeholder="Tên khách">
+                <label>SĐT khách</label>
+                <input type="tel" id="ve-sdt-khach" placeholder="SĐT khách">
+                <label>Điểm lên</label>
+                <div class="diem-row">
+                    <select id="ve-diem-len"><option value="">— Chọn điểm lên —</option></select>
+                    <button type="button" class="btn-them-diem" id="btn-them-diem-len">+</button>
+                </div>
+                <label>Điểm xuống</label>
+                <div class="diem-row">
+                    <select id="ve-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
+                    <button type="button" class="btn-them-diem" id="btn-them-diem-xuong">+</button>
+                </div>
+                <label>Giá vé (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
+                <input type="number" inputmode="numeric" id="ve-gia" placeholder="vd 200">
+                <div class="tien-chu" id="ve-gia-chu"></div>
+                <div class="ve-modal-actions">
+                    <button type="button" class="btn-ve-dong" id="btn-ve-dong">Đóng</button>
+                    <button type="button" class="btn-ve-huy-ve" id="btn-ve-huy-ve" style="display:none;">Huỷ vé</button>
+                    <button type="button" class="btn-ve-luu" id="btn-ve-luu">Lưu</button>
+                </div>
             </div>
-            <label>Điểm xuống</label>
-            <div class="diem-row">
-                <select id="ve-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
-                <button type="button" class="btn-them-diem" id="btn-them-diem-xuong">+</button>
-            </div>
-            <label>Giá vé (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
-            <input type="number" inputmode="numeric" id="ve-gia" placeholder="vd 200">
-            <div class="tien-chu" id="ve-gia-chu"></div>
-            <div class="ve-modal-actions">
-                <button type="button" class="btn-ve-dong" id="btn-ve-dong">Đóng</button>
-                <button type="button" class="btn-ve-huy-ve" id="btn-ve-huy-ve" style="display:none;">Huỷ vé</button>
-                <button type="button" class="btn-ve-luu" id="btn-ve-luu">Lưu</button>
+            <div id="ve-cancel-section" style="display:none;">
+                <div class="ve-cancel-banner" id="ve-cancel-banner-text"></div>
+                <div class="ve-modal-actions">
+                    <button type="button" class="btn-ve-dong" id="btn-ve-cancel-back">Không</button>
+                    <button type="button" class="btn-ve-huy-ve" id="btn-ve-cancel-confirm">Xác nhận huỷ</button>
+                </div>
             </div>
         </div>
     </div>
@@ -165,8 +196,14 @@
         let veMap = new Map()          // giuong_id -> vé 'da_dat' hiện tại của chuyến đang chọn
         let currentChuyen = null
         let editingVeId = null         // null = đang tạo vé mới; có giá trị = đang sửa vé đó
-        let selectedGiuongId = null
+        let selectedGiuongId = null    // giường đang mở form (dùng cả cho highlight "Đang chọn")
         let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
+        let currentFloor = 1           // 1 = Tầng dưới, 2 = Tầng trên — chỉ hiện 1 tầng/lượt qua tab
+
+        // SVG icon giường dùng chung cho mọi ô — khung viền + gối, cả 2 nét đều stroke=currentColor
+        // để màu đổi theo CSS `color` của .giuong-icon (trống/đã đặt/đang chọn), không cần build
+        // lại markup theo từng trạng thái.
+        const SEAT_SVG = '<svg viewBox="0 0 40 64" width="60%" style="display:block"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="3"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="3"></rect></svg>'
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -219,39 +256,46 @@
             selectEl.value = selectedId || ''
         }
 
+        // Chỉ render 1 tầng/lượt (currentFloor) — chuyển tab gọi lại hàm này, không cần tải lại
+        // dữ liệu (veMap đã có sẵn cho cả chuyến). "Đang chọn" (selectedGiuongId) là trạng thái
+        // tạm trong lúc form đang mở cho đúng giường đó — mất khi đóng modal (xem closeVeModal).
         function renderGiuongGrid() {
-            const wrap = document.getElementById('tang-wrap')
-            wrap.textContent = ''
-            ;[1, 2].forEach(tang => {
-                const block = document.createElement('div')
-                block.className = 'tang-block'
-                const h3 = document.createElement('h3')
-                h3.textContent = tang === 1 ? 'Tầng dưới' : 'Tầng trên'
-                block.appendChild(h3)
+            document.getElementById('tab-tang-1').classList.toggle('active', currentFloor === 1)
+            document.getElementById('tab-tang-2').classList.toggle('active', currentFloor === 2)
 
-                const giuongTang = giuongList.filter(g => g.tang === tang)
-                const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
-                for (let hang = 1; hang <= soHang; hang++) {
-                    const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
-                    const row = document.createElement('div')
-                    row.className = giuongHang.length > 3 ? 'giuong-hang-cuoi' : 'giuong-hang-thuong'
-                    giuongHang.forEach(g => {
-                        const ve = veMap.get(g.id)
-                        // Icon không còn chữ trên mặt giường — mã giường (g.ma, vd "T1-05") chỉ
-                        // hiện trong tiêu đề form lúc tap vào (xem openVeModal), giữ qua title
-                        // (tooltip) để vẫn đối chiếu được nếu cần mà không hover được trên mobile.
-                        const btn = document.createElement('div')
-                        btn.className = 'giuong-icon' + (ve ? ' da-dat' : '')
-                        btn.dataset.giuongId = g.id
-                        btn.title = ve ? `${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : g.ma
-                        btn.addEventListener('click', () => openVeModal(g))
-                        row.appendChild(btn)
-                    })
-                    block.appendChild(row)
-                }
-                wrap.appendChild(block)
-            })
+            const wrap = document.getElementById('seat-grid-wrap')
+            wrap.textContent = ''
+            const giuongTang = giuongList.filter(g => g.tang === currentFloor)
+            const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
+            for (let hang = 1; hang <= soHang; hang++) {
+                const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
+                const row = document.createElement('div')
+                row.className = giuongHang.length > 3 ? 'giuong-hang-cuoi' : 'giuong-hang-thuong'
+                giuongHang.forEach(g => {
+                    const ve = veMap.get(g.id)
+                    const dangChon = selectedGiuongId === g.id
+                    // Mã giường (g.ma, vd "T1-05") không còn hiện trên mặt icon — chỉ ở tiêu đề
+                    // form lúc tap vào (xem openVeModal), giữ qua title (tooltip) để vẫn đối
+                    // chiếu được nếu cần mà không hover được trên mobile.
+                    const btn = document.createElement('button')
+                    btn.type = 'button'
+                    btn.className = 'giuong-icon' + (dangChon ? ' dang-chon' : ve ? ' da-dat' : '')
+                    btn.dataset.giuongId = g.id
+                    btn.title = ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : `Giường ${g.ma} — còn trống`
+                    btn.innerHTML = SEAT_SVG
+                    btn.addEventListener('click', () => openVeModal(g))
+                    row.appendChild(btn)
+                })
+                wrap.appendChild(row)
+            }
+
+            const daDatTang = giuongTang.filter(g => veMap.has(g.id)).length
+            document.getElementById('availability-caption').textContent =
+                `${giuongTang.length - daDatTang} giường trống · ${daDatTang} đã đặt`
         }
+
+        document.getElementById('tab-tang-1').addEventListener('click', () => { currentFloor = 1; renderGiuongGrid() })
+        document.getElementById('tab-tang-2').addEventListener('click', () => { currentFloor = 2; renderGiuongGrid() })
 
         function renderDoanhThuVe(veList) {
             const el = document.getElementById('doanhthu-ve-summary')
@@ -315,6 +359,19 @@
         }
         document.getElementById('ve-gia').addEventListener('input', capNhatGiaChu)
 
+        // Nút "Lưu" chỉ bắt buộc tên+SĐT khi TẠO vé mới (giường đang trống) — sửa vé đã có
+        // (editingVeId khác null) không ép lại field nào, giữ đúng hành vi cũ (crew có thể chỉ
+        // sửa điểm lên/xuống hay giá mà không đụng tên/SĐT đã có).
+        function capNhatTrangThaiNutLuu() {
+            const btn = document.getElementById('btn-ve-luu')
+            if (editingVeId) { btn.disabled = false; return }
+            const ten = document.getElementById('ve-ten-khach').value.trim()
+            const sdt = document.getElementById('ve-sdt-khach').value.trim()
+            btn.disabled = !(ten && sdt)
+        }
+        document.getElementById('ve-ten-khach').addEventListener('input', capNhatTrangThaiNutLuu)
+        document.getElementById('ve-sdt-khach').addEventListener('input', capNhatTrangThaiNutLuu)
+
         function openVeModal(giuong) {
             if (!currentChuyen) { showToast('Chưa chọn chuyến', 'error'); return }
             selectedGiuongId = giuong.id
@@ -325,15 +382,20 @@
             document.getElementById('ve-sdt-khach').value = ve?.sdt_khach || ''
             document.getElementById('ve-gia').value = ve?.gia != null ? ve.gia / 1000 : ''
             capNhatGiaChu()
+            capNhatTrangThaiNutLuu()
             renderDiemKhachOptions(document.getElementById('ve-diem-len'), currentChuyen.chieu, ve?.diem_len_id)
             renderDiemKhachOptions(document.getElementById('ve-diem-xuong'), currentChuyen.chieu, ve?.diem_xuong_id)
             document.getElementById('btn-ve-huy-ve').style.display = ve ? 'block' : 'none'
+            document.getElementById('ve-form-section').style.display = 'block'
+            document.getElementById('ve-cancel-section').style.display = 'none'
             document.getElementById('ve-modal').classList.add('open')
+            renderGiuongGrid()   // hiện highlight "Đang chọn" ngay trên giường vừa tap
         }
         function closeVeModal() {
             document.getElementById('ve-modal').classList.remove('open')
             editingVeId = null
             selectedGiuongId = null
+            renderGiuongGrid()   // bỏ highlight "Đang chọn"
         }
         document.querySelector('#ve-modal .ve-modal-backdrop').addEventListener('click', closeVeModal)
         document.getElementById('btn-ve-dong').addEventListener('click', closeVeModal)
@@ -346,6 +408,7 @@
             const giaRaw = document.getElementById('ve-gia').value.trim()
             const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
             if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
+            if (!editingVeId && (!tenKhach || !sdtKhach)) { showToast('Nhập tên và SĐT khách trước khi lưu', 'error'); return }
 
             if (editingVeId) {
                 const { error } = await sb.from('ve').update({
@@ -371,9 +434,23 @@
             loadVeChoChuyen(currentChuyen)
         })
 
-        document.getElementById('btn-ve-huy-ve').addEventListener('click', async () => {
+        // Bước xác nhận huỷ nằm NGAY TRONG modal (banner đỏ + Không/Xác nhận huỷ), không dùng
+        // confirmDialog() toàn cục — theo đúng mẫu design handoff (tránh chồng 2 lớp modal lên
+        // nhau), khác các thao tác huỷ khác trong app (vẫn dùng confirmDialog chung).
+        document.getElementById('btn-ve-huy-ve').addEventListener('click', () => {
             if (!editingVeId) return
-            if (!(await confirmDialog('Huỷ vé này? Giường sẽ trống lại để đặt cho khách khác.', { danger: true }))) return
+            const giuong = giuongList.find(g => g.id === selectedGiuongId)
+            document.getElementById('ve-cancel-banner-text').textContent =
+                `Huỷ vé giường ${giuong?.ma || ''}? Giường sẽ trống lại để đặt cho khách khác.`
+            document.getElementById('ve-form-section').style.display = 'none'
+            document.getElementById('ve-cancel-section').style.display = 'block'
+        })
+        document.getElementById('btn-ve-cancel-back').addEventListener('click', () => {
+            document.getElementById('ve-cancel-section').style.display = 'none'
+            document.getElementById('ve-form-section').style.display = 'block'
+        })
+        document.getElementById('btn-ve-cancel-confirm').addEventListener('click', async () => {
+            if (!editingVeId) return
             const { error } = await sb.from('ve').update({ trang_thai: 'huy' }).eq('id', editingVeId)
             if (error) { showToast('Lỗi huỷ vé: ' + error.message, 'error'); return }
             showToast('Đã huỷ vé', 'success')
