@@ -42,8 +42,6 @@
         }
         .giuong-icon.da-dat { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 1px 3px rgba(21,101,192,.15); }
         .giuong-icon.da-dat::before { border-color: var(--primary); background: var(--primary-light); }
-        .giuong-icon .ma-giuong { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 14px; }
-        .giuong-icon.da-dat .ma-giuong { color: var(--primary); }
         .chu-thich-giuong { display: flex; gap: 16px; padding: 0 16px 12px; }
         .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
         .chu-thich-item .giuong-icon { width: 32px; aspect-ratio: 1; cursor: default; flex-shrink: 0; }
@@ -232,18 +230,13 @@
                     row.className = giuongHang.length > 3 ? 'giuong-hang-cuoi' : 'giuong-hang-thuong'
                     giuongHang.forEach(g => {
                         const ve = veMap.get(g.id)
-                        // Mã hiển thị rút gọn — chỉ số thứ tự trong tầng (bỏ tiền tố "T1-"/"T2-"
-                        // vì đã tách khối "Tầng dưới"/"Tầng trên" riêng), giữ nguyên g.ma đầy đủ ở
-                        // tầng dữ liệu/DB, chỉ rút gọn lúc hiển thị.
-                        const maRutGon = g.ma.split('-')[1] || g.ma
+                        // Icon không còn chữ trên mặt giường — mã giường (g.ma, vd "T1-05") chỉ
+                        // hiện trong tiêu đề form lúc tap vào (xem openVeModal), giữ qua title
+                        // (tooltip) để vẫn đối chiếu được nếu cần mà không hover được trên mobile.
                         const btn = document.createElement('div')
                         btn.className = 'giuong-icon' + (ve ? ' da-dat' : '')
                         btn.dataset.giuongId = g.id
                         btn.title = ve ? `${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : g.ma
-                        const span = document.createElement('span')
-                        span.className = 'ma-giuong'
-                        span.textContent = maRutGon
-                        btn.appendChild(span)
                         btn.addEventListener('click', () => openVeModal(g))
                         row.appendChild(btn)
                     })
