@@ -396,11 +396,12 @@
         // tiền hộ khách, không phải doanh thu nhà xe) của cả chuyến — cộng CẢ kiện 'tra_lai' nếu
         // đã thu cước trước lúc gửi (tiền đã thu thật, không hoàn lại dù hàng bị trả), chỉ loại
         // 'huy' (đã bị loại sẵn từ query nguồn của loadManifest). Tính lại ở client mỗi lần
-        // render — không thêm cột DB, cùng cách renderCodSummary đang làm.
+        // render — không thêm cột DB, cùng cách renderCodSummary đang làm. LUÔN hiện (kể cả 0đ/
+        // chuyến chưa có kiện) theo yêu cầu "muốn doanh thu live ở đây luôn" — khác renderCodSummary
+        // vốn ẩn khi không có gì cần cảnh báo, ở đây là số liệu theo dõi liên tục nên không ẩn.
         function renderDoanhThuSummary(kienList) {
             const el = document.getElementById('doanhthu-summary')
             const tong = kienList.reduce((s, k) => s + Number(k.tien_thu || 0), 0)
-            if (tong <= 0) { el.style.display = 'none'; return }
             el.style.display = 'block'
             el.textContent = `💰 Tổng doanh thu chuyến: ${formatMoney(tong)}`
         }
