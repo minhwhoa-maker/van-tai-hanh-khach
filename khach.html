@@ -12,12 +12,12 @@
     <link rel="stylesheet" href="style.css">
     <style>
         body { background: var(--bg); padding-bottom: 40px; }
-        .chuyen-select-wrap { padding: 16px; }
+        .chuyen-select-wrap { padding: 10px 16px 8px; }
         .chuyen-select-wrap select#chuyen-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .doanhthu-ve-summary {
-            display: none; margin: 0 16px 16px; padding: 12px 16px; border-radius: var(--radius-sm);
+            display: none; margin: 0 16px 8px; padding: 8px 14px; border-radius: var(--radius-sm);
             background: #e9f7ef; border: 1.5px solid var(--success); color: var(--success);
-            font-size: 14px; font-weight: 600;
+            font-size: 13px; font-weight: 600;
         }
         /* Đổi theo mẫu design handoff (2026-09-15): 1 tầng/lượt qua tab thay vì 2 tầng cạnh nhau,
            icon giường là SVG thật (khung + gối) thay vì CSS box+pseudo-element, có thêm trạng
@@ -28,28 +28,28 @@
            Không seed/dùng số lượng 23/5-hàng-cuối như mockup gốc — giữ đúng số liệu thật đã seed
            (22 giường/tầng: 6 hàng×3 + 1 hàng×4), README của mockup cũng tự dặn xác minh lại số
            liệu thật trước khi dùng. */
-        .floor-tabs { display: flex; gap: 8px; padding: 14px 16px 10px; max-width: 300px; margin: 0 auto; }
+        .floor-tabs { display: flex; gap: 6px; padding: 8px 16px 6px; max-width: 260px; margin: 0 auto; }
         .floor-tab {
-            flex: 1; padding: 10px 0; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
-            background: var(--white); color: var(--text); font-size: 14px; font-weight: 600;
+            flex: 1; padding: 7px 0; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+            background: var(--white); color: var(--text); font-size: 13px; font-weight: 600;
             cursor: pointer; font-family: inherit;
         }
         .floor-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
-        .availability-caption { text-align: center; font-size: 12px; color: var(--text-muted); padding-bottom: 10px; }
-        .chu-thich-giuong { display: flex; justify-content: center; gap: 20px; padding: 0 16px 16px; }
-        .chu-thich-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+        .availability-caption { text-align: center; font-size: 11px; color: var(--text-muted); padding-bottom: 4px; }
+        .chu-thich-giuong { display: flex; justify-content: center; gap: 14px; padding: 0 16px 8px; }
+        .chu-thich-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
         .chu-thich-item svg { flex-shrink: 0; }
-        .seat-grid-wrap { display: flex; flex-direction: column; gap: 14px; padding: 0 24px 28px; align-items: center; }
+        .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 12px; align-items: center; }
         .giuong-hang-thuong {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; width: 100%; max-width: 260px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; max-width: 190px;
         }
         .giuong-hang-cuoi {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; width: 100%; max-width: 260px;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; max-width: 190px;
         }
         .giuong-icon {
-            aspect-ratio: 2/3; min-width: 0; border-radius: 14px; border: 2px solid var(--border);
+            aspect-ratio: 3/4; min-width: 0; border-radius: 10px; border: 2px solid var(--border);
             background: var(--white); display: flex; align-items: center; justify-content: center;
-            padding: 6px; cursor: pointer; color: var(--text-muted); font-family: inherit;
+            padding: 4px; cursor: pointer; color: var(--text-muted); font-family: inherit;
             transition: border-color 0.15s, background 0.15s, color 0.15s;
         }
         .giuong-icon svg { width: 100%; height: 100%; display: block; }
@@ -101,7 +101,7 @@
     </div>
 
     <div class="chuyen-select-wrap">
-        <select id="chuyen-select" style="width:100%; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
+        <select id="chuyen-select" style="width:100%; padding:9px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
     </div>
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
