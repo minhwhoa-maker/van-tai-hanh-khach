@@ -40,11 +40,8 @@
         .chu-thich-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
         .chu-thich-item svg { flex-shrink: 0; }
         .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 12px; align-items: center; }
-        .giuong-hang-thuong {
-            display: grid; grid-template-columns: repeat(3, 54px); gap: 10px; justify-content: center;
-        }
-        .giuong-hang-cuoi {
-            display: grid; grid-template-columns: repeat(4, 54px); gap: 8px; justify-content: center;
+        .giuong-hang {
+            display: grid; gap: 8px; justify-content: center;
         }
         .giuong-icon {
             width: 54px; aspect-ratio: 3/4; border-radius: 10px; border: 2px solid var(--border);
@@ -270,7 +267,12 @@
             for (let hang = 1; hang <= soHang; hang++) {
                 const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
                 const row = document.createElement('div')
-                row.className = giuongHang.length > 3 ? 'giuong-hang-cuoi' : 'giuong-hang-thuong'
+                row.className = 'giuong-hang'
+                // Số cột luôn khớp đúng số giường thực tế của hàng đó (2 giường hàng 1, 5 giường
+                // hàng cuối, 3 giường các hàng còn lại — sau khi chuyển T1-02/T2-02 xuống hàng
+                // cuối, 2026-09-15) — cột luôn 54px cố định nên icon không bị to/nhỏ khác nhau
+                // giữa các hàng dù số cột khác nhau.
+                row.style.gridTemplateColumns = `repeat(${giuongHang.length}, 54px)`
                 giuongHang.forEach(g => {
                     const ve = veMap.get(g.id)
                     const dangChon = selectedGiuongId === g.id
