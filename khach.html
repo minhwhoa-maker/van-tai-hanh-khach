@@ -268,11 +268,13 @@
                 const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
                 const row = document.createElement('div')
                 row.className = 'giuong-hang'
-                // Số cột luôn khớp đúng số giường thực tế của hàng đó (2 giường hàng 1, 5 giường
-                // hàng cuối, 3 giường các hàng còn lại — sau khi chuyển T1-02/T2-02 xuống hàng
-                // cuối, 2026-09-15) — cột luôn 54px cố định nên icon không bị to/nhỏ khác nhau
-                // giữa các hàng dù số cột khác nhau.
-                row.style.gridTemplateColumns = `repeat(${giuongHang.length}, 54px)`
+                // Số cột = vi_tri LỚN NHẤT trong hàng (không phải số giường thực tế) — mỗi giường
+                // đặt đúng ô grid-column = vi_tri của nó, để hàng có khoảng trống thật (vd hàng 6:
+                // giường ở vi_tri 1 và 3, KHÔNG có vi_tri 2 — lối cầu thang, 2026-09-15) hiện đúng
+                // ô trống ở giữa thay vì 2 giường bị dồn sát nhau. Hàng bình thường/không có
+                // khoảng trống (vi_tri liên tục 1..N) thì hành vi y hệt trước (cột = số giường).
+                const soCot = Math.max(...giuongHang.map(g => g.vi_tri))
+                row.style.gridTemplateColumns = `repeat(${soCot}, 54px)`
                 giuongHang.forEach(g => {
                     const ve = veMap.get(g.id)
                     const dangChon = selectedGiuongId === g.id
@@ -283,6 +285,7 @@
                     btn.type = 'button'
                     btn.className = 'giuong-icon' + (dangChon ? ' dang-chon' : ve ? ' da-dat' : '')
                     btn.dataset.giuongId = g.id
+                    btn.style.gridColumn = String(g.vi_tri)
                     btn.title = ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : `Giường ${g.ma} — còn trống`
                     btn.innerHTML = SEAT_SVG
                     btn.addEventListener('click', () => openVeModal(g))
