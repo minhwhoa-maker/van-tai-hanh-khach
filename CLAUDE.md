@@ -236,8 +236,28 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối chiếu tay qua app ngân
   hàng sau, không có xác nhận tự động). Đặt thành công → màn xác nhận đơn giản tại chỗ (không có
   trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại phải gọi
-  crew. Lỗi trùng giường (409) → toast + tự tải lại sơ đồ, KHÔNG mất dữ liệu đã điền trong form
-  (chỉ `selectedGiuong` bị xoá, khách chọn lại giường khác rồi bấm "Đặt vé" lại).
+  crew.
+  - **Chọn NHIỀU giường cùng lúc (2026-09-16, theo yêu cầu)** — `selectedGiuongMap`
+    (`Map<giuong.id, giuong>`) thay cho biến đơn `selectedGiuong` ban đầu. Bấm giường trống → TOGGLE
+    (`toggleChonGiuong`): chưa chọn thì thêm vào map, ĐÃ CHỌN (đang tô xanh dương "Đang chọn") thì
+    bấm lại để bỏ chọn — cùng 1 nút bấm, không có nút "Bỏ chọn" riêng. Điều kiện gắn click-listener
+    ở `renderMotTang` là `g.hoat_dong && g.trong` — `g.trong` đọc từ server nên KHÔNG đổi khi mới
+    chọn (chỉ đổi sau khi đặt vé thành công), giường đang chọn vẫn giữ `trong:true` nên vẫn bấm lại
+    được để bỏ chọn, không cần điều kiện riêng. Dòng "Giường đã chọn" đổi thành liệt kê tất cả
+    (`capNhatFormChonGiuong`, vd "Giường đã chọn (2): T1-02, T1-03") — form tự ẩn khi bỏ chọn hết
+    (0 giường), tự hiện khi có ít nhất 1 giường được chọn (chỉ auto-scroll lúc form từ ẩn sang
+    hiện, không cuộn lại mỗi lần bấm thêm/bớt giường khi form đã đang mở).
+  - **1 bộ Tên/SĐT/Điểm lên-xuống/Thanh toán áp dụng cho MỌI giường đã chọn** khi bấm "Đặt vé" — v1
+    KHÔNG hỗ trợ nhập riêng thông tin từng khách cho từng giường (test tính năng, giữ đơn giản; nếu
+    cần đặt cho nhiều người khác thông tin thì bấm "Đặt vé" nhiều lượt riêng, mỗi lượt 1 giường).
+  - **Đặt TUẦN TỰ từng giường** (không `Promise.all`) qua vòng lặp gọi `api/cong-khai-dat-ve`, nút
+    hiện tiến độ "Đang đặt vé... (X/Y)". Giường nào lỗi (vd bị người khác đặt trước đúng lúc đang xử
+    lý — hiếm nhưng có thể xảy ra khi chọn nhiều giường, thời gian xử lý dài hơn 1 giường đơn) được
+    gom riêng, KHÔNG chặn các giường còn lại tiếp tục đặt. **Có ít nhất 1 giường thành công** → vẫn
+    hiện màn xác nhận (chỉ liệt kê mã giường thành công), kèm toast riêng báo giường nào lỗi nếu có
+    — tránh mất trắng cả lượt đặt nhóm chỉ vì 1 giường trong đó bị trùng. **Không giường nào thành
+    công** → báo lỗi (dùng thông báo của giường đầu tiên, tránh toast dài dòng liệt kê hết), xoá
+    sạch `selectedGiuongMap`, tải lại sơ đồ.
 - **"🌐 Đặt online"** — xem bullet badge trong mục `khach.html` phía trên.
 
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)

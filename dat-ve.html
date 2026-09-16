@@ -211,7 +211,10 @@
         let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}]
         let diemKhachList = []
         let tinhList = []
-        let selectedGiuong = null
+        // Chọn NHIỀU giường cùng lúc (vd nhóm khách đi chung) — Map<giuong.id, giuong>, bấm lại
+        // 1 giường đang chọn thì bỏ chọn (toggle). Cùng 1 bộ tên/SĐT/điểm lên-xuống/thanh toán áp
+        // dụng cho MỌI giường đã chọn khi bấm "Đặt vé" — v1 không hỗ trợ nhập riêng từng khách.
+        let selectedGiuongMap = new Map()
 
         const SEAT_SVG = '<svg viewBox="0 0 40 64" width="60%" style="display:block"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="3"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="3"></rect></svg>'
 
@@ -258,14 +261,17 @@
                 const soCot = Math.max(...giuongHang.map(g => g.vi_tri))
                 row.style.gridTemplateColumns = `repeat(${soCot}, var(--seat-cell, 28px))`
                 giuongHang.forEach(g => {
-                    const dangChon = selectedGiuong?.id === g.id
+                    const dangChon = selectedGiuongMap.has(g.id)
                     const btn = document.createElement('button')
                     btn.type = 'button'
                     btn.className = 'giuong-icon' + (!g.hoat_dong ? ' offline' : dangChon ? ' dang-chon' : !g.trong ? ' da-dat' : '')
-                    btn.title = !g.hoat_dong ? `Giường ${g.ma} — Ngưng phục vụ` : g.trong ? `Giường ${g.ma} — còn trống` : `Giường ${g.ma} — đã có người đặt`
+                    btn.title = !g.hoat_dong ? `Giường ${g.ma} — Ngưng phục vụ` : g.trong ? `Giường ${g.ma} — còn trống${dangChon ? ' (đang chọn, bấm lại để bỏ chọn)' : ''}` : `Giường ${g.ma} — đã có người đặt`
                     btn.style.gridColumn = String(g.vi_tri)
                     btn.innerHTML = SEAT_SVG
-                    if (g.hoat_dong && g.trong) btn.addEventListener('click', () => chonGiuong(g))
+                    // g.trong đọc từ server (chưa đổi khi mới CHỌN, chỉ đổi sau khi đặt thành
+                    // công) nên giường đang chọn vẫn có g.trong=true — click vẫn gọi được để
+                    // TOGGLE (chọn/bỏ chọn), chỉ chặn giường thật sự không chọn được.
+                    if (g.hoat_dong && g.trong) btn.addEventListener('click', () => toggleChonGiuong(g))
                     row.appendChild(btn)
                 })
                 wrap.appendChild(row)
@@ -280,12 +286,27 @@
             renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
         }
 
-        function chonGiuong(g) {
-            selectedGiuong = g
+        function toggleChonGiuong(g) {
+            if (selectedGiuongMap.has(g.id)) selectedGiuongMap.delete(g.id)
+            else selectedGiuongMap.set(g.id, g)
             renderSoDo()
-            document.getElementById('giuong-da-chon').textContent = `Giường đã chọn: ${g.ma}`
-            document.getElementById('dat-ve-form').style.display = 'block'
-            document.getElementById('dat-ve-form').scrollIntoView({ behavior: 'smooth', block: 'start' })
+            capNhatFormChonGiuong()
+        }
+
+        // Cập nhật dòng "Giường đã chọn" + hiện/ẩn form theo số lượng đang chọn — 0 giường thì ẩn
+        // hẳn form (bỏ chọn giường cuối cùng cũng coi như đóng form).
+        function capNhatFormChonGiuong() {
+            const list = [...selectedGiuongMap.values()]
+            const formEl = document.getElementById('dat-ve-form')
+            if (!list.length) {
+                formEl.style.display = 'none'
+                return
+            }
+            document.getElementById('giuong-da-chon').textContent =
+                `Giường đã chọn (${list.length}): ${list.map(g => g.ma).join(', ')}`
+            const wasHidden = formEl.style.display !== 'block'
+            formEl.style.display = 'block'
+            if (wasHidden) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
 
         document.querySelectorAll('input[name="thanh-toan"]').forEach(r => {
@@ -293,14 +314,16 @@
                 const ckBlock = document.getElementById('chuyen-khoan-info')
                 const chon = document.querySelector('input[name="thanh-toan"]:checked').value
                 ckBlock.style.display = chon === 'chuyen_khoan_truoc' ? 'block' : 'none'
-                if (chon === 'chuyen_khoan_truoc' && selectedGiuong) {
-                    document.getElementById('ck-noi-dung').textContent = `VE ${selectedGiuong.ma} ${document.getElementById('f-ten').value.trim() || ''}`.trim()
+                if (chon === 'chuyen_khoan_truoc' && selectedGiuongMap.size) {
+                    const maList = [...selectedGiuongMap.values()].map(g => g.ma).join('+')
+                    document.getElementById('ck-noi-dung').textContent = `VE ${maList} ${document.getElementById('f-ten').value.trim() || ''}`.trim()
                 }
             })
         })
 
         document.getElementById('btn-dat-ve').addEventListener('click', async () => {
-            if (!currentChuyen || !selectedGiuong) return
+            const dsGiuong = [...selectedGiuongMap.values()]
+            if (!currentChuyen || !dsGiuong.length) return
             const ten = document.getElementById('f-ten').value.trim()
             const sdt = document.getElementById('f-sdt').value.trim()
             const diemLenId = document.getElementById('f-diem-len').value
@@ -312,36 +335,54 @@
 
             const btn = document.getElementById('btn-dat-ve')
             btn.disabled = true
-            btn.textContent = 'Đang đặt vé...'
-            try {
-                const res = await fetch('/api/cong-khai-dat-ve', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chuyen_id: currentChuyen.id, giuong_id: selectedGiuong.id,
-                        ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId,
-                        hinh_thuc_thanh_toan: hinhThuc
+            // Đặt TUẦN TỰ từng giường (không Promise.all) — đơn giản, dễ biết đúng giường nào lỗi
+            // để báo rõ, số lượng mỗi lần chọn thường nhỏ (vài giường) nên không đáng lo tốc độ.
+            const thanhCong = []
+            const thatBai = []
+            for (const g of dsGiuong) {
+                btn.textContent = `Đang đặt vé... (${thanhCong.length + thatBai.length + 1}/${dsGiuong.length})`
+                try {
+                    const res = await fetch('/api/cong-khai-dat-ve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chuyen_id: currentChuyen.id, giuong_id: g.id,
+                            ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId,
+                            hinh_thuc_thanh_toan: hinhThuc
+                        })
                     })
-                })
-                const data = await res.json()
-                if (!res.ok) {
-                    showToast(data.error || 'Lỗi đặt vé', 'error')
-                    if (res.status === 409) { selectedGiuong = null; await taiSoDo() }
-                    btn.disabled = false
-                    btn.textContent = 'Đặt vé'
-                    return
+                    const data = await res.json()
+                    if (!res.ok) thatBai.push({ g, error: data.error || 'Lỗi đặt vé' })
+                    else thanhCong.push(g)
+                } catch (err) {
+                    thatBai.push({ g, error: 'Lỗi mạng: ' + err.message })
                 }
-                document.getElementById('so-do-wrap').style.display = 'none'
-                document.getElementById('dat-ve-form').style.display = 'none'
-                document.getElementById('xac-nhan-chi-tiet').textContent =
-                    `Giường ${selectedGiuong.ma} — ${ten} — ${sdt}` +
-                    (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe')
-                document.getElementById('xac-nhan-box').style.display = 'block'
-                document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
-            } catch (err) {
-                showToast('Lỗi mạng, thử lại: ' + err.message, 'error')
+            }
+
+            if (!thanhCong.length) {
+                // Không giường nào đặt được — báo lỗi (giường đầu tiên đủ đại diện, tránh toast
+                // dài dòng), tải lại sơ đồ để cập nhật giường vừa bị người khác đặt trước.
+                showToast(thatBai[0]?.error || 'Lỗi đặt vé', 'error')
+                selectedGiuongMap.clear()
+                await taiSoDo()
                 btn.disabled = false
                 btn.textContent = 'Đặt vé'
+                return
+            }
+
+            // Có ÍT NHẤT 1 giường đặt thành công — hiện xác nhận cho phần thành công, giường lỗi
+            // (nếu có, vd bị người khác đặt trước ngay lúc đang xử lý) chỉ báo toast, KHÔNG mất
+            // trắng cả lượt đặt chỉ vì 1 giường trong nhóm bị trùng.
+            document.getElementById('so-do-wrap').style.display = 'none'
+            document.getElementById('dat-ve-form').style.display = 'none'
+            const maThanhCong = thanhCong.map(g => g.ma).join(', ')
+            document.getElementById('xac-nhan-chi-tiet').textContent =
+                `Giường ${maThanhCong} — ${ten} — ${sdt}` +
+                (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe')
+            document.getElementById('xac-nhan-box').style.display = 'block'
+            document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
+            if (thatBai.length) {
+                showToast(`${thatBai.length} giường không đặt được: ${thatBai.map(x => x.g.ma).join(', ')}`, 'error')
             }
         })
 
@@ -351,7 +392,7 @@
             if (!res.ok) { showToast(data.error || 'Lỗi tải sơ đồ', 'error'); return }
             soDoData = data.soDo || []
             renderSoDo()
-            document.getElementById('dat-ve-form').style.display = 'none'
+            capNhatFormChonGiuong()
         }
 
         async function initPage() {
