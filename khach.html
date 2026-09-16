@@ -69,6 +69,16 @@
             background: repeating-linear-gradient(45deg, #eee, #eee 4px, #f7f7f7 4px, #f7f7f7 8px);
             border-color: #ddd; color: #bbb; cursor: not-allowed;
         }
+        /* Badge "🌐 Đặt online" (vé nguon='khach_tu_dat', xem SPEC "dat-ve.html") — chấm nhỏ góc
+           trên-phải icon giường, không chiếm chỗ layout (position:absolute trên .giuong-icon vốn
+           đã position:relative qua flex container cha... nên gán relative trực tiếp ở đây). */
+        .giuong-icon { position: relative; }
+        .giuong-icon .badge-online {
+            position: absolute; top: -5px; right: -5px; font-size: 10px; line-height: 1;
+            background: #fff; border-radius: 50%; width: 14px; height: 14px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 0 1.5px var(--white);
+        }
         .ve-modal, .diemkhach-modal {
             display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
         }
@@ -379,8 +389,8 @@
                     btn.dataset.giuongId = g.id
                     btn.style.gridColumn = String(g.vi_tri)
                     btn.title = !g.hoat_dong ? `Giường ${g.ma} — Ngưng phục vụ`
-                        : ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}` : `Giường ${g.ma} — còn trống`
-                    btn.innerHTML = SEAT_SVG
+                        : ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}${ve.nguon === 'khach_tu_dat' ? ' — 🌐 Đặt online' : ''}` : `Giường ${g.ma} — còn trống`
+                    btn.innerHTML = SEAT_SVG + (ve?.nguon === 'khach_tu_dat' ? '<span class="badge-online">🌐</span>' : '')
                     btn.addEventListener('click', () => openVeModal(g))
                     row.appendChild(btn)
                 })
@@ -414,7 +424,7 @@
 
         async function loadVeChoChuyen(chuyen) {
             const { data, error } = await sb.from('ve')
-                .select('id, chuyen_id, giuong_id, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu')
+                .select('id, chuyen_id, giuong_id, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
             if (error) { showToast('Lỗi tải vé: ' + error.message, 'error'); return }
@@ -515,12 +525,13 @@
             const giuong = giuongMap.get(ve.giuong_id)
             row.innerHTML = `
                 <div class="ve-row-ten">
-                    <span>${ve.ten_khach || '(chưa có tên)'}</span>
+                    <span>${ve.ten_khach || '(chưa có tên)'}${ve.nguon === 'khach_tu_dat' ? ' <span title="Đặt online">🌐</span>' : ''}</span>
                     <span class="ve-row-giuong">${nhanGiuong(giuong)}</span>
                 </div>
                 <div class="mota">${ve.sdt_khach || '(chưa có SĐT)'}</div>
                 <div class="mota">${tenDiemKhach(ve.diem_len_id)} → ${tenDiemKhach(ve.diem_xuong_id)}</div>
                 <div class="mota">${ve.gia != null ? formatMoney(ve.gia) : '(chưa có giá)'}</div>
+                ${ve.nguon === 'khach_tu_dat' ? `<div class="mota">🌐 Đặt online${ve.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc' ? ' — Chuyển khoản trước (cần đối chiếu)' : ve.hinh_thuc_thanh_toan === 'tien_mat_len_xe' ? ' — Tiền mặt lúc lên xe' : ''}</div>` : ''}
                 <div class="ve-row-actions">
                     <button type="button" class="ve-row-btn ve-row-sua">Sửa</button>
                     <button type="button" class="ve-row-btn danger ve-row-huy">Huỷ vé</button>
@@ -625,7 +636,9 @@
             selectedGiuongId = giuong.id
             const ve = veMap.get(giuong.id)
             editingVeId = ve ? ve.id : null
-            document.getElementById('ve-modal-title').textContent = ve ? `Giường ${giuong.ma} — ${ve.ten_khach || '(chưa có tên)'}` : `Đặt giường ${giuong.ma}`
+            document.getElementById('ve-modal-title').textContent = ve
+                ? `Giường ${giuong.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.nguon === 'khach_tu_dat' ? ' 🌐' : ''}`
+                : `Đặt giường ${giuong.ma}`
             document.getElementById('ve-ten-khach').value = ve?.ten_khach || ''
             document.getElementById('ve-sdt-khach').value = ve?.sdt_khach || ''
             document.getElementById('ve-gia').value = ve?.gia != null ? ve.gia / 1000 : ''

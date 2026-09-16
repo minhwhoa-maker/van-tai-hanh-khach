@@ -178,8 +178,67 @@ thêm form/nút mới:
     - Sửa/huỷ NGAY TẠI DÒNG (`renderVeRowView` ⇄ `renderVeRowEdit`, cùng pattern đổi tại chỗ trong 1 phần tử như `renderKienRowView`/`renderKienRowEdit` bên `manifest-hang.html`), KHÔNG mở lại modal `#ve-modal` — modal đó CHỈ còn dùng cho đặt vé mới từ Sơ đồ (bấm giường trống), giữ nguyên 100%. Form sửa dùng lại `renderDiemKhachOptions`/công thức đọc số tiền y hệt modal, nhưng KHÔNG có nút "+" thêm điểm (chỉ cần khi đặt vé mới). "Lưu" ở Danh sách `UPDATE` xong tự `Object.assign` + `veMap.set` + `renderGiuongGrid()` tại chỗ — không gọi lại `loadVeChoChuyen` (tránh fetch thừa).
     - "Huỷ vé" ở Danh sách dùng **`confirmDialog()`** (không phải banner-trong-modal như nhánh huỷ ở Sơ đồ) — đây KHÔNG phải 2 lớp modal chồng nhau (danh sách là 1 khối UI thường), nên giữ đúng convention chung của app thay vì lặp lại ngoại lệ của modal đặt vé.
   - **`giuong.hoat_dong` (2026-09-16)** — cột mới `boolean not null default true`, đánh dấu 1 giường TẠM NGƯNG phục vụ (vd hỏng, đang sửa) trên TOÀN BỘ chuyến cho tới khi mở lại tay (không có UI bật/tắt trong app — sửa trực tiếp qua Supabase dashboard/SQL, giống cách các đợt di dời `vi_tri`/`ma` trước đó). Khác hẳn "đã đặt" (`ve.trang_thai`, theo TỪNG chuyến) — `hoat_dong` là thuộc tính VẬT LÝ của giường, cố định qua mọi chuyến, không phụ thuộc `chuyen_id`. Đã tắt `T1-17`/`T2-17` (cặp giường hàng 6, cạnh lối cầu thang) theo yêu cầu owner (2026-09-16). `loadGiuongList` select thêm cột này; `renderMotTang` render giường `hoat_dong=false` bằng class `.giuong-icon.offline` (nền sọc chéo xám, `cursor:not-allowed`), loại hẳn khỏi mẫu số "X giường trống · Y đã đặt" theo tầng (không tính là trống lẫn đã đặt) và khỏi mẫu số "N/44 khách" ở `renderDoanhThuVe` (đổi hẳn từ số cứng `44` sang đếm động `giuongList.filter(g => g.hoat_dong).length` — hiện còn 42). `openVeModal` chặn mở form nếu `!giuong.hoat_dong` (toast báo "Ngưng phục vụ"), có thêm mục chú giải thứ 4 trong `.chu-thich-giuong`. Giường đã có vé từ TRƯỚC lúc tắt (không xảy ra với 2 giường này, cả 2 đều trống) sẽ vẫn hiện đúng theo `ve.trang_thai` như bình thường — `hoat_dong=false` chỉ chặn ĐẶT MỚI qua `openVeModal`, không tự huỷ vé cũ.
+  - **Badge "🌐 Đặt online" (2026-09-16)** — hiện ở cả Sơ đồ (`.badge-online` — chấm nhỏ góc trên-phải icon giường, `renderMotTang`) lẫn Danh sách (`renderVeRowView`, kèm dòng phụ ghi rõ hình thức thanh toán nếu `chuyen_khoan_truoc`) cho vé có `ve.nguon = 'khach_tu_dat'` — xem mục "Đặt vé công khai" bên dưới. Modal chi tiết (`openVeModal`) cũng thêm 🌐 vào title. Đây CHỈ là nhãn hiển thị, không đổi hành vi sửa/huỷ — crew sửa/huỷ vé online y hệt vé crew tự tạo, chỉ cần TỰ Ý THỨC đối chiếu thanh toán (hệ thống không tự xác nhận chuyển khoản).
 - **`diem-den.html` (trang tổng hợp điểm giao hàng + điểm đón/trả khách) ĐÃ BỊ GỠ BỎ HOÀN TOÀN (2026-09-16, cùng ngày tạo)** — owner phản hồi tính năng dư thừa vì điểm trả khách đã được chèn thẳng vào `manifest-hang.html` (xem bullet "Điểm trả khách chen vào cuối mỗi nhóm tỉnh" ở đó) nên không cần 1 trang riêng chỉ để xem lại. Đã xoá file, gỡ khỏi menu `renderSideMenu` (`shared.js`) và khỏi `sw.js` `STATIC_ASSETS`. `khach.html` VẪN GIỮ NGUYÊN việc đọc `?view=danh_sach` ở `initPage()` — param này giờ chỉ còn được dùng bởi link "Xem trong Danh sách →" trong `manifest-hang.html`, không phải dead code.
 - `lich-su-chuyen.html` — liệt kê 50 chuyến gần nhất (`order by khoi_hanh desc`, cả `dang_chay` lẫn `xong` — KHÔNG chỉ chuyến xong dù tên trang là "lịch sử"), chia 2 nhóm "Chuyến đang chạy" / "Chuyến đã hoàn thành". Card của CẢ 2 nhóm đều điều hướng `manifest-hang.html?chuyen_id=<id>` để xem/giao tiếp — trang này không có khái niệm "nhập kiện mới" (khác `hang.html` bước 0, giờ CHỈ hiện chuyến `dang_chay`, xem trên) nên không cần phân biệt hành vi click theo nhóm. Mỗi card show `X kiện · Đã thu: Yđ` (tổng `tien_thu` các kiện của chuyến, tính ở client — 1 query `kien` duy nhất với `.in('chuyen_id', ...)` cho cả 50 chuyến rồi filter/group theo `chuyen_id`, không dùng RPC/view riêng vì data nhỏ, có `.not('trang_thai', 'in', '(huy,tra_lai)')` để không cộng nhầm kiện đã hủy/trả lại vào tổng) và cảnh báo "⚠ Còn N kiện chưa thu đủ COD" nếu có.
+
+### Đặt vé công khai cho khách — `dat-ve.html` + `api/cong-khai-*.js` (2026-09-16, TEST tính năng)
+
+**Bản TEST, không phải production hoàn chỉnh** — không tích hợp cổng thanh toán thật, không có hệ
+thống lịch trình cố định, không có OTP xác thực SĐT (chấp nhận rủi ro đặt ảo/spam), không có trang
+"vé của tôi"/tra cứu vé cho khách. Khách CHỈ đặt được vào chuyến crew đã tự tạo sẵn
+(`trang_thai = 'dang_chay'`) — không tạo chuyến mới từ phía khách.
+
+- **KHÔNG mở RLS `anon` cho bảng `ve`** — app nội bộ hiện chỉ có RLS cho role `authenticated`; mở
+  thêm policy `anon` sẽ lộ toàn bộ bảng `ve` (tên/SĐT khách khác) cho bất kỳ ai đọc được
+  `SUPABASE_ANON_KEY` trong source (public key, không phải bí mật thật). Thay vào đó, `dat-ve.html`
+  KHÔNG dùng Supabase client trực tiếp — mọi thao tác qua 4 API route riêng (`api/cong-khai-*.js`,
+  Vercel serverless), server dùng `SUPABASE_SERVICE_KEY` (bypass RLS hoàn toàn) và TỰ LỌC field nào
+  lộ ra ngoài response — cùng pattern đã có sẵn với Zalo login (`api/zalo-callback.js`, service key
+  chỉ ở server, không đụng RLS).
+- **`ve.nguon`** (`text default 'crew'`, check `in ('crew','khach_tu_dat')`) — đánh dấu nguồn gốc
+  vé, KHÔNG đổi ý nghĩa `ve.trang_thai` hiện có. **`ve.hinh_thuc_thanh_toan`** (`text`, check
+  `in ('tien_mat_len_xe','chuyen_khoan_truoc')`) — `null` cho vé crew tạo tay (giữ nguyên hành vi
+  cũ), chỉ có giá trị khi khách tự đặt qua `dat-ve.html`.
+- **`api/cong-khai-chuyen.js`** (GET) — trả chuyến `dang_chay` gần nhất, CHỈ `{id, chieu,
+  khoi_hanh}` (không trả `tao_boi`/`ghi_chu` nội bộ). Không có chuyến nào → `{chuyen: null}`,
+  frontend hiện "Hiện chưa có chuyến nào mở bán", dừng luôn không hiện form.
+- **`api/cong-khai-so-do.js?chuyen_id=...`** (GET) — JOIN `giuong` + `ve` (lọc `trang_thai='da_dat'`
+  đúng `chuyen_id`) → trả `{id, tang, hang, vi_tri, ma, hoat_dong, trong}` mỗi giường. TUYỆT ĐỐI
+  không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay không.
+- **`api/cong-khai-diem-khach.js`** (GET) — trả `diem_khach` + `tinh_tuyen` (để dropdown hiện "Tên
+  điểm — Tên tỉnh" và sắp theo thứ tự tuyến, giống `renderDiemKhachOptions` ở `khach.html`). KHÔNG
+  có đường tạo điểm mới từ phía khách — chỉ crew được tạo điểm mới, qua `khach.html` như cũ.
+- **`api/cong-khai-dat-ve.js`** (POST, body `{chuyen_id, giuong_id, ten, sdt, diem_len_id,
+  diem_xuong_id, hinh_thuc_thanh_toan, gia?}`) —
+  - Validate tối thiểu: `ten`/`sdt` không rỗng, `sdt` đúng định dạng VN qua `chuanHoaSdt`/
+    `laSdtHopLe` **COPY nguyên văn từ `api/doi-chieu-sdt.js`** (cố ý KHÔNG import chéo giữa 2 route
+    serverless độc lập).
+  - Kiểm tra lại `chuyen.trang_thai === 'dang_chay'` NGAY TRƯỚC KHI insert — chặn trường hợp khách
+    giữ tab `dat-ve.html` mở lâu, crew đã "Kết thúc chuyến" (`trang_thai` → `'xong'`) rồi khách mới
+    bấm "Đặt vé".
+  - **KHÔNG tự check "còn trống" ở code trước khi insert** — để DB tự chặn trùng giường qua unique
+    index `uq_ve_giuong_active` sẵn có (tránh race condition 2 khách bấm cùng giường gần như đồng
+    thời), bắt lỗi `23505` → HTTP 409 + "Giường này vừa có người đặt, chọn giường khác", frontend
+    tự gọi lại `taiSoDo()` để khách chọn giường khác ngay, không cần tải lại cả trang.
+  - `gia`: optional, KHÔNG có trong form `dat-ve.html` (khách không tự định giá) — luôn `null` khi
+    đặt qua trang này, giữ đúng nguyên tắc "crew tự định giá" của module gốc; crew xem lại/điền giá
+    thật lúc xử lý vé qua Danh sách ở `khach.html`.
+  - INSERT với `trang_thai='da_dat'`, `nguon='khach_tu_dat'`.
+- **`dat-ve.html`** — trang PUBLIC, KHÔNG có `requireSession`/`renderSideMenu`/hamburger (khác hẳn
+  5 trang crew nội bộ), KHÔNG nối vào `sw.js` `STATIC_ASSETS`/menu `renderSideMenu`. Phần CSS/HTML
+  sơ đồ 2 cột song song + `SEAT_SVG` **COPY từ `khach.html`** (không viết lại từ đầu). Có nạp
+  `shared.js` nhưng CHỈ dùng `formatMoney`/`formatDate` — KHÔNG gọi `createSb()`/`requireSession()`
+  (mọi dữ liệu qua `fetch()` tới 4 API route trên). Luồng: tải chuyến → tải sơ đồ + điểm đón → bấm
+  giường trống mở form ngay dưới sơ đồ (không cần modal riêng, đơn giản hơn `khach.html`) → điền
+  Tên*/SĐT*/Điểm lên*/Điểm xuống*/Phương thức thanh toán (radio) → bấm "Đặt vé". Chọn "Chuyển khoản
+  trước" hiện thêm khối thông tin chuyển khoản TĨNH (số tài khoản/tên/nội dung gõ tay, KHÔNG có
+  cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối chiếu tay qua app ngân
+  hàng sau, không có xác nhận tự động). Đặt thành công → màn xác nhận đơn giản tại chỗ (không có
+  trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại phải gọi
+  crew. Lỗi trùng giường (409) → toast + tự tải lại sơ đồ, KHÔNG mất dữ liệu đã điền trong form
+  (chỉ `selectedGiuong` bị xoá, khách chọn lại giường khác rồi bấm "Đặt vé" lại).
+- **"🌐 Đặt online"** — xem bullet badge trong mục `khach.html` phía trên.
 
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 

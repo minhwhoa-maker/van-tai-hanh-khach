@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>Đặt vé xe khách</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Trang CÔNG KHAI cho khách — KHÔNG requireSession/renderSideMenu/hamburger, khác hẳn 5
+           trang crew nội bộ. Phần CSS sơ đồ giường (.tang-cols/.giuong-icon/.chu-thich-giuong...)
+           COPY nguyên từ khach.html (không viết lại từ đầu) — xem SPEC "dat-ve.html" trong
+           CLAUDE.md. Đây là bản TEST tính năng, không phải production hoàn chỉnh. */
+        body { background: var(--bg); padding-bottom: 40px; }
+        .public-header {
+            background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
+        }
+        .public-header h1 { margin: 0 0 4px; font-size: 19px; }
+        .public-header .sub { font-size: 13px; opacity: 0.9; }
+        .chuyen-info {
+            margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
+            background: var(--white); border: 1.5px solid var(--border); font-size: 14px; text-align: center;
+        }
+        .chuyen-info b { color: var(--primary); }
+        .khong-co-chuyen {
+            margin: 24px 16px; padding: 20px 16px; text-align: center; color: var(--text-muted);
+            background: var(--white); border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+        }
+        .availability-caption { text-align: center; font-size: 11px; color: var(--text-muted); padding-bottom: 4px; }
+        .chu-thich-giuong { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; padding: 8px 16px 8px; }
+        .chu-thich-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+        .chu-thich-item svg { flex-shrink: 0; }
+        .tang-cols { display: flex; padding: 0 10px 12px; align-items: flex-start; position: relative; }
+        .tang-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 0 6px; }
+        .tang-col + .tang-col { border-left: 2px solid var(--border); }
+        .tang-title { font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase; }
+        .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 4px 12px; width: 100%; align-items: center; }
+        .giuong-hang { --seat-cell: 28px; display: grid; column-gap: 6px; justify-content: center; }
+        .driver-icon { align-self: flex-start; margin: 4px 0 8px 6px; }
+        .driver-icon.hidden-visual svg { visibility: hidden; }
+        .giuong-icon {
+            width: var(--seat-cell, 28px); aspect-ratio: 3/4; border-radius: 8px; border: 2px solid var(--border);
+            background: var(--white); display: flex; align-items: center; justify-content: center;
+            padding: 3px; cursor: pointer; color: var(--text-muted); font-family: inherit;
+            transition: border-color 0.15s, background 0.15s, color 0.15s;
+        }
+        .giuong-icon svg { width: 100%; height: 100%; display: block; }
+        .giuong-icon.da-dat { background: var(--success-light); border-color: var(--success); color: var(--success); cursor: not-allowed; }
+        .giuong-icon.dang-chon { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .giuong-icon.offline {
+            background: repeating-linear-gradient(45deg, #eee, #eee 4px, #f7f7f7 4px, #f7f7f7 8px);
+            border-color: #ddd; color: #bbb; cursor: not-allowed;
+        }
+        .dat-ve-form {
+            display: none; margin: 16px; padding: 16px; background: var(--white);
+            border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+        }
+        .dat-ve-form h3 { margin: 0 0 4px; font-size: 16px; }
+        .dat-ve-form .giuong-da-chon { font-size: 13px; color: var(--primary); font-weight: 700; margin-bottom: 12px; }
+        .dat-ve-form label { display: block; font-size: 13px; color: var(--text-muted); margin: 12px 0 4px; }
+        .dat-ve-form input, .dat-ve-form select {
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
+        }
+        .thanh-toan-radio { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+        .thanh-toan-radio label {
+            display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px;
+            border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; color: var(--text); cursor: pointer;
+        }
+        .thanh-toan-radio input { width: auto; }
+        .chuyen-khoan-info {
+            display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
+            background: #fff8e1; border: 1.5px solid #f0c14b; font-size: 13px; line-height: 1.6;
+        }
+        .chuyen-khoan-info b { display: block; margin-bottom: 4px; }
+        .btn-dat-ve {
+            width: 100%; margin-top: 18px; padding: 13px; border: none; border-radius: var(--radius-sm);
+            background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .btn-dat-ve:disabled { background: #90a4ae; cursor: not-allowed; }
+        .xac-nhan-box {
+            display: none; margin: 24px 16px; padding: 24px 16px; text-align: center;
+            background: var(--success-light); border: 1.5px solid var(--success); border-radius: var(--radius-sm);
+        }
+        .xac-nhan-box .icon { font-size: 40px; }
+        .xac-nhan-box h3 { color: var(--success); margin: 8px 0 4px; }
+        .xac-nhan-box p { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
+    </style>
+</head>
+<body>
+    <div class="public-header">
+        <h1>🚌 EaKar Xe Khách</h1>
+        <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
+    </div>
+
+    <div id="chuyen-info-wrap"></div>
+
+    <div id="so-do-wrap" style="display:none;">
+        <div class="chu-thich-giuong">
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Trống
+            </div>
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:#fff"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Đang chọn
+            </div>
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--success)"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--success-light)" stroke="var(--success)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Đã đặt
+            </div>
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:#bbb"><rect x="3" y="3" width="34" height="58" rx="10" fill="#eee" stroke="#ddd" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Ngưng phục vụ
+            </div>
+        </div>
+
+        <div class="tang-cols">
+            <div class="tang-col">
+                <div class="tang-title">Tầng dưới</div>
+                <div class="availability-caption" id="availability-caption-1"></div>
+                <div class="driver-icon">
+                    <svg viewBox="0 0 40 40" width="36" height="36">
+                        <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                        <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                        <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    </svg>
+                </div>
+                <div class="seat-grid-wrap" id="seat-grid-wrap-1"></div>
+            </div>
+            <div class="tang-col">
+                <div class="tang-title">Tầng trên</div>
+                <div class="availability-caption" id="availability-caption-2"></div>
+                <div class="driver-icon hidden-visual">
+                    <svg viewBox="0 0 40 40" width="36" height="36">
+                        <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                        <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                        <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    </svg>
+                </div>
+                <div class="seat-grid-wrap" id="seat-grid-wrap-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dat-ve-form" id="dat-ve-form">
+        <h3>Thông tin đặt vé</h3>
+        <div class="giuong-da-chon" id="giuong-da-chon"></div>
+        <label>Họ tên *</label>
+        <input type="text" id="f-ten" placeholder="Nhập họ tên">
+        <label>Số điện thoại *</label>
+        <input type="tel" id="f-sdt" placeholder="vd 0912345678">
+        <label>Điểm lên *</label>
+        <select id="f-diem-len"><option value="">— Chọn điểm lên —</option></select>
+        <label>Điểm xuống *</label>
+        <select id="f-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
+        <label>Phương thức thanh toán *</label>
+        <div class="thanh-toan-radio">
+            <label><input type="radio" name="thanh-toan" value="tien_mat_len_xe" checked> Tiền mặt lúc lên xe</label>
+            <label><input type="radio" name="thanh-toan" value="chuyen_khoan_truoc"> Chuyển khoản trước</label>
+        </div>
+        <div class="chuyen-khoan-info" id="chuyen-khoan-info">
+            <b>Thông tin chuyển khoản</b>
+            Chủ tài khoản: EAKAR XE KHACH<br>
+            Số tài khoản: 0123456789 — Ngân hàng ABC<br>
+            Nội dung chuyển khoản: <span id="ck-noi-dung"></span><br>
+            <i>Sau khi chuyển khoản, bấm "Đặt vé" bên dưới — nhà xe sẽ tự đối chiếu và xác nhận lại với bạn.</i>
+        </div>
+        <button type="button" class="btn-dat-ve" id="btn-dat-ve">Đặt vé</button>
+    </div>
+
+    <div class="xac-nhan-box" id="xac-nhan-box">
+        <div class="icon">✅</div>
+        <h3>Đặt vé thành công!</h3>
+        <p id="xac-nhan-chi-tiet"></p>
+        <p>Vui lòng lưu lại thông tin này — hệ thống chưa hỗ trợ tra cứu lại vé. Cần hỗ trợ, gọi cho nhà xe.</p>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="shared.js"></script>
+    <script>
+        // KHÔNG dùng sb/Supabase client trực tiếp — mọi thao tác qua API route riêng (service key
+        // ở server), xem SPEC "dat-ve.html" trong CLAUDE.md để biết lý do không mở RLS anon.
+        let currentChuyen = null
+        let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}]
+        let diemKhachList = []
+        let tinhList = []
+        let selectedGiuong = null
+
+        const SEAT_SVG = '<svg viewBox="0 0 40 64" width="60%" style="display:block"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="3"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="3"></rect></svg>'
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        function renderDiemKhachOptions(selectEl, chieu, selectedId) {
+            const thuTuMap = new Map(tinhList.map(t => [t.ma, t.thu_tu]))
+            const sorted = [...diemKhachList].sort((a, b) => {
+                const ta = thuTuMap.get(a.tinh_ma) ?? 0
+                const tb = thuTuMap.get(b.tinh_ma) ?? 0
+                const d = chieu === 'nam' ? tb - ta : ta - tb
+                if (d !== 0) return d
+                return (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi')
+            })
+            selectEl.textContent = ''
+            const optEmpty = document.createElement('option')
+            optEmpty.value = ''
+            optEmpty.textContent = '— Chọn điểm —'
+            selectEl.appendChild(optEmpty)
+            sorted.forEach(d => {
+                const tinh = tinhList.find(t => t.ma === d.tinh_ma)
+                const opt = document.createElement('option')
+                opt.value = d.id
+                opt.textContent = `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
+                selectEl.appendChild(opt)
+            })
+            selectEl.value = selectedId || ''
+        }
+
+        function renderMotTang(tang, wrapId, captionId) {
+            const wrap = document.getElementById(wrapId)
+            wrap.textContent = ''
+            const giuongTang = soDoData.filter(g => g.tang === tang)
+            const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
+            for (let hang = 1; hang <= soHang; hang++) {
+                const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
+                const row = document.createElement('div')
+                row.className = 'giuong-hang'
+                const soCot = Math.max(...giuongHang.map(g => g.vi_tri))
+                row.style.gridTemplateColumns = `repeat(${soCot}, var(--seat-cell, 28px))`
+                giuongHang.forEach(g => {
+                    const dangChon = selectedGiuong?.id === g.id
+                    const btn = document.createElement('button')
+                    btn.type = 'button'
+                    btn.className = 'giuong-icon' + (!g.hoat_dong ? ' offline' : dangChon ? ' dang-chon' : !g.trong ? ' da-dat' : '')
+                    btn.title = !g.hoat_dong ? `Giường ${g.ma} — Ngưng phục vụ` : g.trong ? `Giường ${g.ma} — còn trống` : `Giường ${g.ma} — đã có người đặt`
+                    btn.style.gridColumn = String(g.vi_tri)
+                    btn.innerHTML = SEAT_SVG
+                    if (g.hoat_dong && g.trong) btn.addEventListener('click', () => chonGiuong(g))
+                    row.appendChild(btn)
+                })
+                wrap.appendChild(row)
+            }
+            const banDuoc = giuongTang.filter(g => g.hoat_dong)
+            const daDat = banDuoc.filter(g => !g.trong).length
+            document.getElementById(captionId).textContent = `${banDuoc.length - daDat} giường trống · ${daDat} đã đặt`
+        }
+
+        function renderSoDo() {
+            renderMotTang(1, 'seat-grid-wrap-1', 'availability-caption-1')
+            renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
+        }
+
+        function chonGiuong(g) {
+            selectedGiuong = g
+            renderSoDo()
+            document.getElementById('giuong-da-chon').textContent = `Giường đã chọn: ${g.ma}`
+            document.getElementById('dat-ve-form').style.display = 'block'
+            document.getElementById('dat-ve-form').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+
+        document.querySelectorAll('input[name="thanh-toan"]').forEach(r => {
+            r.addEventListener('change', () => {
+                const ckBlock = document.getElementById('chuyen-khoan-info')
+                const chon = document.querySelector('input[name="thanh-toan"]:checked').value
+                ckBlock.style.display = chon === 'chuyen_khoan_truoc' ? 'block' : 'none'
+                if (chon === 'chuyen_khoan_truoc' && selectedGiuong) {
+                    document.getElementById('ck-noi-dung').textContent = `VE ${selectedGiuong.ma} ${document.getElementById('f-ten').value.trim() || ''}`.trim()
+                }
+            })
+        })
+
+        document.getElementById('btn-dat-ve').addEventListener('click', async () => {
+            if (!currentChuyen || !selectedGiuong) return
+            const ten = document.getElementById('f-ten').value.trim()
+            const sdt = document.getElementById('f-sdt').value.trim()
+            const diemLenId = document.getElementById('f-diem-len').value
+            const diemXuongId = document.getElementById('f-diem-xuong').value
+            const hinhThuc = document.querySelector('input[name="thanh-toan"]:checked').value
+            if (!ten) { showToast('Vui lòng nhập họ tên', 'error'); return }
+            if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
+            if (!diemLenId || !diemXuongId) { showToast('Vui lòng chọn điểm lên/xuống', 'error'); return }
+
+            const btn = document.getElementById('btn-dat-ve')
+            btn.disabled = true
+            btn.textContent = 'Đang đặt vé...'
+            try {
+                const res = await fetch('/api/cong-khai-dat-ve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chuyen_id: currentChuyen.id, giuong_id: selectedGiuong.id,
+                        ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId,
+                        hinh_thuc_thanh_toan: hinhThuc
+                    })
+                })
+                const data = await res.json()
+                if (!res.ok) {
+                    showToast(data.error || 'Lỗi đặt vé', 'error')
+                    if (res.status === 409) { selectedGiuong = null; await taiSoDo() }
+                    btn.disabled = false
+                    btn.textContent = 'Đặt vé'
+                    return
+                }
+                document.getElementById('so-do-wrap').style.display = 'none'
+                document.getElementById('dat-ve-form').style.display = 'none'
+                document.getElementById('xac-nhan-chi-tiet').textContent =
+                    `Giường ${selectedGiuong.ma} — ${ten} — ${sdt}` +
+                    (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe')
+                document.getElementById('xac-nhan-box').style.display = 'block'
+                document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
+            } catch (err) {
+                showToast('Lỗi mạng, thử lại: ' + err.message, 'error')
+                btn.disabled = false
+                btn.textContent = 'Đặt vé'
+            }
+        })
+
+        async function taiSoDo() {
+            const res = await fetch(`/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.id)}`)
+            const data = await res.json()
+            if (!res.ok) { showToast(data.error || 'Lỗi tải sơ đồ', 'error'); return }
+            soDoData = data.soDo || []
+            renderSoDo()
+            document.getElementById('dat-ve-form').style.display = 'none'
+        }
+
+        async function initPage() {
+            const chuyenRes = await fetch('/api/cong-khai-chuyen')
+            const chuyenData = await chuyenRes.json()
+            if (!chuyenRes.ok) { document.getElementById('chuyen-info-wrap').innerHTML = `<div class="khong-co-chuyen">Lỗi tải chuyến: ${chuyenData.error || ''}</div>`; return }
+            if (!chuyenData.chuyen) {
+                document.getElementById('chuyen-info-wrap').innerHTML = '<div class="khong-co-chuyen">🚫 Hiện chưa có chuyến nào mở bán. Vui lòng quay lại sau.</div>'
+                return
+            }
+            currentChuyen = chuyenData.chuyen
+            const chieuLabel = currentChuyen.chieu === 'bac' ? 'Ra Bắc (Đắk Lắk → Hải Dương)' : 'Vào Nam (Hải Dương → Đắk Lắk)'
+            document.getElementById('chuyen-info-wrap').innerHTML =
+                `<div class="chuyen-info">Chuyến gần nhất: <b>${chieuLabel}</b><br>${formatDate(currentChuyen.khoi_hanh)}</div>`
+            document.getElementById('so-do-wrap').style.display = 'block'
+
+            const [soDoRes, diemRes] = await Promise.all([
+                fetch(`/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.id)}`),
+                fetch('/api/cong-khai-diem-khach')
+            ])
+            const soDoJson = await soDoRes.json()
+            const diemJson = await diemRes.json()
+            if (!soDoRes.ok) { showToast(soDoJson.error || 'Lỗi tải sơ đồ', 'error'); return }
+            if (!diemRes.ok) { showToast(diemJson.error || 'Lỗi tải điểm đón', 'error'); return }
+            soDoData = soDoJson.soDo || []
+            diemKhachList = diemJson.diemKhach || []
+            tinhList = diemJson.tinh || []
+            renderSoDo()
+            renderDiemKhachOptions(document.getElementById('f-diem-len'), currentChuyen.chieu, '')
+            renderDiemKhachOptions(document.getElementById('f-diem-xuong'), currentChuyen.chieu, '')
+        }
+
+        initPage()
+    </script>
+</body>
+</html>
