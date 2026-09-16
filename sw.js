@@ -5,6 +5,7 @@ const STATIC_ASSETS = [
     './hang.html',
     './manifest-hang.html',
     './khach.html',
+    './diem-den.html',
     './style.css',
     './manifest.json',
     './idb-queue.js',

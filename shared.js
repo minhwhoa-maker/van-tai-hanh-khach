@@ -109,6 +109,7 @@ function renderSideMenu(sb) {
         { href: 'manifest-hang.html', label: '📋 Danh sách kiện' },
         { href: 'lich-su-chuyen.html', label: '🕐 Lịch sử' },
         { href: 'khach.html', label: '💺 Hành khách' },
+        { href: 'diem-den.html', label: '🗺️ Điểm đến' },
     ]
 
     const drawer = document.createElement('div')

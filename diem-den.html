@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <title>Điểm đến</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { background: var(--bg); padding-bottom: 40px; }
+        .chuyen-select-wrap { padding: 16px; }
+        .chuyen-select-wrap select#chuyen-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .empty { padding: 24px; text-align: center; color: var(--text-muted); }
+        .tinh-group { margin: 0 16px 16px; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+        .tinh-group h3 { margin: 0; padding: 12px 16px; background: var(--bg); font-size: 16px; }
+        .diem-den-row {
+            display: block; padding: 10px 16px; border-top: 1px solid var(--border);
+            text-decoration: none; color: inherit; font-family: inherit;
+        }
+        .diem-den-ten { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 14px; }
+        .diem-den-count { font-size: 12px; color: var(--text-muted); font-weight: 400; flex-shrink: 0; }
+        .diem-den-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+        .badge.chua_giao { background: #fdecea; color: var(--danger); }
+        .badge.da_giao { background: #eafaf1; color: var(--success); }
+        .badge.tra_lai { background: #e9e2d6; color: #8a6d3b; }
+        .diem-den-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="btn-open-menu" class="btn-icon" aria-label="Menu" style="background:none;border:none;color:white;font-size:22px;cursor:pointer;">☰</button>
+        <h2 style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);">
+            <span class="header-text">🗺️ Điểm đến</span>
+        </h2>
+        <div></div>
+    </div>
+
+    <div class="chuyen-select-wrap">
+        <select id="chuyen-select" style="width:100%; padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white"></select>
+    </div>
+
+    <div id="list-wrap"></div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="shared.js"></script>
+    <script src="point-match.js"></script>
+    <script src="km-moc.js"></script>
+    <script>
+        const sb = createSb()
+        let chuyenList = []
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 3000)
+        }
+
+        function badgeLabelKien(trangThai) {
+            return trangThai === 'da_giao' ? 'Đã giao' : trangThai === 'tra_lai' ? 'Hàng hoàn' : 'Chưa giao'
+        }
+
+        // Màn XEM TỔNG HỢP — gộp điểm giao hàng (diem) + điểm đón/trả khách (diem_khach) theo
+        // 1 chuyến, xếp theo thứ tự tuyến (tinh_tuyen.thu_tu). KHÔNG sửa/huỷ được gì ở đây —
+        // bấm vào 1 dòng mở đúng trang gốc (manifest-hang.html cho kiện, khach.html cho khách)
+        // để thao tác, giữ nguyên 100% 2 trang đó.
+        async function loadDiemDen(chuyen) {
+            const wrap = document.getElementById('list-wrap')
+            wrap.textContent = ''
+
+            const { data: tinhList, error: tinhErr } = await sb
+                .from('tinh_tuyen')
+                .select('ma, ten, thu_tu')
+                .order('thu_tu', { ascending: chuyen.chieu === 'bac' })
+            if (tinhErr) { showToast('Lỗi tải tỉnh: ' + tinhErr.message, 'error'); return }
+
+            // Query 1 — kiện của chuyến, giống hệt loadManifest ở manifest-hang.html.
+            const { data: kienList, error: kienErr } = await sb
+                .from('kien')
+                .select('id, diem_id, anh_url, nguoi_nhan_sdt, nguoi_gui_sdt, trang_thai, ghi_chu, so_luong, loai_hang, tien_thu, hinh_thuc_thu, tien_thu_ho, created_at, diem(id, ten, tinh_ma, lat, lng, km_moc)')
+                .eq('chuyen_id', chuyen.id)
+                .neq('trang_thai', 'huy')
+                .order('created_at', { ascending: true })
+            if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
+
+            // Query 2 — vé của chuyến, JOIN diem_khach 2 LẦN (điểm lên và điểm xuống là 2 cột FK
+            // khác nhau trỏ cùng bảng diem_khach, cần alias riêng qua cú pháp PostgREST
+            // "alias:bang!cot_fk"). Chỉ lấy vé 'da_dat' — vé đã huỷ không còn khách thật ở điểm đó.
+            const { data: veList, error: veErr } = await sb
+                .from('ve')
+                .select('id, ten_khach, sdt_khach, diem_len_id, diem_xuong_id, diem_len:diem_khach!diem_len_id(id, ten, tinh_ma), diem_xuong:diem_khach!diem_xuong_id(id, ten, tinh_ma)')
+                .eq('chuyen_id', chuyen.id)
+                .eq('trang_thai', 'da_dat')
+            if (veErr) { showToast('Lỗi tải vé: ' + veErr.message, 'error'); return }
+
+            // Gộp vé theo diem_khach.id — 1 điểm khách có thể vừa là điểm lên của vé này, vừa là
+            // điểm xuống của vé khác, nên cần 1 dòng duy nhất/điểm gộp cả 2 chiều thay vì tách
+            // đôi thành 2 dòng trùng tên điểm.
+            const diemKhachInfoMap = new Map()   // diem_khach.id -> { ten, tinh_ma, veLen: [], veXuong: [] }
+            function layInfo(d) {
+                if (!diemKhachInfoMap.has(d.id)) diemKhachInfoMap.set(d.id, { ten: d.ten, tinh_ma: d.tinh_ma, veLen: [], veXuong: [] })
+                return diemKhachInfoMap.get(d.id)
+            }
+            veList.forEach(v => {
+                if (v.diem_len) layInfo(v.diem_len).veLen.push(v)
+                if (v.diem_xuong) layInfo(v.diem_xuong).veXuong.push(v)
+            })
+
+            let any = false
+            tinhList.forEach(tinh => {
+                // Điểm giao hàng — sắp theo km_moc thật (sapXepTrongTinh, tái dùng từ km-moc.js),
+                // gộp kiện theo diem_id (1 điểm có thể có nhiều kiện).
+                const kiensCuaTinh = sapXepTrongTinh(kienList.filter(k => k.diem?.tinh_ma === tinh.ma), chuyen.chieu)
+                const kienByDiem = new Map()   // diem_id -> { diem, kiens: [] }
+                kiensCuaTinh.forEach(k => {
+                    if (!k.diem) return
+                    if (!kienByDiem.has(k.diem_id)) kienByDiem.set(k.diem_id, { diem: k.diem, kiens: [] })
+                    kienByDiem.get(k.diem_id).kiens.push(k)
+                })
+
+                // Điểm đón/trả khách — KHÔNG có km_moc để so trực tiếp với kiện hàng, nên chỉ xếp
+                // gần đúng theo TÊN (bỏ dấu), đặt SAU nhóm điểm hàng hoá trong cùng tỉnh — chấp
+                // nhận đây không chính xác từng mét như kiện hàng (đã có km_moc thật).
+                const diemKhachCuaTinh = [...diemKhachInfoMap.values()]
+                    .filter(d => d.tinh_ma === tinh.ma)
+                    .sort((a, b) => boDau(a.ten).localeCompare(boDau(b.ten)))
+
+                if (!kienByDiem.size && !diemKhachCuaTinh.length) return
+                any = true
+
+                const group = document.createElement('div')
+                group.className = 'tinh-group'
+                const h3 = document.createElement('h3')
+                h3.textContent = `${tinh.ten} (${kienByDiem.size + diemKhachCuaTinh.length})`
+                group.appendChild(h3)
+
+                kienByDiem.forEach(({ diem, kiens }) => {
+                    const a = document.createElement('a')
+                    a.className = 'diem-den-row'
+                    a.href = `manifest-hang.html?chuyen_id=${chuyen.id}`
+                    a.innerHTML = `
+                        <div class="diem-den-ten">📦 ${diem.ten} <span class="diem-den-count">${kiens.length} kiện</span></div>
+                        <div class="diem-den-badges">
+                            ${kiens.map(k => `<span class="badge ${k.trang_thai}">${badgeLabelKien(k.trang_thai)}</span>`).join('')}
+                        </div>
+                    `
+                    group.appendChild(a)
+                })
+
+                diemKhachCuaTinh.forEach(d => {
+                    const a = document.createElement('a')
+                    a.className = 'diem-den-row'
+                    a.href = `khach.html?chuyen_id=${chuyen.id}&view=danh_sach`
+                    const dongKhach = v => `${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''}`
+                    a.innerHTML = `
+                        <div class="diem-den-ten">🧍 ${d.ten}</div>
+                        ${d.veLen.length ? `<div class="diem-den-sub">↑ ${d.veLen.length} khách lên: ${d.veLen.map(dongKhach).join(', ')}</div>` : ''}
+                        ${d.veXuong.length ? `<div class="diem-den-sub">↓ ${d.veXuong.length} khách xuống: ${d.veXuong.map(dongKhach).join(', ')}</div>` : ''}
+                    `
+                    group.appendChild(a)
+                })
+
+                wrap.appendChild(group)
+            })
+
+            if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng hay vé khách nào</div>'
+        }
+
+        async function loadChuyenOptions() {
+            const { data, error } = await sb
+                .from('chuyen')
+                .select('id, chieu, khoi_hanh, trang_thai, created_at')
+                .order('created_at', { ascending: false })
+                .limit(50)
+            if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
+            chuyenList = data || []
+            const sel = document.getElementById('chuyen-select')
+            sel.textContent = ''
+            if (!chuyenList.length) {
+                sel.innerHTML = '<option value="">Chưa có chuyến nào</option>'
+                document.getElementById('list-wrap').innerHTML = '<div class="empty">Chưa có chuyến nào</div>'
+                return
+            }
+            chuyenList.forEach(c => {
+                const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
+                const opt = document.createElement('option')
+                opt.value = c.id
+                opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : ''}`
+                sel.appendChild(opt)
+            })
+            const preselectId = new URLSearchParams(location.search).get('chuyen_id')
+            const preselect = preselectId && chuyenList.find(c => c.id === preselectId)
+            const initial = preselect || chuyenList[0]
+            sel.value = initial.id
+            loadDiemDen(initial)
+        }
+
+        document.getElementById('chuyen-select').addEventListener('change', e => {
+            const chuyen = chuyenList.find(c => c.id === e.target.value)
+            if (chuyen) loadDiemDen(chuyen)
+        })
+
+        const { open: openMenu } = renderSideMenu(sb)
+        document.getElementById('btn-open-menu').addEventListener('click', openMenu)
+
+        async function initPage() {
+            const auth = await requireSession(sb)
+            if (!auth) return
+            await loadChuyenOptions()
+        }
+
+        setupLogoutListener(sb)
+        initPage()
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => console.error('SW register failed:', err))
+            })
+        }
+    </script>
+</body>
+</html>
