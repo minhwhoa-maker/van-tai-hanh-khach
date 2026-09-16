@@ -23,8 +23,14 @@
         .kien-row.kien-row-da-giao { background: var(--success-light); }
         .kien-row.kien-row-tra-lai { background: #f2ede6; }
         /* Điểm trả khách (vé, khác kiện hàng) chen vào cuối mỗi nhóm tỉnh — nền tím nhạt riêng
-           để phân biệt ngay với các dòng kiện hàng phía trên, dù dùng chung layout .kien-row. */
-        .diem-xuong-row { background: #f5f0fa; text-decoration: none; color: inherit; font-family: inherit; }
+           để phân biệt ngay với các dòng kiện hàng phía trên. Layout cột (không phải hàng như
+           .kien-row mặc định) vì mỗi điểm có thể liệt kê nhiều khách, mỗi khách 1 nút riêng. */
+        .diem-xuong-row { background: #f5f0fa; align-items: flex-start; }
+        .diem-xuong-row .info { width: 100%; }
+        .diem-xuong-xem { font-size: 12px; color: var(--primary); text-decoration: none; margin-left: 8px; font-weight: 600; }
+        .diem-xuong-khach-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .khach-xuong-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .btn-tra-khach { border-color: var(--success); color: var(--success); flex-shrink: 0; }
         .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; }
         .lightbox {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -400,7 +406,7 @@
                     group.appendChild(createKienRow(k))
                 })
                 diemXuongCuaTinh.forEach(d => {
-                    group.appendChild(createDiemXuongRow(d, chuyen.id))
+                    group.appendChild(createDiemXuongRow(d, chuyen))
                 })
                 wrap.appendChild(group)
             })
@@ -408,19 +414,47 @@
             if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
         }
 
-        // Dòng điểm trả khách (khác kiện hàng) — CHỈ XEM, bấm vào mở khach.html tab Danh sách
-        // để thao tác thật (sửa/huỷ vé) — trang này không đụng gì tới bảng `ve`.
-        function createDiemXuongRow(d, chuyenId) {
-            const a = document.createElement('a')
-            a.className = 'kien-row diem-xuong-row'
-            a.href = `khach.html?chuyen_id=${chuyenId}&view=danh_sach`
-            a.innerHTML = `
+        // Dòng điểm trả khách (khác kiện hàng) — mỗi khách có nút "✅ Trả khách" để đánh dấu
+        // ngay tại đây, không phải mở khach.html mới thao tác được. `ve` KHÔNG có trạng thái
+        // riêng "đã lên/đã xuống xe" (chỉ 'da_dat'|'huy', xem mục Database ở CLAUDE.md) — "Trả
+        // khách" dùng chung UPDATE trang_thai = 'huy' giống hệt "Huỷ vé" ở khach.html, vì đây
+        // vốn là cách DUY NHẤT để giường trống lại trong schema hiện tại. Xong 1 khách thì gọi
+        // lại loadManifest(chuyen) để tỉnh/đếm/nhóm tự cập nhật đồng bộ — đơn giản hơn tự vá DOM
+        // tại chỗ, cùng pattern huyDon/traHang bên kiện hàng đã dùng.
+        function createDiemXuongRow(d, chuyen) {
+            const row = document.createElement('div')
+            row.className = 'kien-row diem-xuong-row'
+            row.innerHTML = `
                 <div class="info">
-                    <div class="diem">🧍 ${d.ten} <span class="so-luong">${d.khach.length} khách</span></div>
-                    <div class="mota">${d.khach.map(v => `${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''}`).join(', ')}</div>
+                    <div class="diem">
+                        🧍 ${d.ten} <span class="so-luong">${d.khach.length} khách</span>
+                        <a class="diem-xuong-xem" href="khach.html?chuyen_id=${chuyen.id}&view=danh_sach">Xem trong Danh sách →</a>
+                    </div>
+                    <div class="diem-xuong-khach-list"></div>
                 </div>
             `
-            return a
+            const listEl = row.querySelector('.diem-xuong-khach-list')
+            d.khach.forEach(v => {
+                const item = document.createElement('div')
+                item.className = 'khach-xuong-item'
+                item.innerHTML = `
+                    <span class="mota">${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''}</span>
+                    <button type="button" class="btn-sm btn-tra-khach">✅ Trả khách</button>
+                `
+                item.querySelector('.btn-tra-khach').addEventListener('click', async () => {
+                    const ok = await confirmDialog(
+                        `Xác nhận đã trả khách ${v.ten_khach || '(chưa có tên)'} tại ${d.ten}? Giường sẽ trống lại để đặt cho khách khác.`,
+                        { okText: 'Xác nhận' }
+                    )
+                    if (!ok) return
+                    const { error } = await sb.from('ve').update({ trang_thai: 'huy' }).eq('id', v.id)
+                    if (error) { showToast('Lỗi trả khách: ' + error.message, 'error'); return }
+                    showToast('Đã trả khách', 'success')
+                    loadManifest(chuyen)
+                })
+                listEl.appendChild(item)
+            })
+            return row
         }
 
         // Cảnh báo tổng tiền thu hộ (COD) của cả chuyến — kien.tien_thu_ho là số tiền người
