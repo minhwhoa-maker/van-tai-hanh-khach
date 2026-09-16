@@ -12,7 +12,13 @@
            trang crew nội bộ. Phần CSS sơ đồ giường (.tang-cols/.giuong-icon/.chu-thich-giuong...)
            COPY nguyên từ khach.html (không viết lại từ đầu) — xem SPEC "dat-ve.html" trong
            CLAUDE.md. Đây là bản TEST tính năng, không phải production hoàn chỉnh. */
-        body { background: var(--bg); padding-bottom: 40px; }
+        /* Trang thiết kế mobile-first (giống 5 trang crew) — trên màn hình rộng (desktop web),
+           khoá bề rộng nội dung lại bằng kích thước điện thoại thay vì để .tang-col (flex:1 1 0)
+           giãn hết chiều ngang cửa sổ, vốn kéo vô lăng (align-self:flex-start, neo theo mép trái
+           CỦA CỘT) ra xa hẳn khỏi cụm ghế đã tự canh giữa cột bằng justify-content:center — nhìn
+           như vô lăng "lạc chỗ" trên PC dù trên điện thoại vẫn đúng vị trí. */
+        html { background: var(--bg); }
+        body { background: var(--bg); padding-bottom: 40px; max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
         .public-header {
             background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
         }
