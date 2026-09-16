@@ -22,6 +22,9 @@
         }
         .kien-row.kien-row-da-giao { background: var(--success-light); }
         .kien-row.kien-row-tra-lai { background: #f2ede6; }
+        /* Điểm trả khách (vé, khác kiện hàng) chen vào cuối mỗi nhóm tỉnh — nền tím nhạt riêng
+           để phân biệt ngay với các dòng kiện hàng phía trên, dù dùng chung layout .kien-row. */
+        .diem-xuong-row { background: #f5f0fa; text-decoration: none; color: inherit; font-family: inherit; }
         .kien-row img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; flex-shrink: 0; cursor: pointer; }
         .lightbox {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -159,6 +162,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script src="shared.js"></script>
+    <script src="point-match.js"></script>
     <script src="km-moc.js"></script>
     <script>
         const sb = createSb()
@@ -340,6 +344,27 @@
             currentKienList = kienList
             updateEndTripButton(chuyen, kienList)
 
+            // Điểm trả khách (module hành khách, bảng `ve`/`diem_khach` — TÁCH RIÊNG khỏi kiện
+            // hàng, chỉ chung chuyen_id) chen vào cuối mỗi nhóm tỉnh, để crew thấy luôn còn
+            // khách nào cần trả dọc tuyến khi đang xem danh sách giao hàng, không phải mở riêng
+            // trang Điểm đến (diem-den.html) hay khach.html. CHỈ lấy điểm XUỐNG (trả khách) —
+            // không lấy điểm lên, vì trang này là "Danh sách kiện hàng", không phải toàn bộ hành
+            // trình khách. Join diem_khach qua alias PostgREST giống diem-den.html.
+            const { data: veList, error: veErr } = await sb
+                .from('ve')
+                .select('id, ten_khach, sdt_khach, diem_xuong:diem_khach!diem_xuong_id(id, ten, tinh_ma)')
+                .eq('chuyen_id', chuyen.id)
+                .eq('trang_thai', 'da_dat')
+            if (veErr) { showToast('Lỗi tải vé: ' + veErr.message, 'error'); return }
+            const diemXuongInfoMap = new Map()   // diem_khach.id -> { ten, tinh_ma, khach: [] }
+            veList.forEach(v => {
+                if (!v.diem_xuong) return
+                if (!diemXuongInfoMap.has(v.diem_xuong.id)) {
+                    diemXuongInfoMap.set(v.diem_xuong.id, { ten: v.diem_xuong.ten, tinh_ma: v.diem_xuong.tinh_ma, khach: [] })
+                }
+                diemXuongInfoMap.get(v.diem_xuong.id).khach.push(v)
+            })
+
             // Dùng chung 1 object diem cho mọi kiện cùng diem_id — cập nhật 1 lần (vd sau khi
             // bắt GPS) thì mọi dòng kiện cùng điểm tự thấy giá trị mới ngay, tránh xin quyền
             // GPS lặp lại nhiều lần trong 1 phiên khi bấm "Đã giao" liên tiếp cùng 1 điểm.
@@ -356,22 +381,46 @@
             let any = false
             tinhList.forEach(tinh => {
                 const kiensCuaTinh = sapXepTrongTinh(kienList.filter(k => k.diem?.tinh_ma === tinh.ma), chuyen.chieu)
-                if (!kiensCuaTinh.length) return
+                // diem_khach không có km_moc để so trực tiếp với kiện hàng, nên chỉ xếp gần đúng
+                // theo TÊN (bỏ dấu) — cùng cách làm với diem-den.html — và luôn đặt SAU kiện hàng
+                // trong cùng nhóm tỉnh.
+                const diemXuongCuaTinh = [...diemXuongInfoMap.values()]
+                    .filter(d => d.tinh_ma === tinh.ma)
+                    .sort((a, b) => boDau(a.ten).localeCompare(boDau(b.ten)))
+                if (!kiensCuaTinh.length && !diemXuongCuaTinh.length) return
                 any = true
 
                 const group = document.createElement('div')
                 group.className = 'tinh-group'
                 const h3 = document.createElement('h3')
-                h3.textContent = `${tinh.ten} (${kiensCuaTinh.length})`
+                h3.textContent = `${tinh.ten} (${kiensCuaTinh.length}${diemXuongCuaTinh.length ? ` + ${diemXuongCuaTinh.length} điểm trả khách` : ''})`
                 group.appendChild(h3)
 
                 kiensCuaTinh.forEach(k => {
                     group.appendChild(createKienRow(k))
                 })
+                diemXuongCuaTinh.forEach(d => {
+                    group.appendChild(createDiemXuongRow(d, chuyen.id))
+                })
                 wrap.appendChild(group)
             })
 
             if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
+        }
+
+        // Dòng điểm trả khách (khác kiện hàng) — CHỈ XEM, bấm vào mở khach.html tab Danh sách
+        // để thao tác thật (sửa/huỷ vé) — trang này không đụng gì tới bảng `ve`.
+        function createDiemXuongRow(d, chuyenId) {
+            const a = document.createElement('a')
+            a.className = 'kien-row diem-xuong-row'
+            a.href = `khach.html?chuyen_id=${chuyenId}&view=danh_sach`
+            a.innerHTML = `
+                <div class="info">
+                    <div class="diem">🧍 ${d.ten} <span class="so-luong">${d.khach.length} khách</span></div>
+                    <div class="mota">${d.khach.map(v => `${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''}`).join(', ')}</div>
+                </div>
+            `
+            return a
         }
 
         // Cảnh báo tổng tiền thu hộ (COD) của cả chuyến — kien.tien_thu_ho là số tiền người
