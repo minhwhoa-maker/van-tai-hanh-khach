@@ -353,9 +353,9 @@
             // Điểm trả khách (module hành khách, bảng `ve`/`diem_khach` — TÁCH RIÊNG khỏi kiện
             // hàng, chỉ chung chuyen_id) chen vào cuối mỗi nhóm tỉnh, để crew thấy luôn còn
             // khách nào cần trả dọc tuyến khi đang xem danh sách giao hàng, không phải mở riêng
-            // trang Điểm đến (diem-den.html) hay khach.html. CHỈ lấy điểm XUỐNG (trả khách) —
-            // không lấy điểm lên, vì trang này là "Danh sách kiện hàng", không phải toàn bộ hành
-            // trình khách. Join diem_khach qua alias PostgREST giống diem-den.html.
+            // khach.html. CHỈ lấy điểm XUỐNG (trả khách) — không lấy điểm lên, vì trang này là
+            // "Danh sách kiện hàng", không phải toàn bộ hành trình khách. Join diem_khach qua
+            // alias PostgREST (điểm lên/xuống cùng trỏ 1 bảng qua 2 cột FK khác nhau).
             const { data: veList, error: veErr } = await sb
                 .from('ve')
                 .select('id, ten_khach, sdt_khach, diem_xuong:diem_khach!diem_xuong_id(id, ten, tinh_ma)')
@@ -388,8 +388,7 @@
             tinhList.forEach(tinh => {
                 const kiensCuaTinh = sapXepTrongTinh(kienList.filter(k => k.diem?.tinh_ma === tinh.ma), chuyen.chieu)
                 // diem_khach không có km_moc để so trực tiếp với kiện hàng, nên chỉ xếp gần đúng
-                // theo TÊN (bỏ dấu) — cùng cách làm với diem-den.html — và luôn đặt SAU kiện hàng
-                // trong cùng nhóm tỉnh.
+                // theo TÊN (bỏ dấu), luôn đặt SAU kiện hàng trong cùng nhóm tỉnh.
                 const diemXuongCuaTinh = [...diemXuongInfoMap.values()]
                     .filter(d => d.tinh_ma === tinh.ma)
                     .sort((a, b) => boDau(a.ten).localeCompare(boDau(b.ten)))

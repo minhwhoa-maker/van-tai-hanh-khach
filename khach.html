@@ -733,8 +733,9 @@
         async function initPage() {
             const auth = await requireSession(sb)
             if (!auth) return
-            // ?view=danh_sach — cho phép trang khác (vd diem-den.html) mở thẳng tab Danh sách
-            // thay vì luôn về Sơ đồ mặc định, cùng quy ước ?chuyen_id= đã có sẵn.
+            // ?view=danh_sach — cho phép trang khác (vd link "Xem trong Danh sách →" ở
+            // manifest-hang.html) mở thẳng tab Danh sách thay vì luôn về Sơ đồ mặc định, cùng
+            // quy ước ?chuyen_id= đã có sẵn.
             if (new URLSearchParams(location.search).get('view') === 'danh_sach') {
                 currentView = 'danh_sach'
                 capNhatView()
