@@ -31,15 +31,24 @@
         .chu-thich-giuong { display: flex; justify-content: center; gap: 14px; padding: 8px 16px 8px; }
         .chu-thich-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
         .chu-thich-item svg { flex-shrink: 0; }
-        .tang-cols { display: flex; gap: 10px; padding: 0 10px 12px; align-items: flex-start; }
-        .tang-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+        /* Vách ngăn giữa 2 tầng (border-left trên cột thứ 2) + cỡ ghế CỐ ĐỊNH thay vì co theo
+           `1fr` — trước đó mỗi hàng tự giãn lấp đầy 190px nên hàng 3 ghế (vi_tri 1,3,5) hiện
+           icon to hẳn, hàng 5 ghế (hàng cuối) hiện icon nhỏ hơn hẳn, khiến 2 tầng nhìn LỆCH
+           nhau dù cùng 1 layout giường — không phải do bố cục sai, mà do icon co giãn không đều
+           giữa các hàng. Cố định `--seat-cell` (28px) + `justify-content:center` cho mọi hàng
+           thì hàng 3/5 ghế đều dùng đúng 1 cỡ icon, tự căn giữa trong cột — hàng tương ứng giữa
+           2 tầng (cùng số ghế/vi_tri, seed đối xứng) khi đó tự thẳng hàng, đối xứng qua vách. */
+        .tang-cols { display: flex; padding: 0 10px 12px; align-items: flex-start; position: relative; }
+        .tang-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 0 6px; }
+        .tang-col + .tang-col { border-left: 2px solid var(--border); }
         .tang-title {
             font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: var(--text-muted);
             margin-bottom: 2px; text-transform: uppercase;
         }
         .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 4px 12px; width: 100%; align-items: center; }
         .giuong-hang {
-            display: grid; column-gap: 6px; width: 100%; max-width: 190px;
+            --seat-cell: 28px;
+            display: grid; column-gap: 6px; justify-content: center;
         }
         /* Vô lăng kiểu Vexere: khối tròn nền xám đặc, vô lăng trắng nổi bên trong — màu nằm hẳn
            trong SVG (fill/stroke), CSS chỉ còn lo định vị. Chỉ đặt trong cột "Tầng dưới" (tài xế
@@ -47,9 +56,9 @@
            toggle theo currentFloor như trước (đã bỏ khái niệm tầng-đang-xem). */
         .driver-icon { align-self: flex-start; margin: 4px 0 8px 6px; }
         .giuong-icon {
-            width: 100%; max-width: 54px; aspect-ratio: 3/4; border-radius: 10px; border: 2px solid var(--border);
+            width: var(--seat-cell, 28px); aspect-ratio: 3/4; border-radius: 8px; border: 2px solid var(--border);
             background: var(--white); display: flex; align-items: center; justify-content: center;
-            padding: 4px; cursor: pointer; color: var(--text-muted); font-family: inherit;
+            padding: 3px; cursor: pointer; color: var(--text-muted); font-family: inherit;
             transition: border-color 0.15s, background 0.15s, color 0.15s;
         }
         .giuong-icon svg { width: 100%; height: 100%; display: block; }
@@ -287,10 +296,11 @@
                 // giường ở vi_tri 1 và 3, KHÔNG có vi_tri 2 — lối cầu thang, 2026-09-15) hiện đúng
                 // ô trống ở giữa thay vì 2 giường bị dồn sát nhau. Hàng bình thường/không có
                 // khoảng trống (vi_tri liên tục 1..N) thì hành vi y hệt trước (cột = số giường).
-                // minmax(0, 1fr) thay vì px cố định — cột giờ chia đôi màn hình cho 2 tầng cạnh
-                // nhau nên cần tự co lại trên máy hẹp, không tràn ngang (xem .giuong-hang CSS).
+                // Cột dùng cỡ CỐ ĐỊNH (--seat-cell) + justify-content:center thay vì 1fr — 1fr
+                // khiến icon co giãn khác nhau giữa hàng 3 ghế và hàng 5 ghế (hàng cuối), làm 2
+                // tầng nhìn lệch nhau dù cùng bố cục; cố định cỡ thì mọi hàng tự thẳng hàng.
                 const soCot = Math.max(...giuongHang.map(g => g.vi_tri))
-                row.style.gridTemplateColumns = `repeat(${soCot}, minmax(0, 1fr))`
+                row.style.gridTemplateColumns = `repeat(${soCot}, var(--seat-cell, 28px))`
                 giuongHang.forEach(g => {
                     const ve = veMap.get(g.id)
                     const dangChon = selectedGiuongId === g.id
