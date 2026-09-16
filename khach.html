@@ -19,38 +19,35 @@
             background: #e9f7ef; border: 1.5px solid var(--success); color: var(--success);
             font-size: 13px; font-weight: 600;
         }
-        /* Đổi theo mẫu design handoff (2026-09-15): 1 tầng/lượt qua tab thay vì 2 tầng cạnh nhau,
-           icon giường là SVG thật (khung + gối) thay vì CSS box+pseudo-element, có thêm trạng
-           thái "Đang chọn" (đang mở form cho giường đó) ngoài trống/đã đặt. Container sơ đồ giới
-           hạn max-width:260px (giống mẫu) — đây cũng là cách fix triệt để hơn bug "icon phình to
-           trên PWA desktop" đã sửa tạm bằng cột px cố định trước đó: giờ cột vẫn dùng 1fr nhưng
-           tổng chiều rộng hàng luôn bị khoá ở 260px bất kể màn hình rộng bao nhiêu.
-           Không seed/dùng số lượng 23/5-hàng-cuối như mockup gốc — giữ đúng số liệu thật đã seed
-           (22 giường/tầng: 6 hàng×3 + 1 hàng×4), README của mockup cũng tự dặn xác minh lại số
-           liệu thật trước khi dùng. */
-        .floor-tabs { display: flex; gap: 6px; padding: 8px 16px 6px; max-width: 260px; margin: 0 auto; }
-        .floor-tab {
-            flex: 1; padding: 7px 0; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
-            background: var(--white); color: var(--text); font-size: 13px; font-weight: 600;
-            cursor: pointer; font-family: inherit;
-        }
-        .floor-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        /* 2026-09-16: ĐẢO NGƯỢC quyết định 2026-09-15 (đổi từ "2 tầng cạnh nhau" sang "1
+           tầng/lượt qua tab" theo design handoff mockup) — owner xem tham chiếu Vexere thật,
+           muốn quay lại layout 2 cột song song, luôn thấy cả 2 tầng cùng lúc. KHÔNG phải revert
+           lỗi, là quyết định mới đè lên quyết định cũ. Icon giường vẫn là SVG thật (khung + gối)
+           + trạng thái "Đang chọn" giữ nguyên từ 2026-09-15, chỉ đổi phần layout tầng + icon vô
+           lăng. Cột không còn khoá cứng max-width:260px (đó là bề rộng cho 1 tầng full-width) —
+           giờ 2 cột chia đôi màn hình, icon giường tự co theo `minmax(0, 1fr)` thay vì px cố
+           định, để không tràn ngang trên màn hình hẹp. */
         .availability-caption { text-align: center; font-size: 11px; color: var(--text-muted); padding-bottom: 4px; }
-        .chu-thich-giuong { display: flex; justify-content: center; gap: 14px; padding: 0 16px 8px; }
+        .chu-thich-giuong { display: flex; justify-content: center; gap: 14px; padding: 8px 16px 8px; }
         .chu-thich-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
         .chu-thich-item svg { flex-shrink: 0; }
-        .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 12px; align-items: center; }
+        .tang-cols { display: flex; gap: 10px; padding: 0 10px 12px; align-items: flex-start; }
+        .tang-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+        .tang-title {
+            font-size: 12px; font-weight: 700; letter-spacing: 0.5px; color: var(--text-muted);
+            margin-bottom: 2px; text-transform: uppercase;
+        }
+        .seat-grid-wrap { display: flex; flex-direction: column; gap: 6px; padding: 0 4px 12px; width: 100%; align-items: center; }
         .giuong-hang {
-            display: grid; column-gap: 8px; justify-content: center;
+            display: grid; column-gap: 6px; width: 100%; max-width: 190px;
         }
-        .driver-icon {
-            width: 44px; height: 44px; border-radius: 50%;
-            border: 2px solid var(--text-muted, #9aa3af); color: var(--text-muted, #9aa3af);
-            display: flex; align-items: center; justify-content: center;
-            margin: 4px 0 10px 16px;
-        }
+        /* Vô lăng kiểu Vexere: khối tròn nền xám đặc, vô lăng trắng nổi bên trong — màu nằm hẳn
+           trong SVG (fill/stroke), CSS chỉ còn lo định vị. Chỉ đặt trong cột "Tầng dưới" (tài xế
+           ngồi tầng dưới của xe giường nằm 2 tầng), cố định trong khối HTML của cột đó thay vì
+           toggle theo currentFloor như trước (đã bỏ khái niệm tầng-đang-xem). */
+        .driver-icon { align-self: flex-start; margin: 4px 0 8px 6px; }
         .giuong-icon {
-            width: 54px; aspect-ratio: 3/4; border-radius: 10px; border: 2px solid var(--border);
+            width: 100%; max-width: 54px; aspect-ratio: 3/4; border-radius: 10px; border: 2px solid var(--border);
             background: var(--white); display: flex; align-items: center; justify-content: center;
             padding: 4px; cursor: pointer; color: var(--text-muted); font-family: inherit;
             transition: border-color 0.15s, background 0.15s, color 0.15s;
@@ -109,13 +106,6 @@
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
 
-    <div class="floor-tabs">
-        <button type="button" class="floor-tab active" id="tab-tang-1">Tầng dưới</button>
-        <button type="button" class="floor-tab" id="tab-tang-2">Tầng trên</button>
-    </div>
-
-    <div class="availability-caption" id="availability-caption"></div>
-
     <div class="chu-thich-giuong">
         <div class="chu-thich-item">
             <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
@@ -131,17 +121,28 @@
         </div>
     </div>
 
-    <div class="driver-icon" id="driver-icon">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8">
-            <circle cx="12" cy="12" r="9"/>
-            <circle cx="12" cy="12" r="2.5"/>
-            <line x1="12" y1="3" x2="12" y2="7"/>
-            <line x1="6.5" y1="15.5" x2="9.5" y2="13.5"/>
-            <line x1="17.5" y1="15.5" x2="14.5" y2="13.5"/>
-        </svg>
+    <div class="tang-cols">
+        <div class="tang-col">
+            <div class="tang-title">Tầng dưới</div>
+            <div class="availability-caption" id="availability-caption-1"></div>
+            <div class="driver-icon" id="driver-icon">
+                <svg viewBox="0 0 40 40" width="36" height="36">
+                    <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                    <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                    <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                    <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                    <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                </svg>
+            </div>
+            <div class="seat-grid-wrap" id="seat-grid-wrap-1"></div>
+        </div>
+        <div class="tang-col">
+            <div class="tang-title">Tầng trên</div>
+            <div class="availability-caption" id="availability-caption-2"></div>
+            <div class="seat-grid-wrap" id="seat-grid-wrap-2"></div>
+        </div>
     </div>
-
-    <div class="seat-grid-wrap" id="seat-grid-wrap"></div>
 
     <div class="ve-modal" id="ve-modal">
         <div class="ve-modal-backdrop"></div>
@@ -211,7 +212,6 @@
         let editingVeId = null         // null = đang tạo vé mới; có giá trị = đang sửa vé đó
         let selectedGiuongId = null    // giường đang mở form (dùng cả cho highlight "Đang chọn")
         let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
-        let currentFloor = 1           // 1 = Tầng dưới, 2 = Tầng trên — chỉ hiện 1 tầng/lượt qua tab
 
         // SVG icon giường dùng chung cho mọi ô — khung viền + gối, cả 2 nét đều stroke=currentColor
         // để màu đổi theo CSS `color` của .giuong-icon (trống/đã đặt/đang chọn), không cần build
@@ -269,20 +269,14 @@
             selectEl.value = selectedId || ''
         }
 
-        // Chỉ render 1 tầng/lượt (currentFloor) — chuyển tab gọi lại hàm này, không cần tải lại
-        // dữ liệu (veMap đã có sẵn cho cả chuyến). "Đang chọn" (selectedGiuongId) là trạng thái
-        // tạm trong lúc form đang mở cho đúng giường đó — mất khi đóng modal (xem closeVeModal).
-        function renderGiuongGrid() {
-            document.getElementById('tab-tang-1').classList.toggle('active', currentFloor === 1)
-            document.getElementById('tab-tang-2').classList.toggle('active', currentFloor === 2)
-            // Icon vô lăng — trang trí tĩnh đánh dấu đầu khoang tài xế, KHÔNG phải giường, không
-            // chiếm ô vi_tri nào. Chỉ hiện ở tầng dưới (currentFloor === 1) vì tài xế ngồi tầng
-            // dưới của xe khách giường nằm 2 tầng — tầng trên không có khoang lái ngay trên nó.
-            document.getElementById('driver-icon').style.display = currentFloor === 1 ? '' : 'none'
-
-            const wrap = document.getElementById('seat-grid-wrap')
+        // Vẽ 1 tầng vào đúng wrap/caption của nó — gọi 2 lần (dưới in tầng 1, trên in tầng 2)
+        // để cả 2 tầng luôn hiện cùng lúc (2026-09-16, đảo ngược layout "1 tầng/lượt qua tab" của
+        // 2026-09-15). "Đang chọn" (selectedGiuongId) là trạng thái tạm trong lúc form đang mở
+        // cho đúng giường đó — mất khi đóng modal (xem closeVeModal), không phụ thuộc tầng nào.
+        function renderMotTang(tang, wrapId, captionId) {
+            const wrap = document.getElementById(wrapId)
             wrap.textContent = ''
-            const giuongTang = giuongList.filter(g => g.tang === currentFloor)
+            const giuongTang = giuongList.filter(g => g.tang === tang)
             const soHang = Math.max(0, ...giuongTang.map(g => g.hang))
             for (let hang = 1; hang <= soHang; hang++) {
                 const giuongHang = giuongTang.filter(g => g.hang === hang).sort((a, b) => a.vi_tri - b.vi_tri)
@@ -293,8 +287,10 @@
                 // giường ở vi_tri 1 và 3, KHÔNG có vi_tri 2 — lối cầu thang, 2026-09-15) hiện đúng
                 // ô trống ở giữa thay vì 2 giường bị dồn sát nhau. Hàng bình thường/không có
                 // khoảng trống (vi_tri liên tục 1..N) thì hành vi y hệt trước (cột = số giường).
+                // minmax(0, 1fr) thay vì px cố định — cột giờ chia đôi màn hình cho 2 tầng cạnh
+                // nhau nên cần tự co lại trên máy hẹp, không tràn ngang (xem .giuong-hang CSS).
                 const soCot = Math.max(...giuongHang.map(g => g.vi_tri))
-                row.style.gridTemplateColumns = `repeat(${soCot}, 54px)`
+                row.style.gridTemplateColumns = `repeat(${soCot}, minmax(0, 1fr))`
                 giuongHang.forEach(g => {
                     const ve = veMap.get(g.id)
                     const dangChon = selectedGiuongId === g.id
@@ -315,12 +311,14 @@
             }
 
             const daDatTang = giuongTang.filter(g => veMap.has(g.id)).length
-            document.getElementById('availability-caption').textContent =
+            document.getElementById(captionId).textContent =
                 `${giuongTang.length - daDatTang} giường trống · ${daDatTang} đã đặt`
         }
 
-        document.getElementById('tab-tang-1').addEventListener('click', () => { currentFloor = 1; renderGiuongGrid() })
-        document.getElementById('tab-tang-2').addEventListener('click', () => { currentFloor = 2; renderGiuongGrid() })
+        function renderGiuongGrid() {
+            renderMotTang(1, 'seat-grid-wrap-1', 'availability-caption-1')
+            renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
+        }
 
         function renderDoanhThuVe(veList) {
             const el = document.getElementById('doanhthu-ve-summary')
