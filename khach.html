@@ -99,6 +99,38 @@
         .btn-ve-dong { background: var(--border); color: var(--text); }
         .btn-ve-luu:disabled { background: #90a4ae; cursor: not-allowed; }
         .ve-cancel-banner { background: #f8d7da; color: #721c24; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; }
+
+        /* Toggle Sơ đồ ⇄ Danh sách (2026-09-16) — cùng pattern segmented-control 2 nút như
+           "Tầng dưới/Tầng trên" cũ, nhưng đây là toggle VIEW (2 khối UI riêng #view-so-do/
+           #view-danh-sach), không phải toggle tầng. Chuyển view chỉ ẩn/hiện, không fetch lại —
+           cả 2 khối đọc chung veMap/giuongMap/diemKhachList đã tải cho chuyến đang chọn. */
+        .view-toggle { display: flex; gap: 6px; padding: 8px 16px 6px; max-width: 260px; margin: 0 auto; }
+        .view-tab {
+            flex: 1; padding: 7px 0; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+            background: var(--white); color: var(--text); font-size: 13px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .view-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .ve-list-empty { text-align: center; color: var(--text-muted); font-size: 14px; padding: 32px 16px; }
+        .ve-list-wrap { margin: 0 16px 16px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); background: var(--white); }
+        .ve-row { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .ve-row:last-child { border-bottom: none; }
+        .ve-row-ten { font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+        .ve-row-giuong { font-size: 12px; color: var(--primary); font-weight: 700; flex-shrink: 0; }
+        .ve-row .mota { color: var(--text-muted); font-size: 13px; margin-top: 3px; }
+        .ve-row-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .ve-row-btn {
+            flex: 1; padding: 9px; border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+            background: var(--white); color: var(--text); font-size: 13px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+        }
+        .ve-row-btn.danger { border-color: var(--danger); color: var(--danger); }
+        .ve-row-btn.primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+        .ve-row-edit-label { font-size: 12px; color: var(--primary); font-weight: 700; margin-bottom: 8px; }
+        .ve-row input, .ve-row select {
+            width: 100%; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 16px; font-family: inherit; box-sizing: border-box; margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
@@ -116,52 +148,64 @@
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
 
-    <div class="chu-thich-giuong">
-        <div class="chu-thich-item">
-            <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
-            Trống
+    <div class="view-toggle">
+        <button type="button" class="view-tab active" id="tab-view-so-do">🗺️ Sơ đồ</button>
+        <button type="button" class="view-tab" id="tab-view-danh-sach">📋 Danh sách</button>
+    </div>
+
+    <div id="view-so-do">
+        <div class="chu-thich-giuong">
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Trống
+            </div>
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:#fff"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Đang chọn
+            </div>
+            <div class="chu-thich-item">
+                <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--primary)"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
+                Đã đặt
+            </div>
         </div>
-        <div class="chu-thich-item">
-            <svg viewBox="0 0 40 64" width="16" height="24" style="color:#fff"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
-            Đang chọn
-        </div>
-        <div class="chu-thich-item">
-            <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--primary)"><rect x="3" y="3" width="34" height="58" rx="10" fill="var(--primary-light)" stroke="var(--primary)" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
-            Đã đặt
+
+        <div class="tang-cols">
+            <div class="tang-col">
+                <div class="tang-title">Tầng dưới</div>
+                <div class="availability-caption" id="availability-caption-1"></div>
+                <div class="driver-icon" id="driver-icon">
+                    <svg viewBox="0 0 40 40" width="36" height="36">
+                        <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                        <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                        <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    </svg>
+                </div>
+                <div class="seat-grid-wrap" id="seat-grid-wrap-1"></div>
+            </div>
+            <div class="tang-col">
+                <div class="tang-title">Tầng trên</div>
+                <div class="availability-caption" id="availability-caption-2"></div>
+                <div class="driver-icon hidden-visual">
+                    <svg viewBox="0 0 40 40" width="36" height="36">
+                        <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                        <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                        <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                        <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                        <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    </svg>
+                </div>
+                <div class="seat-grid-wrap" id="seat-grid-wrap-2"></div>
+            </div>
         </div>
     </div>
 
-    <div class="tang-cols">
-        <div class="tang-col">
-            <div class="tang-title">Tầng dưới</div>
-            <div class="availability-caption" id="availability-caption-1"></div>
-            <div class="driver-icon" id="driver-icon">
-                <svg viewBox="0 0 40 40" width="36" height="36">
-                    <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
-                    <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
-                    <circle cx="20" cy="20" r="3" fill="#ffffff"/>
-                    <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
-                    <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
-                    <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
-                </svg>
-            </div>
-            <div class="seat-grid-wrap" id="seat-grid-wrap-1"></div>
-        </div>
-        <div class="tang-col">
-            <div class="tang-title">Tầng trên</div>
-            <div class="availability-caption" id="availability-caption-2"></div>
-            <div class="driver-icon hidden-visual">
-                <svg viewBox="0 0 40 40" width="36" height="36">
-                    <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
-                    <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
-                    <circle cx="20" cy="20" r="3" fill="#ffffff"/>
-                    <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
-                    <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
-                    <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
-                </svg>
-            </div>
-            <div class="seat-grid-wrap" id="seat-grid-wrap-2"></div>
-        </div>
+    <div id="view-danh-sach" style="display:none;">
+        <div class="ve-list-empty" id="ve-list-empty" style="display:none;">Chưa có vé nào cho chuyến này.</div>
+        <div class="ve-list-wrap" id="ve-list-wrap"></div>
     </div>
 
     <div class="ve-modal" id="ve-modal">
@@ -225,6 +269,7 @@
         const sb = createSb()
         let chuyenList = []
         let giuongList = []
+        let giuongMap = new Map()      // giuong.id -> giuong {tang,hang,vi_tri,ma} — tra cứu O(1) cho Danh sách
         let tinhList = []
         let diemKhachList = []
         let veMap = new Map()          // giuong_id -> vé 'da_dat' hiện tại của chuyến đang chọn
@@ -232,6 +277,7 @@
         let editingVeId = null         // null = đang tạo vé mới; có giá trị = đang sửa vé đó
         let selectedGiuongId = null    // giường đang mở form (dùng cả cho highlight "Đang chọn")
         let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
+        let currentView = 'so_do'      // 'so_do' | 'danh_sach' — toggle 2 khối UI, dùng chung veMap/giuongMap
 
         // SVG icon giường dùng chung cho mọi ô — khung viền + gối, cả 2 nét đều stroke=currentColor
         // để màu đổi theo CSS `color` của .giuong-icon (trống/đã đặt/đang chọn), không cần build
@@ -249,6 +295,7 @@
             const { data, error } = await sb.from('giuong').select('id, tang, hang, vi_tri, ma').order('tang').order('hang').order('vi_tri')
             if (error) { showToast('Lỗi tải sơ đồ giường: ' + error.message, 'error'); return }
             giuongList = data || []
+            giuongMap = new Map(giuongList.map(g => [g.id, g]))
         }
 
         async function loadTinhList() {
@@ -358,6 +405,7 @@
             veMap = new Map((data || []).map(v => [v.giuong_id, v]))
             renderDoanhThuVe(data || [])
             renderGiuongGrid()
+            renderDanhSachVe()
         }
 
         async function loadChuyenOptions() {
@@ -393,6 +441,150 @@
             const chuyen = chuyenList.find(c => c.id === e.target.value)
             if (chuyen) { currentChuyen = chuyen; loadVeChoChuyen(chuyen) }
         })
+
+        // === Toggle Sơ đồ ⇄ Danh sách ===
+        function capNhatView() {
+            document.getElementById('tab-view-so-do').classList.toggle('active', currentView === 'so_do')
+            document.getElementById('tab-view-danh-sach').classList.toggle('active', currentView === 'danh_sach')
+            document.getElementById('view-so-do').style.display = currentView === 'so_do' ? '' : 'none'
+            document.getElementById('view-danh-sach').style.display = currentView === 'danh_sach' ? '' : 'none'
+        }
+        document.getElementById('tab-view-so-do').addEventListener('click', () => { currentView = 'so_do'; capNhatView() })
+        document.getElementById('tab-view-danh-sach').addEventListener('click', () => { currentView = 'danh_sach'; capNhatView() })
+
+        // === Danh sách vé (view thay thế cho Sơ đồ, đọc CHUNG veMap/giuongMap/diemKhachList —
+        // không fetch riêng, không có state riêng) ===
+        function nhanGiuong(giuong) {
+            if (!giuong) return '(?)'
+            return giuong.ma || `Tầng ${giuong.tang} · Hàng ${giuong.hang} · VT ${giuong.vi_tri}`
+        }
+        function tenDiemKhach(id) {
+            if (!id) return '—'
+            const d = diemKhachList.find(x => x.id === id)
+            if (!d) return '—'
+            const tinh = tinhList.find(t => t.ma === d.tinh_ma)
+            return `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
+        }
+
+        // Chỉ hiện vé 'da_dat' — veMap vốn chỉ chứa vé 'da_dat' (query nguồn ở loadVeChoChuyen
+        // đã .neq('trang_thai', 'huy')) nhưng lọc lại ở đây cho rõ ý, phòng sau này veMap đổi
+        // cách nạp mà quên sửa chỗ này. Sắp theo tầng/hàng/vị trí VẬT LÝ trên xe (không phải
+        // thời gian đặt) để crew dễ đối chiếu lúc điểm danh lên xe.
+        function renderDanhSachVe() {
+            const wrap = document.getElementById('ve-list-wrap')
+            const emptyEl = document.getElementById('ve-list-empty')
+            wrap.textContent = ''
+            const list = [...veMap.values()].filter(v => v.trang_thai === 'da_dat')
+            if (!list.length) {
+                emptyEl.style.display = 'block'
+                wrap.style.display = 'none'
+                return
+            }
+            emptyEl.style.display = 'none'
+            wrap.style.display = 'block'
+            list.sort((a, b) => {
+                const ga = giuongMap.get(a.giuong_id), gb = giuongMap.get(b.giuong_id)
+                if (!ga || !gb) return 0
+                return (ga.tang - gb.tang) || (ga.hang - gb.hang) || (ga.vi_tri - gb.vi_tri)
+            })
+            list.forEach(ve => {
+                const row = document.createElement('div')
+                row.className = 've-row'
+                renderVeRowView(row, ve)
+                wrap.appendChild(row)
+            })
+        }
+
+        function renderVeRowView(row, ve) {
+            const giuong = giuongMap.get(ve.giuong_id)
+            row.innerHTML = `
+                <div class="ve-row-ten">
+                    <span>${ve.ten_khach || '(chưa có tên)'}</span>
+                    <span class="ve-row-giuong">${nhanGiuong(giuong)}</span>
+                </div>
+                <div class="mota">${ve.sdt_khach || '(chưa có SĐT)'}</div>
+                <div class="mota">${tenDiemKhach(ve.diem_len_id)} → ${tenDiemKhach(ve.diem_xuong_id)}</div>
+                <div class="mota">${ve.gia != null ? formatMoney(ve.gia) : '(chưa có giá)'}</div>
+                <div class="ve-row-actions">
+                    <button type="button" class="ve-row-btn ve-row-sua">Sửa</button>
+                    <button type="button" class="ve-row-btn danger ve-row-huy">Huỷ vé</button>
+                </div>
+            `
+            row.querySelector('.ve-row-sua').addEventListener('click', () => renderVeRowEdit(row, ve))
+            row.querySelector('.ve-row-huy').addEventListener('click', () => huyVeODanhSach(row, ve))
+        }
+
+        function renderVeRowEdit(row, ve) {
+            const giuong = giuongMap.get(ve.giuong_id)
+            row.innerHTML = `
+                <div class="ve-row-edit-label">${nhanGiuong(giuong)}</div>
+                <input type="text" class="edit-ten" placeholder="Tên khách" value="${ve.ten_khach || ''}">
+                <input type="tel" class="edit-sdt" placeholder="SĐT khách" value="${ve.sdt_khach || ''}">
+                <select class="edit-diem-len"></select>
+                <select class="edit-diem-xuong"></select>
+                <input type="number" inputmode="numeric" class="edit-gia" placeholder="vd 200 = 200.000đ" value="${ve.gia != null ? ve.gia / 1000 : ''}">
+                <div class="tien-chu edit-gia-chu"></div>
+                <div class="ve-row-actions">
+                    <button type="button" class="ve-row-btn ve-row-huy-sua">Hủy sửa</button>
+                    <button type="button" class="ve-row-btn primary ve-row-luu">Lưu</button>
+                </div>
+            `
+            renderDiemKhachOptions(row.querySelector('.edit-diem-len'), currentChuyen?.chieu, ve.diem_len_id)
+            renderDiemKhachOptions(row.querySelector('.edit-diem-xuong'), currentChuyen?.chieu, ve.diem_xuong_id)
+            const giaInput = row.querySelector('.edit-gia')
+            const giaChuEl = row.querySelector('.edit-gia-chu')
+            function capNhatGiaChuRow() {
+                const raw = giaInput.value.trim()
+                const so = raw === '' ? null : Number(raw) * 1000
+                giaChuEl.textContent = so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+            }
+            giaInput.addEventListener('input', capNhatGiaChuRow)
+            capNhatGiaChuRow()
+            row.querySelector('.ve-row-huy-sua').addEventListener('click', () => renderVeRowView(row, ve))
+            row.querySelector('.ve-row-luu').addEventListener('click', async () => {
+                const tenKhach = row.querySelector('.edit-ten').value.trim() || null
+                const sdtKhach = row.querySelector('.edit-sdt').value.trim() || null
+                const diemLenId = row.querySelector('.edit-diem-len').value || null
+                const diemXuongId = row.querySelector('.edit-diem-xuong').value || null
+                const giaRaw = giaInput.value.trim()
+                const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
+                if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
+                const { error } = await sb.from('ve').update({
+                    ten_khach: tenKhach, sdt_khach: sdtKhach,
+                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
+                }).eq('id', ve.id)
+                if (error) { showToast('Lỗi lưu vé: ' + error.message, 'error'); return }
+                Object.assign(ve, { ten_khach: tenKhach, sdt_khach: sdtKhach, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia })
+                veMap.set(ve.giuong_id, ve)
+                renderVeRowView(row, ve)
+                renderDoanhThuVe([...veMap.values()])
+                renderGiuongGrid()
+                showToast('Đã lưu vé', 'success')
+            })
+        }
+
+        // confirmDialog() (không phải banner-trong-modal như ở Sơ đồ) — đây KHÔNG phải 2 lớp
+        // modal chồng nhau (danh sách là 1 trang thường, không phải modal), nên giữ đúng convention
+        // chung của app: mọi hành động không hoàn tác được đều qua confirmDialog().
+        async function huyVeODanhSach(row, ve) {
+            const giuong = giuongMap.get(ve.giuong_id)
+            const ok = await confirmDialog(
+                `Huỷ vé giường ${nhanGiuong(giuong)} — ${ve.ten_khach || '(chưa có tên)'}? Giường sẽ trống lại để đặt cho khách khác.`,
+                { danger: true, okText: 'Xác nhận huỷ' }
+            )
+            if (!ok) return
+            const { error } = await sb.from('ve').update({ trang_thai: 'huy' }).eq('id', ve.id)
+            if (error) { showToast('Lỗi huỷ vé: ' + error.message, 'error'); return }
+            veMap.delete(ve.giuong_id)
+            row.remove()
+            renderDoanhThuVe([...veMap.values()])
+            renderGiuongGrid()
+            if (![...veMap.values()].some(v => v.trang_thai === 'da_dat')) {
+                document.getElementById('ve-list-empty').style.display = 'block'
+                document.getElementById('ve-list-wrap').style.display = 'none'
+            }
+            showToast('Đã huỷ vé', 'success')
+        }
 
         // === Modal đặt/sửa/huỷ vé ===
         function capNhatGiaChu() {
