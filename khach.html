@@ -51,9 +51,10 @@
             display: grid; column-gap: 6px; justify-content: center;
         }
         /* Vô lăng kiểu Vexere: khối tròn nền xám đặc, vô lăng trắng nổi bên trong — màu nằm hẳn
-           trong SVG (fill/stroke), CSS chỉ còn lo định vị. Chỉ đặt trong cột "Tầng dưới" (tài xế
-           ngồi tầng dưới của xe giường nằm 2 tầng), cố định trong khối HTML của cột đó thay vì
-           toggle theo currentFloor như trước (đã bỏ khái niệm tầng-đang-xem). */
+           trong SVG (fill/stroke), CSS chỉ còn lo định vị. Hiện ở CẢ 2 cột (2026-09-16, theo yêu
+           cầu) — thuần trang trí căn chỉnh trực quan đầu mỗi cột, KHÔNG còn ngụ ý "tài xế ngồi
+           tầng dưới" như bản trước (tầng trên không có khoang lái thật, icon chỉ để 2 cột nhìn
+           cân đối). Markup cố định trong HTML của từng cột, không toggle theo tầng nào. */
         .driver-icon { align-self: flex-start; margin: 4px 0 8px 6px; }
         .giuong-icon {
             width: var(--seat-cell, 28px); aspect-ratio: 3/4; border-radius: 8px; border: 2px solid var(--border);
@@ -149,6 +150,16 @@
         <div class="tang-col">
             <div class="tang-title">Tầng trên</div>
             <div class="availability-caption" id="availability-caption-2"></div>
+            <div class="driver-icon">
+                <svg viewBox="0 0 40 40" width="36" height="36">
+                    <circle cx="20" cy="20" r="19" fill="#9aa3af"/>
+                    <circle cx="20" cy="20" r="12" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+                    <circle cx="20" cy="20" r="3" fill="#ffffff"/>
+                    <line x1="20" y1="9" x2="20" y2="15" stroke="#ffffff" stroke-width="2.2"/>
+                    <line x1="12" y1="26" x2="17" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                    <line x1="28" y1="26" x2="23" y2="22" stroke="#ffffff" stroke-width="2.2"/>
+                </svg>
+            </div>
             <div class="seat-grid-wrap" id="seat-grid-wrap-2"></div>
         </div>
     </div>
