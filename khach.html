@@ -403,15 +403,10 @@
         }
         document.getElementById('ve-gia').addEventListener('input', capNhatGiaChu)
 
-        // Nút "Lưu" chỉ bắt buộc tên+SĐT khi TẠO vé mới (giường đang trống) — sửa vé đã có
-        // (editingVeId khác null) không ép lại field nào, giữ đúng hành vi cũ (crew có thể chỉ
-        // sửa điểm lên/xuống hay giá mà không đụng tên/SĐT đã có).
+        // 2026-09-16: bỏ ràng buộc bắt buộc tên+SĐT lúc TẠO vé mới (theo yêu cầu) — nút "Lưu"
+        // luôn bấm được kể cả thiếu tên/SĐT, không còn phân biệt tạo mới hay sửa vé đã có.
         function capNhatTrangThaiNutLuu() {
-            const btn = document.getElementById('btn-ve-luu')
-            if (editingVeId) { btn.disabled = false; return }
-            const ten = document.getElementById('ve-ten-khach').value.trim()
-            const sdt = document.getElementById('ve-sdt-khach').value.trim()
-            btn.disabled = !(ten && sdt)
+            document.getElementById('btn-ve-luu').disabled = false
         }
         document.getElementById('ve-ten-khach').addEventListener('input', capNhatTrangThaiNutLuu)
         document.getElementById('ve-sdt-khach').addEventListener('input', capNhatTrangThaiNutLuu)
@@ -452,7 +447,6 @@
             const giaRaw = document.getElementById('ve-gia').value.trim()
             const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
             if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
-            if (!editingVeId && (!tenKhach || !sdtKhach)) { showToast('Nhập tên và SĐT khách trước khi lưu', 'error'); return }
 
             if (editingVeId) {
                 const { error } = await sb.from('ve').update({
