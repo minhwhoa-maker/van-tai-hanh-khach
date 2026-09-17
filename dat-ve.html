@@ -862,7 +862,12 @@
             renderDiemKhachOptions(document.getElementById('diem-xuong-select'), c.chieu, '')
             capNhatHienThiSoDo()
             await taiSoDo()
-            document.getElementById('diem-chon-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' })
+            // Confirm xong thì lịch/khối chọn chiều (chuyen-info-wrap) THU GỌN LẠI thành 1 thanh
+            // nhỏ (renderChuyenDaChonBar) — trang co lại đột ngột, cuộn xuống tiếp #diem-chon-wrap
+            // như trước đây (giống lúc chọn ngày) khiến người dùng thấy hụt, không rõ vừa xác nhận
+            // xong gì. Cuộn LÊN lại đầu #chuyen-info-wrap thay vào đó — thanh xác nhận + Bước 1 giờ
+            // nằm sát nhau nên cùng lọt vào khung nhìn, không cần cuộn xuống nữa.
+            document.getElementById('chuyen-info-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
 
         function doiChuyenKhac() {
