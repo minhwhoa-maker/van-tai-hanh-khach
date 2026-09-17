@@ -326,6 +326,25 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       `chonNgay` (chọn ngày mới) kế tiếp mới reset lại về mặc định 2 đầu tuyến. `.dia-diem-picker-card`
       thêm `max-height:75vh; overflow-y:auto` (giống `.ve-modal-card` ở `khach.html`) — 17 dòng
       không còn vừa màn hình nhỏ như bản 2 dòng cố định trước đó.
+    - **BỎ HẲN Bước "Chọn điểm lên/xuống" (2026-09-19, đợt 10, theo yêu cầu) — sau khi xác nhận tỉnh
+      xuất phát/đến ở Bước 0, đi THẲNG sang sơ đồ giường**, không còn dropdown `#diem-len-select`/
+      `#diem-xuong-select` chờ khách chọn `diem_khach` cụ thể (đã bỏ hẳn HTML/CSS `.diem-chon-wrap`/
+      `.cho-chon-diem-hint`, hàm `renderDiemKhachOptions`, listener `capNhatHienThiSoDo`). Thay bằng
+      `timDiemChoTinh(tinhMa)` — tự lấy điểm ĐẦU TIÊN (sắp theo `thu_tu`, null xuống cuối) của đúng
+      tỉnh khách vừa chọn, gán vào `currentChuyen.diemLenId`/`diemXuongId` ngay trong `chonChuyen`.
+      **Quyết định owner khi được hỏi (2 câu hỏi riêng)**: (1) tỉnh có NHIỀU điểm (vd Hải Dương có 2
+      điểm cùng tên "Sặt") → tự lấy điểm đầu theo `thu_tu`, KHÔNG hỏi lại; (2) tỉnh CHƯA có
+      `diem_khach` nào (đa số 17 tỉnh hiện tại, chỉ Đắk Lắk/Hải Dương có điểm thật) → **vẫn cho đặt
+      vé bình thường**, `diemLenId`/`diemXuongId` để `null` — 2 cột `ve.diem_len_id`/`diem_xuong_id`
+      ĐÃ nullable sẵn trong schema (không cần migration), crew tự điền điểm chính xác sau qua
+      `khach.html` nếu cần. `api/cong-khai-dat-ve.js` bỏ hẳn validate `if (!diem_len_id ||
+      !diem_xuong_id)` (400 "Vui lòng chọn điểm lên/xuống") — 2 field giờ hoàn toàn optional ở
+      tầng API, không riêng gì UI. Đánh số lại 2 bước còn lại: "1. Chọn giường" (trước là "2."),
+      "2. Thông tin liên hệ & thanh toán" (trước là "3."). **Lý do phát sinh yêu cầu này**: sau khi
+      đợt 9 mở Bước 0 ra 17 tỉnh, khách thử chọn 1 cặp tỉnh giữa tuyến (vd Quảng Ngãi → Thừa Thiên
+      Huế) thì dropdown Bước 1 tuy hiện đủ 4 điểm cũ nhưng KHÔNG điểm nào thật sự thuộc 2 tỉnh đó
+      (chỉ Đắk Lắk/Hải Dương có `diem_khach`) — "chọn xong không có gì đúng để chọn", owner quyết
+      định bỏ hẳn bước hỏi thay vì chờ crew thêm đủ dữ liệu cho 17 tỉnh.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
