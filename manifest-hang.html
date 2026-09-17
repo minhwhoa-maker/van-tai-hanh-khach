@@ -211,7 +211,7 @@
                 const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
                 const opt = document.createElement('option')
                 opt.value = c.id
-                opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : ''}`
+                opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : c.trang_thai === 'dat_truoc' ? ' (đặt trước, chưa bắt đầu)' : ''}`
                 sel.appendChild(opt)
             })
             // Cho phép trang lịch-sử-chuyến điều hướng thẳng tới 1 chuyến cụ thể qua ?chuyen_id=

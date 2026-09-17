@@ -56,9 +56,10 @@
             return h
         }
 
-        // chuyen(id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at) — lấy cả 'dang_chay'
-        // lẫn 'xong' (50 gần nhất), tách 2 nhóm để crew vừa xem lại chuyến đã xong vừa
-        // theo dõi nhanh chuyến đang chạy mà không cần qua hang.html.
+        // chuyen(id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at) — lấy cả 'dat_truoc'/
+        // 'dang_chay'/'xong' (50 gần nhất), tách 3 nhóm để crew vừa xem lại chuyến đã xong, vừa
+        // theo dõi nhanh chuyến đang chạy, vừa thấy chuyến khách đã đặt trước (lịch chạy cố định,
+        // xem SPEC "Lịch chạy cố định theo ngày chẵn âm lịch" CLAUDE.md) mà không cần qua hang.html.
         // kien(chuyen_id, tien_thu, tien_thu_ho) — group theo chuyen_id ở client, data nhỏ
         // (vài chục kiện/chuyến) nên không cần RPC/view riêng.
         async function loadLichSu() {
@@ -80,9 +81,26 @@
                 .not('trang_thai', 'in', '(huy,tra_lai)')
             if (kienErr) { showToast('Lỗi tải kiện: ' + kienErr.message, 'error'); return }
 
+            // Vé đã đặt online cho chuyến 'dat_truoc' — hiện số lượng ngay trên card để crew biết
+            // có cần chuẩn bị sớm hay không trước khi bấm "Bắt đầu chuyến".
+            const datTruoc = chuyenList.filter(c => c.trang_thai === 'dat_truoc')
+            let veCountMap = new Map()
+            if (datTruoc.length) {
+                const { data: veList, error: veErr } = await sb
+                    .from('ve').select('chuyen_id').in('chuyen_id', datTruoc.map(c => c.id)).eq('trang_thai', 'da_dat')
+                if (veErr) { showToast('Lỗi tải vé: ' + veErr.message, 'error') }
+                else veList.forEach(v => veCountMap.set(v.chuyen_id, (veCountMap.get(v.chuyen_id) || 0) + 1))
+            }
+
             const dangChay = chuyenList.filter(c => c.trang_thai === 'dang_chay')
             const daXong = chuyenList.filter(c => c.trang_thai === 'xong')
 
+            if (datTruoc.length) {
+                wrap.appendChild(renderGroupHeader('📅 Chuyến đã đặt trước'))
+                datTruoc.sort((a, b) => new Date(a.khoi_hanh) - new Date(b.khoi_hanh)).forEach(c => {
+                    wrap.appendChild(createChuyenDatTruocCard(c, veCountMap.get(c.id) || 0))
+                })
+            }
             if (dangChay.length) {
                 wrap.appendChild(renderGroupHeader('Chuyến đang chạy'))
                 dangChay.forEach(c => {
@@ -97,6 +115,34 @@
                     wrap.appendChild(createChuyenCard(c, kiensCuaChuyen))
                 })
             }
+        }
+
+        // Card riêng cho 'dat_truoc' — KHÔNG điều hướng khi bấm vào thân card (chưa "Bắt đầu
+        // chuyến" thì hang.html/manifest-hang.html chưa cho thao tác nhập kiện mới cho chuyến
+        // này), chỉ nút "🚀 Bắt đầu chuyến" mới có hành động: UPDATE trang_thai='dang_chay' rồi
+        // tải lại danh sách — từ đó chuyến này thấy y hệt 1 chuyến crew tự tạo tay ở mọi trang.
+        function createChuyenDatTruocCard(c, soVe) {
+            const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
+            const card = document.createElement('div')
+            card.className = 'chuyen-card'
+            card.innerHTML = `
+                <div class="row-top">
+                    <span>${chieuLabel}</span>
+                    <span class="ngay">${formatDate(c.khoi_hanh)}</span>
+                </div>
+                <div class="stats">${soVe} khách đã đặt online</div>
+                <button type="button" class="btn-bat-dau-chuyen" style="margin-top:8px;width:100%;padding:10px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">🚀 Bắt đầu chuyến</button>
+            `
+            card.querySelector('.btn-bat-dau-chuyen').addEventListener('click', async (e) => {
+                e.stopPropagation()
+                const ok = await confirmDialog(`Bắt đầu chuyến ${chieuLabel} — ${formatDate(c.khoi_hanh)}?`)
+                if (!ok) return
+                const { error } = await sb.from('chuyen').update({ trang_thai: 'dang_chay' }).eq('id', c.id)
+                if (error) { showToast('Lỗi: ' + error.message, 'error'); return }
+                showToast('Đã bắt đầu chuyến', 'success')
+                loadLichSu()
+            })
+            return card
         }
 
         function createChuyenCard(c, kiens) {

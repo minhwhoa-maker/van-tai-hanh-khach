@@ -201,26 +201,35 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   vé, KHÔNG đổi ý nghĩa `ve.trang_thai` hiện có. **`ve.hinh_thuc_thanh_toan`** (`text`, check
   `in ('tien_mat_len_xe','chuyen_khoan_truoc')`) — `null` cho vé crew tạo tay (giữ nguyên hành vi
   cũ), chỉ có giá trị khi khách tự đặt qua `dat-ve.html`.
-- **`api/cong-khai-chuyen.js`** (GET) — trả DANH SÁCH TẤT CẢ chuyến `dang_chay` (đổi 2026-09-17,
-  trước đó chỉ trả 1 chuyến gần nhất — xem "Bước 0" ở `dat-ve.html` bên dưới), sắp theo `khoi_hanh`
-  TĂNG DẦN, CHỈ `{id, chieu, khoi_hanh}` mỗi chuyến (không trả `tao_boi`/`ghi_chu` nội bộ). Response
-  shape đổi từ `{chuyen}` (object|null) sang `{chuyenList}` (array, có thể rỗng). Không có chuyến
-  nào → `chuyenList: []`, frontend hiện "Hiện chưa có chuyến nào mở bán", dừng luôn không hiện gì
-  khác.
+- **`api/cong-khai-chuyen.js` ĐÃ BỊ XOÁ (2026-09-17, đợt 2)** — thay hoàn toàn bởi
+  `api/cong-khai-lich-chay.js` (xem mục "Lịch chạy cố định theo ngày chẵn âm lịch" bên dưới), vốn
+  không còn phụ thuộc chuyến crew tự tạo tay mà tự tính lịch. Route cũ chỉ tồn tại đúng 1 ngày
+  (tạo + xoá cùng 2026-09-17).
 - **`api/cong-khai-so-do.js?chuyen_id=...`** (GET) — JOIN `giuong` + `ve` (lọc `trang_thai='da_dat'`
   đúng `chuyen_id`) → trả `{id, tang, hang, vi_tri, ma, hoat_dong, trong}` mỗi giường. TUYỆT ĐỐI
-  không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay không.
+  không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay không. **`chuyen_id`
+  giờ OPTIONAL (2026-09-17, đợt 2)** — ngày/chiều chưa từng có ai đặt thì CHƯA CÓ `chuyen` thật
+  trong DB nên không có id để truyền; gọi không kèm `chuyen_id` thì bỏ qua bước query `ve`, trả
+  toàn bộ giường `trong` theo đúng `hoat_dong` (chưa tồn tại chuyến thì chắc chắn chưa ai đặt được).
 - **`api/cong-khai-diem-khach.js`** (GET) — trả `diem_khach` + `tinh_tuyen` (để dropdown hiện "Tên
   điểm — Tên tỉnh" và sắp theo thứ tự tuyến, giống `renderDiemKhachOptions` ở `khach.html`). KHÔNG
   có đường tạo điểm mới từ phía khách — chỉ crew được tạo điểm mới, qua `khach.html` như cũ.
-- **`api/cong-khai-dat-ve.js`** (POST, body `{chuyen_id, giuong_id, ten, sdt, diem_len_id,
-  diem_xuong_id, hinh_thuc_thanh_toan, gia?}`) —
+- **`api/cong-khai-dat-ve.js`** (POST, body `{chuyen_id?, ngay?, chieu?, giuong_id, ten, sdt,
+  diem_len_id, diem_xuong_id, hinh_thuc_thanh_toan, gia?}`) —
   - Validate tối thiểu: `ten`/`sdt` không rỗng, `sdt` đúng định dạng VN qua `chuanHoaSdt`/
     `laSdtHopLe` **COPY nguyên văn từ `api/doi-chieu-sdt.js`** (cố ý KHÔNG import chéo giữa 2 route
     serverless độc lập).
-  - Kiểm tra lại `chuyen.trang_thai === 'dang_chay'` NGAY TRƯỚC KHI insert — chặn trường hợp khách
-    giữ tab `dat-ve.html` mở lâu, crew đã "Kết thúc chuyến" (`trang_thai` → `'xong'`) rồi khách mới
-    bấm "Đặt vé".
+  - **Nhận `chuyen_id` HOẶC `{ngay, chieu}` (2026-09-17, đợt 2 — lịch chạy cố định)** — có
+    `chuyen_id` (chuyến đã tồn tại, `dat_truoc` hoặc `dang_chay`) thì dùng thẳng; không có thì tra
+    theo `(ngay, chieu)` qua `ranhGioiNgayVN()` (quy đổi đúng "ngày dương lịch giờ VN" sang mốc UTC,
+    KHÔNG so sánh chuỗi ngày thô với `timestamptz` — lệch múi giờ nếu làm vậy), **TỰ TẠO** `chuyen`
+    mới (`trang_thai='dat_truoc'`, `khoi_hanh` = ngày + giờ mặc định từ env `GIO_KHOI_HANH_BAC`/
+    `GIO_KHOI_HANH_NAM`, `tao_boi=null`) nếu ngày đó CHƯA có ai đặt. Đụng unique index
+    `uq_chuyen_ngay_chieu` lúc insert (2 khách cùng bấm ngày/chiều mới gần như đồng thời) → bắt lỗi
+    `23505`, SELECT lại lấy bản ghi vừa được request kia tạo, KHÔNG báo lỗi cho khách.
+  - Chấp nhận đặt vào chuyến `trang_thai` là `'dat_truoc'` HOẶC `'dang_chay'` (mở rộng 2026-09-17,
+    trước đó chỉ `'dang_chay'`) — chặn `'xong'` (crew đã "Kết thúc chuyến", hoặc khách giữ tab cũ mở
+    lâu).
   - **KHÔNG tự check "còn trống" ở code trước khi insert** — để DB tự chặn trùng giường qua unique
     index `uq_ve_giuong_active` sẵn có (tránh race condition 2 khách bấm cùng giường gần như đồng
     thời), bắt lỗi `23505` → HTTP 409 + "Giường này vừa có người đặt, chọn giường khác", frontend
@@ -228,7 +237,9 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   - `gia`: optional, KHÔNG có trong form `dat-ve.html` (khách không tự định giá) — luôn `null` khi
     đặt qua trang này, giữ đúng nguyên tắc "crew tự định giá" của module gốc; crew xem lại/điền giá
     thật lúc xử lý vé qua Danh sách ở `khach.html`.
-  - INSERT với `trang_thai='da_dat'`, `nguon='khach_tu_dat'`.
+  - INSERT với `trang_thai='da_dat'`, `nguon='khach_tu_dat'`. **Response trả kèm `chuyen_id` đã
+    dùng** (kể cả khi vừa tự tạo) — `dat-ve.html` cần giá trị này để các lượt đặt/tải-lại-sơ-đồ
+    TIẾP THEO trong cùng phiên dùng đúng chuyến vừa tạo, không tạo/tra lại mỗi lần.
 - **`dat-ve.html`** — trang PUBLIC, KHÔNG có `requireSession`/`renderSideMenu`/hamburger (khác hẳn
   5 trang crew nội bộ), KHÔNG nối vào `sw.js` `STATIC_ASSETS`/menu `renderSideMenu`. Phần CSS/HTML
   sơ đồ 2 cột song song + `SEAT_SVG` **COPY từ `khach.html`** (không viết lại từ đầu). Có nạp
@@ -237,25 +248,30 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   (không có trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại
   phải gọi crew.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
-    tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**:
-    (0) danh sách chuyến `dang_chay` (`renderChonChuyenStep`, đọc `chuyenList` từ
-    `api/cong-khai-chuyen.js`) — mỗi chuyến 1 nút `.chuyen-chon-item` hiện chiều + ngày giờ khởi
-    hành, bấm để chọn (`chonChuyen`); (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống
-    (`#diem-len-select`/`#diem-xuong-select`), CHỈ hiện sau khi đã chọn chuyến ở Bước 0; (2)
-    `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2 điểm đã chọn (`capNhatHienThiSoDo`, gọi từ
-    listener `change` của cả 2 select) — trống thì hiện `#cho-chon-diem-hint` thay chỗ; (3)
-    `#dat-ve-form` — CHỈ còn Tên*/SĐT*/Phương thức thanh toán (2 field điểm đã dời sang Bước 1) —
-    hiện khi có ít nhất 1 giường đã chọn (`capNhatFormChonGiuong`).
-  - **Chọn chuyến ở Bước 0 mới fetch sơ đồ giường của ĐÚNG chuyến đó** (`chonChuyen`, gọi
-    `api/cong-khai-so-do?chuyen_id=...` ngay khi bấm chọn) — KHÁC bản 3-bước trước (sơ đồ tải sẵn
-    ngay từ `initPage()` vì lúc đó chỉ có đúng 1 chuyến khả dĩ). Giờ có thể có NHIỀU chuyến, mỗi
-    chuyến sơ đồ trống/đã đặt khác nhau — tải trước cho tất cả sẽ lãng phí (khách chỉ đi 1 chuyến)
-    nên chỉ tải khi đã biết chuyến nào. `diem_khach`/`tinh_tuyen` (không phụ thuộc chuyến cụ thể)
-    vẫn tải 1 lần ở `initPage()` như cũ.
+    tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. **Bước 0 ĐỔI LẠI lần 2
+    cùng ngày** — không còn chọn giữa các chuyến crew tự tạo tay, mà chọn NGÀY + CHIỀU theo lịch
+    chạy cố định (xem mục "Lịch chạy cố định theo ngày chẵn âm lịch" bên dưới):
+    (0) `renderChonChuyenStep`, đọc `lichList` từ `api/cong-khai-lich-chay.js` — mỗi ngày hợp lệ 1
+    nhóm `.ngay-chon-group` (header ngày + âm lịch), tối đa 2 nút con `.chuyen-chon-item` (Ra Bắc/
+    Vào Nam, ẩn nút nào server đã loại vì hôm nay quá giờ khởi hành mặc định) — bấm 1 nút mới sang
+    bước điểm (`chonChuyen`, nhận `{ngay, chieu, chuyen_id (có thể null), ten, lunar}`); (1)
+    `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`), CHỈ
+    hiện sau khi đã chọn ở Bước 0; (2) `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2 điểm đã chọn
+    (`capNhatHienThiSoDo`, gọi từ listener `change` của cả 2 select) — trống thì hiện
+    `#cho-chon-diem-hint` thay chỗ; (3) `#dat-ve-form` — CHỈ còn Tên*/SĐT*/Phương thức thanh toán (2
+    field điểm đã dời sang Bước 1) — hiện khi có ít nhất 1 giường đã chọn (`capNhatFormChonGiuong`).
+  - **`currentChuyen.chuyen_id` CÓ THỂ `null`** (2026-09-17, đợt 2) — ngày/chiều khách vừa bấm chưa
+    từng có ai đặt thì chưa tồn tại `chuyen` thật trong DB. `taiSoDo()` gọi
+    `api/cong-khai-so-do` KHÔNG kèm `chuyen_id` trong trường hợp này (server trả toàn bộ giường
+    trống — đúng vì chưa tồn tại chuyến thì chắc chắn chưa ai đặt). Lúc bấm "Đặt vé", request đầu
+    tiên gửi `{ngay, chieu, ...}` thay vì `chuyen_id` — `api/cong-khai-dat-ve.js` tự tạo `chuyen` và
+    trả lại `chuyen_id` thật trong response, frontend gán ngay vào `currentChuyen.chuyen_id` để các
+    lượt đặt tiếp theo (nhiều giường trong cùng lượt, hoặc `taiSoDo()` sau đó) dùng thẳng, không tạo
+    lại/tra lại mỗi lần.
   - **Bấm "Đổi chuyến khác" (`doiChuyenKhac`) XOÁ SẠCH lựa chọn điểm + giường** (`selectedGiuongMap.
     clear()`, reset 2 select điểm về rỗng, ẩn hết Bước 1-3) — KHÁC hành vi "đổi điểm lên/xuống"
-    (không xoá giường đã chọn, xem bullet dưới) vì đổi SANG CHUYẾN KHÁC nghĩa là sơ đồ giường/tập
-    điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ tham chiếu tới giường/context không còn đúng.
+    (không xoá giường đã chọn, xem bullet dưới) vì đổi SANG NGÀY/CHIỀU KHÁC nghĩa là sơ đồ giường/
+    tập điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ tham chiếu tới giường/context không còn đúng.
   - **Đổi lại điểm lên/xuống (trong CÙNG 1 chuyến) sau khi đã chọn giường KHÔNG xoá giường đã
     chọn** — `selectedGiuongMap` độc lập với việc Bước 2 đang hiện hay ẩn, chỉ ẩn/hiện lại đúng
     khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó (khác hẳn việc
@@ -285,6 +301,75 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     công** → báo lỗi (dùng thông báo của giường đầu tiên, tránh toast dài dòng liệt kê hết), xoá
     sạch `selectedGiuongMap`, tải lại sơ đồ.
 - **"🌐 Đặt online"** — xem bullet badge trong mục `khach.html` phía trên.
+
+### Lịch chạy cố định theo ngày chẵn âm lịch (2026-09-17, đợt 2)
+
+Trước đây `dat-ve.html` chỉ cho khách chọn giữa các chuyến CREW ĐÃ TỰ TẠO TAY (`hang.html`) — nếu
+crew chưa tạo chuyến nào cho 1 ngày, khách không có gì để chọn. Đợt này đảo ngược: hệ thống TỰ BIẾT
+lịch chạy (xe chạy mọi ngày ÂM LỊCH CHẴN, 2, 4, 6... 30 mỗi tháng âm, mỗi ngày 2 chuyến độc lập —
+1 chuyến chiều `bac` + 1 chuyến chiều `nam`, 2 xe khác nhau), khách chọn ngày/chiều TRƯỚC, `chuyen`
+thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặt vé", hoặc crew bấm "Bắt đầu chuyến").
+
+- **`chuyen.trang_thai` thêm giá trị thứ 3: `'dat_truoc'`** (migration `chuyen_trang_thai_dat_truoc`
+  — `alter constraint` + `create unique index uq_chuyen_ngay_chieu on chuyen (chuyen_ngay_vn(khoi_hanh), chieu)
+  where trang_thai in ('dat_truoc','dang_chay')`) — chuyến hệ thống TỰ TẠO cho 1 ngày/chiều theo
+  lịch chẵn âm, CHƯA tới lúc crew "Bắt đầu chuyến". KHÁC `'dang_chay'` để không lẫn vào luồng crew
+  đang thao tác (xem các bullet Step 5 bên dưới — đây là điểm quan trọng nhất tránh crew bị rối khi
+  thấy chuyến của 10 ngày sau nằm chung danh sách hôm nay). `chuyen_ngay_vn(ts)` là 1 SQL function
+  `IMMUTABLE` phụ (đánh dấu IMMUTABLE hợp lý vì `Asia/Ho_Chi_Minh` không có DST, offset cố định
+  +07:00 — cần thiết vì Postgres không cho index trực tiếp biểu thức không-IMMUTABLE như
+  `ts::date`/`ts AT TIME ZONE ...`), tính "ngày dương lịch VN" của `khoi_hanh` để unique index chặn
+  đúng 1 chuyến `dat_truoc`/`dang_chay` cho mỗi (ngày, chiều) — DB tự chặn race condition khi 2
+  khách cùng bấm đặt cho cùng ngày gần như đồng thời (1 insert lỗi `23505`, code bắt lỗi này rồi
+  SELECT lại lấy đúng bản ghi vừa được request kia tạo, xem `api/cong-khai-dat-ve.js`).
+- **`api/cong-khai-lich-chay.js`** (GET, thay hoàn toàn `api/cong-khai-chuyen.js` đã xoá) — tính
+  trước `SO_NGAY_MO_BAN_TRUOC = 45` ngày tới (**GIÁ TRỊ TẠM**, owner cần xác nhận thực tế mở bán
+  trước bao lâu rồi sửa hằng số này nếu khác), lọc giữ lại ngày có `lunarDay % 2 === 0`. Thuật toán
+  âm lịch (`convertSolar2Lunar` + các hàm phụ trợ `_jdFromDate`/`_newMoon`/...) **COPY NGUYÊN VĂN từ
+  `shared.js`** — file đó là script trình duyệt thuần (hàm ở global scope, không `module.exports`)
+  nên không `import` thẳng được vào route serverless Node ESM, cùng convention "không import chéo"
+  đã dùng cho `chuanHoaSdt`/`laSdtHopLe`. Với mỗi ngày hợp lệ, trả về CẢ 2 chiều `bac`/`nam` riêng
+  (`{chuyen_id, ten}` nếu đã có `chuyen` tồn tại — `dat_truoc` hoặc `dang_chay`, else `chuyen_id:
+  null`) — **hôm nay CHỈ loại riêng CHIỀU đã quá giờ khởi hành mặc định** (`conMoBan`, so theo giờ
+  hiện tại UTC quy đổi từ giờ VN), không loại cả ngày như spec gốc phác thảo — chiều còn lại (nếu
+  giờ chưa qua) vẫn bán bình thường, hợp lý hơn vì `GIO_KHOI_HANH_BAC`/`GIO_KHOI_HANH_NAM` có thể
+  khác nhau. Response: `{lich: [{ngay, lunar, bac: {...}|null, nam: {...}|null}]}`.
+- **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — ***owner PHẢI
+  điền đúng giờ chạy thật trước khi cho khách dùng thật, hiện đang fallback tạm `"19:30"` (Claude
+  Code tự đặt để không crash lúc chưa set, KHÔNG phải giờ chính thức) ở CẢ 2 nơi đọc biến này
+  (`api/cong-khai-lich-chay.js`'s `docGioEnv`, `api/cong-khai-dat-ve.js`'s `docGioEnv`/
+  `tinhKhoiHanhMacDinh` — 2 bản copy độc lập, sửa giờ thật thì set env Vercel là đủ, không cần sửa
+  code)***.
+- **`api/cong-khai-dat-ve.js` tự tạo `chuyen` nếu chưa có** — nhận `chuyen_id` (chuyến đã tồn tại)
+  HOẶC `{ngay, chieu}` (chưa chắc tồn tại). Xem bullet chi tiết ở mục "Đặt vé công khai" phía trên
+  (phần `api/cong-khai-dat-ve.js`) — không lặp lại ở đây.
+- **`api/cong-khai-so-do.js`'s `chuyen_id` thành optional** — xem bullet ở mục "Đặt vé công khai"
+  phía trên.
+- **`dat-ve.html` Bước 0 đổi từ "chọn giữa các chuyến đã tạo" sang "chọn ngày+chiều theo lịch"** —
+  xem các bullet đã cập nhật trong mục "Đặt vé công khai" phía trên (`renderChonChuyenStep`,
+  `chonChuyen`, `taiSoDo`, `currentChuyen.chuyen_id` nullable).
+- **Step 5 — phía crew không bị rối bởi chuyến tương lai**:
+  - `hang.html` Bước 0 "Chọn chuyến đang chạy" — filter `trang_thai = 'dang_chay'` GIỮ NGUYÊN,
+    không đổi gì — chuyến `dat_truoc` KHÔNG hiện ở đây (đúng mục đích: crew không nhập kiện cho
+    chuyến chưa tới ngày/chưa "Bắt đầu chuyến").
+  - **`lich-su-chuyen.html` thêm nhóm thứ 3 "📅 Chuyến đã đặt trước"** (`trang_thai = 'dat_truoc'`,
+    sắp `khoi_hanh` TĂNG DẦN, hiện Ở TRÊN CÙNG — trước cả "Chuyến đang chạy" — vì đây là việc cần
+    làm sắp tới, tự nhiên đọc trước) — mỗi card hiện chiều/ngày giờ + số khách đã đặt online
+    (`veCountMap`, query `ve` riêng CHỈ cho các chuyến `dat_truoc` đang hiện, không query thừa cho
+    50 chuyến). Card này KHÔNG điều hướng khi bấm vào thân (khác 2 nhóm còn lại — chưa "Bắt đầu
+    chuyến" thì `manifest-hang.html` chưa có gì để crew làm với chuyến này), chỉ nút **"🚀 Bắt đầu
+    chuyến"** (`createChuyenDatTruocCard`) mới có hành động: `confirmDialog()` rồi
+    `UPDATE chuyen.trang_thai = 'dang_chay'`, từ đó chuyến này thấy Y HỆT 1 chuyến crew tự tạo tay ở
+    mọi trang (`hang.html`/`manifest-hang.html`/`khach.html` không phân biệt nữa). Không có luồng
+    ngược lại (đổi `dang_chay` về `dat_truoc`) — chưa cần, xem "KHÔNG LÀM" bên dưới.
+  - **`manifest-hang.html`'s `loadChuyenOptions` không cần sửa filter** (vốn đã không lọc
+    `trang_thai`, lấy 50 chuyến gần nhất bất kể trạng thái) — chỉ thêm nhãn `"(đặt trước, chưa bắt
+    đầu)"` cạnh chuyến `dat_truoc` trong dropdown, để crew phân biệt được với chuyến `dang_chay`
+    đang thao tác thật, xem trước danh sách khách/kiện nếu cần chuẩn bị sớm.
+- **KHÔNG LÀM (ngoài phạm vi lần này)**: không tự động "Bắt đầu chuyến" theo giờ (cron) — crew bấm
+  tay, tránh trường hợp xe không chạy được ngày đó (hỏng xe, tài xế nghỉ) mà hệ thống đã tự chuyển
+  trạng thái; không huỷ/gộp chuyến `dat_truoc` nếu 0 khách đặt tới sát ngày — crew tự xử lý tay qua
+  Supabase dashboard nếu cần, không có luồng UI riêng cho việc này ở bản test.
 
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 
