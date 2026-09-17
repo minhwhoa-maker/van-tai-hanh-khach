@@ -241,12 +241,32 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     dùng** (kể cả khi vừa tự tạo) — `dat-ve.html` cần giá trị này để các lượt đặt/tải-lại-sơ-đồ
     TIẾP THEO trong cùng phiên dùng đúng chuyến vừa tạo, không tạo/tra lại mỗi lần.
 - **`dat-ve.html`** — trang PUBLIC, KHÔNG có `requireSession`/`renderSideMenu`/hamburger (khác hẳn
-  5 trang crew nội bộ), KHÔNG nối vào `sw.js` `STATIC_ASSETS`/menu `renderSideMenu`. Phần CSS/HTML
-  sơ đồ 2 cột song song + `SEAT_SVG` **COPY từ `khach.html`** (không viết lại từ đầu). Có nạp
-  `shared.js` nhưng CHỈ dùng `formatMoney`/`formatDate` — KHÔNG gọi `createSb()`/`requireSession()`
-  (mọi dữ liệu qua `fetch()` tới 4 API route trên). Đặt thành công → màn xác nhận đơn giản tại chỗ
-  (không có trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại
-  phải gọi crew.
+  5 trang crew nội bộ), KHÔNG nối vào `sw.js`/`manifest.json`/menu `renderSideMenu` của crew (xem
+  PWA riêng ở bullet ngay dưới). Phần CSS/HTML sơ đồ 2 cột song song + `SEAT_SVG` **COPY từ
+  `khach.html`** (không viết lại từ đầu). Có nạp `shared.js` nhưng CHỈ dùng `formatMoney`/
+  `formatDate` — KHÔNG gọi `createSb()`/`requireSession()` (mọi dữ liệu qua `fetch()` tới 4 API
+  route trên). Đặt thành công → màn xác nhận đơn giản tại chỗ (không có trang vé điện tử/QR, ngoài
+  phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại phải gọi crew.
+  - **PWA riêng cho trang này (2026-09-18, theo yêu cầu)** — trước đó `dat-ve.html` CỐ Ý chưa phải
+    PWA thật (không manifest, không đăng ký service worker), chỉ là trang tĩnh mở qua link. Đăng ký
+    thêm 2 file RIÊNG, KHÔNG dùng chung với 5 trang crew:
+    - **`manifest-dat-ve.json`** — `scope: "./dat-ve.html"` (thu hẹp về ĐÚNG 1 URL này, KHÔNG phải
+      `"./"` như `manifest.json` của crew — 2 manifest không được chồng scope lên nhau), `name`
+      "EaKar Xe Khách - Đặt vé" (khác hẳn "EaKar Hàng" của crew, tránh khách nhầm 2 app khi cài cả
+      2 về cùng máy). Icon dùng chung `icons/icon-192.png`/`icon-512.png` với crew (cùng thương
+      hiệu EaKar, chưa cần bộ icon riêng).
+    - **`sw-dat-ve.js`** — network-first + cache riêng `eakar-dat-ve-v1` (KHÔNG chung `CACHE_NAME`
+      với `eakar-hang-v2` của crew), đăng ký với `{ scope: '/dat-ve.html' }` tường minh (KHÔNG để
+      mặc định — mặc định sẽ là `/`, đụng scope `sw.js` nếu cùng trình duyệt từng cài cả 2 app).
+      **KHÁC `sw.js` ở đúng 1 điểm quan trọng**: offline navigate thất bại → fallback về CHÍNH
+      `./dat-ve.html` (không phải `./login.html` như crew) — khách công khai không có tài khoản,
+      đưa họ tới màn đăng nhập crew lúc mất mạng là sai hoàn toàn ngữ cảnh. Thêm 2 meta
+      `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style` vào `<head>` (đã có sẵn
+      `theme-color`/`apple-touch-icon` từ trước) — đủ bộ thẻ PWA/iOS theo checklist chung của app
+      (xem mục "Tối ưu mobile / PWA").
+    - **Chưa test thật trên thiết bị** (giống ghi chú của `sw.js` crew) — cần kiểm tra thực tế nút
+      "Thêm vào màn hình chính" tạo app standalone đúng tên/icon riêng, không bị nhầm với app crew
+      nếu cài cả 2 trên cùng máy.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
     tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. Bước 0 sau đó đổi tiếp 2
     lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
