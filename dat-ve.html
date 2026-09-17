@@ -122,6 +122,12 @@
             border-bottom: 1.5px dotted var(--border); display: inline-block;
             font-size: 28px; font-weight: 700;
         }
+        /* Placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" khi chưa chọn tỉnh (đợt 14, 2026-09-18)
+           — cỡ chữ nhỏ hơn tên tỉnh thật (28px quá to cho 1 câu gợi ý dài) + màu nhạt, vẫn giữ
+           border-bottom chấm để gợi ý "bấm được" giống hệt state đã chọn. */
+        .route-place-value.route-place-placeholder {
+            font-size: 16px; font-weight: 400; color: var(--text-muted);
+        }
         .route-swap-btn {
             position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
@@ -137,6 +143,9 @@
             display: block; width: calc(100% - 32px); margin: 0 16px 14px; padding: 14px;
             border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff;
             font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .btn-chon-vi-tri-giuong:disabled {
+            background: #b0bec5; cursor: not-allowed;
         }
         /* Modal chọn địa danh — cùng pattern bottom-sheet với .ve-modal/.diemkhach-modal ở
            khach.html (không phải search page tự do kiểu Vexere — list cố định từ `tinh_tuyen`,
@@ -379,10 +388,11 @@
         // định (`chieuDangChonTrongLich: 'bac'|'nam'`) sang CHỌN TỰ DO trong 17 tỉnh dọc tuyến.
         // `chieu` (giá trị BE cần, 'bac'|'nam') giờ LUÔN SUY RA từ so `thu_tu` của 2 tỉnh, không
         // còn lưu sẵn — tránh lệch nếu đâu đó quên cập nhật khi đổi tỉnh (xem `chonChuyen`/
-        // `renderChieuSelector`). Mặc định mỗi lần chọn ngày mới (xem `chonNgay`) là đúng 2 đầu
-        // tuyến, KHÔNG phải lựa chọn cuối cùng cho tới khi bấm vào phần xác nhận của khối.
-        let noiXuatPhatTinh = { ma: 'DLK', ten: 'Đắk Lắk', thu_tu: 1 }
-        let diemDenTinh = { ma: 'HDG', ten: 'Hải Dương', thu_tu: 18 }
+        // `renderChieuSelector`). `null` = CHƯA chọn (đợt 2026-09-18, theo yêu cầu — trước đó mỗi
+        // lần chọn ngày mới TỰ ĐỘNG preset về Đắk Lắk/Hải Dương, ăn mất lựa chọn khách vừa đổi ở
+        // lượt trước; giờ `chonNgay` reset về `null`/`null`, bắt khách tự chọn LẠI cả 2 mỗi lần).
+        let noiXuatPhatTinh = null
+        let diemDenTinh = null
         // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, chuyen_id} — chuyen_id CÓ THỂ
         // null (ngày/chiều chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có
         // lượt đặt vé đầu tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id,
@@ -732,10 +742,15 @@
         // định 2 đầu tuyến (Đắk Lắk/Hải Dương) — không giữ cặp tỉnh đã chọn tạm của ngày trước. Lấy
         // lại object thật từ `tinhList` (đã tải xong từ trước khi có thể bấm ngày) thay vì dùng
         // thẳng hằng số mặc định — đảm bảo `ten`/`thu_tu` luôn khớp đúng dữ liệu server.
+        // Bỏ hẳn mặc định Đắk Lắk/Hải Dương (2026-09-18, theo yêu cầu — trước đó luôn preset 2 đầu
+        // tuyến mỗi lần chọn ngày mới, dù khách vừa đổi sang cặp tỉnh khác trước đó). Bấm ngày mới
+        // giờ reset về `null`/`null`, BẮT khách tự chọn cả 2 đầu qua `moDiaDiemPicker` mỗi lần —
+        // xem `renderChieuSelector` (hiện placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" khi
+        // null, khoá nút xác nhận cho tới khi chọn đủ cả 2).
         function chonNgay(entry) {
             ngayDangChonTam = entry.ngay
-            noiXuatPhatTinh = tinhList.find(t => t.ma === 'DLK') || noiXuatPhatTinh
-            diemDenTinh = tinhList.find(t => t.ma === 'HDG') || diemDenTinh
+            noiXuatPhatTinh = null
+            diemDenTinh = null
             renderLichThang()
             renderChieuSelector(entry)
         }
@@ -758,37 +773,53 @@
 
         function renderChieuSelector(entry) {
             entryDangChonChieu = entry
-            const chieu = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
-            const info = entry[chieu]
+            const daDuDiem = !!(noiXuatPhatTinh && diemDenTinh)
+            const chieu = daDuDiem ? (noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam') : null
+            const info = chieu ? entry[chieu] : null
             const wrap = document.getElementById('lich-chieu-wrap')
             wrap.style.display = 'block'
+            // `noiXuatPhatTinh`/`diemDenTinh` CÓ THỂ `null` (chưa chọn, xem `chonNgay`) — hiện
+            // placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" thay vì tên tỉnh, và khoá nút xác
+            // nhận cho tới khi khách chọn đủ cả 2 (xem `xacNhanChonChieu`).
+            const xuatPhatHtml = noiXuatPhatTinh
+                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span>`
+                : `<span class="route-place-value route-place-placeholder" data-vai-tro="xuat_phat">Chọn nơi xuất phát</span>`
+            const diemDenHtml = diemDenTinh
+                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span>`
+                : `<span class="route-place-value route-place-placeholder" data-vai-tro="diem_den">Chọn điểm đến</span>`
             wrap.innerHTML = `
                 <div class="route-select-wrap">
                     <div class="route-row origin"><span class="dot"></span>
-                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value"><span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span></div></div>
+                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value">${xuatPhatHtml}</div></div>
                     </div>
                     <div class="route-row dest"><span class="dot"></span>
-                        <div><div class="route-label">Điểm đến</div><div class="route-value"><span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span></div></div>
+                        <div><div class="route-label">Điểm đến</div><div class="route-value">${diemDenHtml}</div></div>
                     </div>
                     <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
                 </div>
-                ${info.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
-                <button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong">🪑 Chọn vị trí giường</button>
+                ${info?.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
+                <button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong"${daDuDiem ? '' : ' disabled'}>🪑 Chọn vị trí giường</button>
             `
             // 4 vùng bắt click/hành động trong khối (đợt 11, thêm nút xác nhận riêng — trước đó đợt
             // 6-8 chỉ có 3 vùng, xác nhận hoàn toàn ngầm định qua bấm vào nhãn/nền .route-select-wrap,
             // không có gì hiện rõ ràng là "bấm để đi tiếp" nên khách không biết cách qua bước kế —
             // theo phản ánh thật, thêm hẳn 1 nút xác nhận tường minh):
             // (1) #route-swap-btn — stopPropagation, chỉ đổi chiều hiển thị, không mở/không confirm.
-            // (2) .route-place-value (tên địa danh) — stopPropagation, mở #dia-diem-picker đúng vai
-            //     trò (xuất phát/đến) của dòng vừa bấm — KHÔNG confirm, chỉ đổi hiển thị.
+            // (2) .route-place-value (tên địa danh HOẶC placeholder "Chọn...") — stopPropagation,
+            //     mở #dia-diem-picker đúng vai trò (xuất phát/đến) của dòng vừa bấm — KHÔNG
+            //     confirm, chỉ đổi hiển thị. Đây LUÔN là cách DUY NHẤT chọn tỉnh khi đang trống.
             // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — GIỮ NGUYÊN hành vi
             //     confirm ngầm của đợt 6 (bấm là chọn xong ngay) — không tháo bỏ, chỉ THÊM (4).
-            // (4) #btn-chon-vi-tri-giuong — nút xác nhận TƯỜNG MINH, cùng logic xác nhận với (3)
-            //     (dùng chung `xacNhanChonChieu`), đặt hẳn bên dưới khối để dễ thấy hơn.
+            //     Bấm khi CHƯA chọn đủ 2 tỉnh → báo toast, không tiến hành (xem `xacNhanChonChieu`).
+            // (4) #btn-chon-vi-tri-giuong — nút xác nhận TƯỜNG MINH, cùng logic xác nhận với (3),
+            //     tự `disabled` (mờ, không bấm được) cho tới khi chọn đủ cả 2 tỉnh.
             // `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên toàn khối — vẫn cần chặn Android
             // Chrome hiểu nhầm bấm chữ thành chọn text/bật popup "Tìm kiếm trên Google".
             function xacNhanChonChieu() {
+                if (!noiXuatPhatTinh || !diemDenTinh) {
+                    showToast('Vui lòng chọn cả nơi xuất phát và điểm đến', 'error')
+                    return
+                }
                 // Tính lại `chieu` trực tiếp từ so sánh thu_tu ngay lúc confirm (không đọc biến
                 // `chieu` đóng gói ở trên qua closure) — phòng lệch nếu sau này có chỗ khác đổi
                 // `noiXuatPhatTinh`/`diemDenTinh` mà quên gọi lại renderChieuSelector.
@@ -824,12 +855,13 @@
         // Modal chọn địa danh (đợt 9: 17 tỉnh dọc tuyến thay cho 2 lựa chọn cố định) khi bấm vào
         // tên tỉnh — KHÔNG phải ô tìm kiếm tự do kiểu Vexere (list cố định từ `tinh_tuyen`, không
         // gõ được). Loại thêm tỉnh đang chọn ở BÊN KIA khỏi list — không cho chọn trùng 1 tỉnh cho
-        // cả xuất phát lẫn điểm đến. Chọn xong chỉ ĐỔI HIỂN THỊ (set lại biến tỉnh tương ứng rồi vẽ
-        // lại `renderChieuSelector`), KHÔNG gọi `chonChuyen` — giống hệt cách nút "⇅" hoạt động.
+        // cả xuất phát lẫn điểm đến (nếu bên kia chưa chọn thì không loại gì thêm). Chọn xong chỉ
+        // ĐỔI HIỂN THỊ (set lại biến tỉnh tương ứng rồi vẽ lại `renderChieuSelector`), KHÔNG gọi
+        // `chonChuyen` — giống hệt cách nút "⇅" hoạt động.
         function moDiaDiemPicker(vaiTro) {
             const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
-            const dangChonMa = vaiTro === 'xuat_phat' ? noiXuatPhatTinh.ma : diemDenTinh.ma
-            const list = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia.ma)
+            const dangChonMa = (vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh)?.ma
+            const list = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia?.ma)
             document.getElementById('dia-diem-picker-title').textContent =
                 vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
             const optionsWrap = document.getElementById('dia-diem-picker-options')
