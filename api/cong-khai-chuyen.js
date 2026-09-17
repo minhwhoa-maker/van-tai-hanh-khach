@@ -1,8 +1,10 @@
 // api/cong-khai-chuyen.js — API công khai (không cần auth) cho trang đặt vé khách dat-ve.html.
-// Trả về chuyến 'dang_chay' GẦN NHẤT — khách chỉ đặt được vào chuyến crew đã tự tạo sẵn, không
-// tạo chuyến mới từ phía khách (xem SPEC "dat-ve.html" trong CLAUDE.md). Dùng SUPABASE_SERVICE_KEY
-// (không đụng RLS anon) để tránh phải mở policy anon cho bảng `chuyen` — chỉ trả đúng field cần,
-// KHÔNG trả `tao_boi`/`ghi_chu` (nội bộ crew, không phải thứ khách cần thấy).
+// Trả DANH SÁCH TẤT CẢ chuyến 'dang_chay' (sắp theo khoi_hanh TĂNG DẦN — gần nhất lên đầu), để
+// khách CHỌN NGÀY ĐI trước khi chọn giường (2026-09-17, đổi từ bản đầu chỉ trả 1 chuyến gần nhất —
+// xem bullet "Bước 0 — Chọn ngày đi" trong CLAUDE.md). Khách chỉ đặt được vào chuyến crew đã tự
+// tạo sẵn, không tạo chuyến mới từ phía khách. Dùng SUPABASE_SERVICE_KEY (không đụng RLS anon) để
+// tránh phải mở policy anon cho bảng `chuyen` — chỉ trả đúng field cần, KHÔNG trả `tao_boi`/
+// `ghi_chu` (nội bộ crew, không phải thứ khách cần thấy).
 import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
@@ -13,11 +15,8 @@ export default async function handler(req, res) {
         .from('chuyen')
         .select('id, chieu, khoi_hanh')
         .eq('trang_thai', 'dang_chay')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+        .order('khoi_hanh', { ascending: true })
 
     if (error) { res.status(500).json({ error: error.message }); return }
-    if (!data) { res.status(200).json({ chuyen: null }); return }
-    res.status(200).json({ chuyen: data })
+    res.status(200).json({ chuyenList: data || [] })
 }

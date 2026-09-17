@@ -88,7 +88,8 @@ thêm form/nút mới:
   - **Bước 2 (chọn điểm), danh sách gợi ý dưới ô "Gõ tên điểm..." thụt vào trong** (`.diem-list`, `margin-left` lớn hơn ô nhập phía trên + nền xám nhạt `#f5f7fa` + chữ màu `--text-muted`, font nhỏ hơn `14px`) — trước đó `.diem-item` dùng chung style với `.chuyen-item` (border 1.5px, nền trắng, y hệt ô nhập phía trên) khiến ô nhập và danh sách gợi ý nhìn giống nhau, không rõ cái nào là input cái nào là kết quả gợi ý. `.chuyen-item` (danh sách chọn chuyến ở bước 0, không phải gợi ý phụ thuộc ô nhập) giữ nguyên style cũ.
   - **Bước 0 chỉ hiện chuyến `dang_chay`** (`loadChuyenList`, render qua `renderChuyenItem`) — từng thử hiện thêm nhóm "Chuyến đã hoàn thành" ở đây (bấm để xem lại) nhưng đã bỏ theo yêu cầu: nhập kiện mới không cần thấy chuyến cũ, xem lại chuyến đã xong thì qua `lich-su-chuyen.html`. `lich-su-chuyen.html` vẫn giữ nguyên 2 nhóm (xem bên dưới) — 2 trang khác nhau ở điểm này, không phải bug.
   - **`.current-chuyen-bar` (thanh hiện tên chuyến đang chọn, phía trên các bước) có nút "📋 Xem danh sách"** (`updateChuyenBar()`) — link `manifest-hang.html?chuyen_id=<id>`, mở `target="_blank"` (tab/cửa sổ mới) để không mất luồng nhập kiện đang dở ở `hang.html`. Thêm vì sau khi lưu 1 kiện, app tự reset về bước 1 mà không có cách xem lại kiện vừa nhập tại chỗ — trước đó phải rời hẳn trang hoặc gõ URL tay sang `manifest-hang.html`. Dùng chung convention `?chuyen_id=` với chỗ điều hướng cũ ở `lich-su-chuyen.html`. Cố ý KHÔNG làm danh sách/preview kiện ngay trong `hang.html` — chỉ là link tắt sang trang đã có sẵn.
-  - **Tạo chuyến mới chỉ có 1 field (Chiều)** — không còn nhập tay giờ khởi hành hay ghi chú; `khoi_hanh` luôn = `new Date()` lúc bấm "Tạo chuyến" (`chuyen.ghi_chu` vẫn còn cột trong DB, chỉ không thu thập ở form này nữa, luôn `null` cho chuyến mới).
+  - **Tạo chuyến mới có 2 field: Chiều + Ngày giờ khởi hành** (`#new-chuyen-khoi-hanh`, `type="datetime-local"`, ĐỔI 2026-09-17 — trước đó chỉ có Chiều, `khoi_hanh` luôn cứng = `new Date()` lúc bấm "Tạo chuyến", không cho nhập tay) — cho phép crew LÊN LỊCH TRƯỚC nhiều chuyến ở các ngày khác nhau, phục vụ tính năng "Bước 0 — Chọn ngày đi" ở `dat-ve.html` (xem mục đó). Prefill = giờ hiện tại mỗi lần MỞ form (`toDatetimeLocalValue(new Date())`, tính theo giờ ĐỊA PHƯƠNG chứ không phải `toISOString()` — tránh lệch múi giờ hiển thị trong ô nhập), để trống lúc lưu thì fallback về `new Date()` (giữ hành vi cũ làm lưới an toàn). `chuyen.ghi_chu` vẫn còn cột trong DB, chỉ không thu thập ở form này, luôn `null` cho chuyến mới.
+  - **"+ Tạo chuyến mới" LUÔN hiện, không còn tự ẩn khi đã có chuyến `dang_chay`** (đổi 2026-09-17 cùng lúc với ô ngày giờ ở trên) — trước đó ẩn hẳn nút này nếu ĐÃ có 1 chuyến `dang_chay` bất kỳ, dựa trên giả định "chỉ chạy 1 chuyến tại 1 thời điểm". Giả định đó không còn đúng khi cho khách chọn ngày đi — crew cần tạo được NHIỀU chuyến `dang_chay` cùng lúc (mỗi chuyến 1 ngày/chiều khác nhau) để khách có gì đó thật sự để chọn ở `dat-ve.html`. Danh sách "0. Chọn chuyến đang chạy" (`loadChuyenList`) đổi `order by` từ `created_at desc` sang `khoi_hanh` TĂNG DẦN (chuyến gần nhất lên đầu, hợp lý hơn cho crew chọn đúng chuyến sắp chạy khi có nhiều chuyến cùng lúc).
   - **Bước 3 (chụp ảnh) có nút "💰 Thu hộ (COD)"** (`#btn-thu-ho-toggle`) — bật lên mới hiện ô nhập `#kien-thu-ho`, bắt buộc số dương nếu bật (validate trước khi `queueKien`). Lưu vào `record.tien_thu_ho`, đi qua `idb-queue.js` như các field khác.
   - **Bước 3 có thêm nút "✅ Đã thu cước"** (`#btn-cuoc-toggle`, cạnh nút COD, cùng class `.btn-cod-toggle`) — cho khách trả cước (phí vận chuyển) ngay lúc gửi thay vì để crew thu lúc giao. Bật lên mới hiện ô `#kien-cuoc`, bắt buộc số dương nếu bật, validate y hệt `tien_thu_ho`. **Ghi thẳng vào `record.tien_thu`** (KHÔNG tạo cột riêng — `tien_thu` vốn chỉ nhập được ở `manifest-hang.html` sau khi giao, giờ có thêm đường ghi thứ 2 từ lúc gửi; đi qua `idb-queue.js` giống các field khác, khác trước đây khi `tien_thu` không có trong hàng đợi offline). Độc lập hoàn toàn với `tien_thu_ho` — 1 kiện có thể vừa trả cước trước vừa có COD, không trừ vào nhau. Cả `#kien-thu-ho` lẫn `#kien-cuoc` đều nhập theo nghìn đồng + hiện chữ đọc số, xem `soTienBangChu` ở mục "Tiện ích dùng chung".
   - **Bước 3 có mục "Số lượng / Loại hàng" (`#loaihang-chips` + `#loaihang-items`, biến `loaiHangItems`)** — thay cho stepper số lượng đơn lẻ trước đây, vì 1 khách có thể gửi cùng lúc nhiều LOẠI khác nhau với số lượng riêng từng loại (vd 2 thùng giấy + 3 thùng xốp), không thể gộp vào 1 số lượng tổng duy nhất. Bấm chip "Thùng giấy"/"Thùng xốp"/"Bao" (tạm thời cứng trong HTML, chưa có bảng danh mục riêng trong DB) thêm 1 dòng vào `loaiHangItems` (hoặc +1 số lượng nếu loại đó đã có trong danh sách), mỗi dòng có stepper `−`/`+` VÀ ô nhập số trực tiếp (`.item-qty-input`, `type="number"`, giữa 2 nút) riêng (`renderLoaiHangItems()`) + nút xoá; giảm về 0 (qua nút `−`) tự xoá dòng — ô nhập số gõ tay chỉ chuẩn hoá về số nguyên dương lúc rời ô (`blur`, mặc định về 1 nếu bỏ trống/không hợp lệ), KHÔNG re-render list lúc đang gõ (`input` event chỉ cập nhật biến, tránh mất focus/con trỏ giữa chừng khi số lượng nhiều chữ số). Chip "Khác..." dùng `prompt()` để gõ tên tự do (đủ dùng vì hiếm gặp, không cần thêm UI riêng). **Bấm "Lưu kiện hàng" mà `loaiHangItems` rỗng (chưa bấm chip nào) → chặn lưu, toast lỗi "Chọn ít nhất 1 loại hàng trước khi lưu"** — trước đây danh sách rỗng mặc định lưu thành 1 kiện không phân loại (`so_luong=1, loai_hang=null`), đổi theo yêu cầu bắt buộc crew luôn phải chọn loại hàng, tránh qua bước 3 thiếu sót do bấm nhầm nút "Lưu" mà quên chọn. Vì vậy lúc build `record`, `loaiHangItems` chắc chắn không rỗng: `record.so_luong` = tổng số lượng mọi loại (`reduce` cộng dồn `soLuong` từng item), `record.loai_hang` = chuỗi liệt kê từng loại, số lượng LUÔN ở đầu mỗi mục (nối bằng `, ` — vd `"1 Thùng xốp, 2 Thùng giấy"`) — trước đây dùng dạng `Tên ×N` và ẩn số khi `N = 1` (`"Thùng giấy ×2, Thùng xốp"`), đổi theo yêu cầu để số lượng luôn hiện rõ kể cả khi chỉ có 1. Dữ liệu CŨ tạo trước khi có validate này vẫn có thể mang `loai_hang=null` (không hồi tố) — các nơi hiển thị lại vẫn giữ fallback cho trường hợp đó. Cả 2 field đi qua `idb-queue.js`, reset `loaiHangItems = []` sau khi lưu. **Hiển thị lại ở `manifest-hang.html` (`renderKienRowView`) và `renderReviewCard` (`hang.html`) chỉ in thẳng `loai_hang`, KHÔNG append thêm `×N` tổng lần nữa** — vì chuỗi đã tự chứa số lượng theo từng loại rồi, cộng thêm sẽ sai/lặp. Badge `×N` tổng ở dòng tên điểm (`.so-luong`) chỉ còn dùng làm fallback khi kiện KHÔNG có `loai_hang` (dữ liệu cũ hoặc bỏ trống lúc nhập).
@@ -200,9 +201,12 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   vé, KHÔNG đổi ý nghĩa `ve.trang_thai` hiện có. **`ve.hinh_thuc_thanh_toan`** (`text`, check
   `in ('tien_mat_len_xe','chuyen_khoan_truoc')`) — `null` cho vé crew tạo tay (giữ nguyên hành vi
   cũ), chỉ có giá trị khi khách tự đặt qua `dat-ve.html`.
-- **`api/cong-khai-chuyen.js`** (GET) — trả chuyến `dang_chay` gần nhất, CHỈ `{id, chieu,
-  khoi_hanh}` (không trả `tao_boi`/`ghi_chu` nội bộ). Không có chuyến nào → `{chuyen: null}`,
-  frontend hiện "Hiện chưa có chuyến nào mở bán", dừng luôn không hiện form.
+- **`api/cong-khai-chuyen.js`** (GET) — trả DANH SÁCH TẤT CẢ chuyến `dang_chay` (đổi 2026-09-17,
+  trước đó chỉ trả 1 chuyến gần nhất — xem "Bước 0" ở `dat-ve.html` bên dưới), sắp theo `khoi_hanh`
+  TĂNG DẦN, CHỈ `{id, chieu, khoi_hanh}` mỗi chuyến (không trả `tao_boi`/`ghi_chu` nội bộ). Response
+  shape đổi từ `{chuyen}` (object|null) sang `{chuyenList}` (array, có thể rỗng). Không có chuyến
+  nào → `chuyenList: []`, frontend hiện "Hiện chưa có chuyến nào mở bán", dừng luôn không hiện gì
+  khác.
 - **`api/cong-khai-so-do.js?chuyen_id=...`** (GET) — JOIN `giuong` + `ve` (lọc `trang_thai='da_dat'`
   đúng `chuyen_id`) → trả `{id, tang, hang, vi_tri, ma, hoat_dong, trong}` mỗi giường. TUYỆT ĐỐI
   không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay không.
@@ -232,18 +236,30 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   (mọi dữ liệu qua `fetch()` tới 4 API route trên). Đặt thành công → màn xác nhận đơn giản tại chỗ
   (không có trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại
   phải gọi crew.
-  - **Luồng 3 bước theo THỨ TỰ, đảo lại từ bản đầu (2026-09-17, theo yêu cầu owner: khách xác định
-    trọn hành trình trước, chọn giường sau — trước đó ngược lại, chọn giường xong mới hỏi điểm)**:
-    (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`,
-    hiện ngay sau khi tải được chuyến, KHÔNG cần chọn giường trước); (2) `#so-do-wrap` (sơ đồ
-    giường) — CHỈ hiện khi CẢ 2 điểm đã chọn (`capNhatHienThiSoDo`, gọi từ listener `change` của cả
-    2 select) — trống thì hiện `#cho-chon-diem-hint` thay chỗ; (3) `#dat-ve-form` — CHỈ còn
-    Tên*/SĐT*/Phương thức thanh toán (2 field điểm đã dời sang bước 1, KHÔNG còn trong form này
-    nữa) — hiện khi có ít nhất 1 giường đã chọn (như cũ, `capNhatFormChonGiuong`). Sơ đồ giường vẫn
-    được TẢI SẴN ngay từ `initPage()` (không đợi chọn điểm) — bước 1↔2 chỉ đổi ẨN/HIỆN, không
-    fetch lại `api/cong-khai-so-do` mỗi lần đổi điểm. **Đổi lại điểm sau khi đã chọn giường KHÔNG
-    xoá giường đã chọn** — `selectedGiuongMap` độc lập với việc điểm đang hiện hay ẩn, chỉ ẩn/hiện
-    lại đúng khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó.
+  - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
+    tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**:
+    (0) danh sách chuyến `dang_chay` (`renderChonChuyenStep`, đọc `chuyenList` từ
+    `api/cong-khai-chuyen.js`) — mỗi chuyến 1 nút `.chuyen-chon-item` hiện chiều + ngày giờ khởi
+    hành, bấm để chọn (`chonChuyen`); (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống
+    (`#diem-len-select`/`#diem-xuong-select`), CHỈ hiện sau khi đã chọn chuyến ở Bước 0; (2)
+    `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2 điểm đã chọn (`capNhatHienThiSoDo`, gọi từ
+    listener `change` của cả 2 select) — trống thì hiện `#cho-chon-diem-hint` thay chỗ; (3)
+    `#dat-ve-form` — CHỈ còn Tên*/SĐT*/Phương thức thanh toán (2 field điểm đã dời sang Bước 1) —
+    hiện khi có ít nhất 1 giường đã chọn (`capNhatFormChonGiuong`).
+  - **Chọn chuyến ở Bước 0 mới fetch sơ đồ giường của ĐÚNG chuyến đó** (`chonChuyen`, gọi
+    `api/cong-khai-so-do?chuyen_id=...` ngay khi bấm chọn) — KHÁC bản 3-bước trước (sơ đồ tải sẵn
+    ngay từ `initPage()` vì lúc đó chỉ có đúng 1 chuyến khả dĩ). Giờ có thể có NHIỀU chuyến, mỗi
+    chuyến sơ đồ trống/đã đặt khác nhau — tải trước cho tất cả sẽ lãng phí (khách chỉ đi 1 chuyến)
+    nên chỉ tải khi đã biết chuyến nào. `diem_khach`/`tinh_tuyen` (không phụ thuộc chuyến cụ thể)
+    vẫn tải 1 lần ở `initPage()` như cũ.
+  - **Bấm "Đổi chuyến khác" (`doiChuyenKhac`) XOÁ SẠCH lựa chọn điểm + giường** (`selectedGiuongMap.
+    clear()`, reset 2 select điểm về rỗng, ẩn hết Bước 1-3) — KHÁC hành vi "đổi điểm lên/xuống"
+    (không xoá giường đã chọn, xem bullet dưới) vì đổi SANG CHUYẾN KHÁC nghĩa là sơ đồ giường/tập
+    điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ tham chiếu tới giường/context không còn đúng.
+  - **Đổi lại điểm lên/xuống (trong CÙNG 1 chuyến) sau khi đã chọn giường KHÔNG xoá giường đã
+    chọn** — `selectedGiuongMap` độc lập với việc Bước 2 đang hiện hay ẩn, chỉ ẩn/hiện lại đúng
+    khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó (khác hẳn việc
+    đổi CHUYẾN ở Bước 0, xem bullet trên).
   - Chọn "Chuyển khoản trước" hiện thêm khối thông tin chuyển khoản TĨNH (số tài khoản/tên/nội
     dung gõ tay, KHÔNG có cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối
     chiếu tay qua app ngân hàng sau, không có xác nhận tự động).

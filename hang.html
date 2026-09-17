@@ -137,6 +137,10 @@
                     <option value="nam">Vào Nam (Hải Dương → Đắk Lắk)</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Ngày giờ khởi hành</label>
+                <input type="datetime-local" id="new-chuyen-khoi-hanh" style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:16px;color:#1a1a2e;background:white">
+            </div>
             <button class="btn btn-full btn-success" id="btn-save-chuyen" type="button">Tạo chuyến</button>
         </div>
     </div>
@@ -357,20 +361,21 @@
 
         // Chỉ hiện chuyến đang chạy — nhập kiện mới không cần thấy chuyến đã xong (xem
         // lại chuyến cũ thì qua lich-su-chuyen.html thay vì lẫn ở đây).
+        //
+        // "+ Tạo chuyến mới" LUÔN hiện, KHÔNG còn tự ẩn khi đã có chuyến dang_chay (2026-09-17,
+        // theo yêu cầu owner: cho khách chọn ngày đi trước ở dat-ve.html — cần crew tạo được
+        // NHIỀU chuyến dang_chay cùng lúc, mỗi chuyến 1 ngày khởi hành khác nhau, để khách có gì
+        // đó thật sự để chọn). Trước đây ẩn nút này khi có 1 chuyến dang_chay bất kỳ — giả định
+        // "chỉ chạy 1 chuyến 1 lúc", giờ không còn đúng nữa.
         async function loadChuyenList() {
             const { data, error } = await sb
                 .from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
                 .eq('trang_thai', 'dang_chay')
-                .order('created_at', { ascending: false })
+                .order('khoi_hanh', { ascending: true })
             if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
             const wrap = document.getElementById('chuyen-list')
             wrap.textContent = ''
-
-            const btnNewChuyen = document.getElementById('btn-toggle-new-chuyen')
-            const hasActive = data.length > 0
-            btnNewChuyen.style.display = hasActive ? 'none' : ''
-            if (hasActive) document.getElementById('new-chuyen-form').style.display = 'none'
 
             if (!data.length) {
                 wrap.innerHTML = '<div style="color:var(--text-muted); font-size:14px; padding:0 16px;">Chưa có chuyến nào đang chạy, tạo chuyến mới bên dưới.</div>'
@@ -393,18 +398,35 @@
             goToStep('step-tinh')
         }
 
+        // Chuyển timestamp -> chuỗi "YYYY-MM-DDTHH:mm" mà <input type="datetime-local"> chấp nhận
+        // — PHẢI dùng giờ ĐỊA PHƯƠNG (không phải toISOString(), vốn luôn ra UTC) để ô nhập hiện
+        // đúng giờ crew đang xem, không lệch múi giờ.
+        function toDatetimeLocalValue(date) {
+            const pad = n => String(n).padStart(2, '0')
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+        }
+
         document.getElementById('btn-toggle-new-chuyen').addEventListener('click', () => {
             const form = document.getElementById('new-chuyen-form')
-            form.style.display = form.style.display === 'none' ? 'block' : 'none'
+            const dangMo = form.style.display !== 'none'
+            form.style.display = dangMo ? 'none' : 'block'
+            // Prefill = giờ hiện tại mỗi lần MỞ form (không phải chỉ 1 lần lúc trang tải) — nếu
+            // crew mở form rồi để đó vài phút mới điền, "giờ hiện tại" cũ sẽ bị lệch.
+            if (!dangMo) document.getElementById('new-chuyen-khoi-hanh').value = toDatetimeLocalValue(new Date())
         })
 
         document.getElementById('btn-save-chuyen').addEventListener('click', async () => {
             const chieu = document.getElementById('new-chuyen-chieu').value
-            // tao_boi có default auth.uid() ở DB — không cần gửi từ client. khoi_hanh = giờ
-            // tạo chuyến luôn (không cho nhập tay) — chuyến luôn tạo ngay lúc xe chuẩn bị chạy.
+            // 2026-09-17: cho crew TỰ CHỌN ngày giờ khởi hành (trước đây luôn = lúc bấm "Tạo
+            // chuyến", không cho nhập tay) — để lên lịch được nhiều chuyến trước cho các ngày
+            // khác nhau, phục vụ tính năng "chọn ngày đi" ở dat-ve.html. Để trống = coi như bây
+            // giờ (giữ hành vi cũ làm fallback, phòng crew xoá trắng ô nhập).
+            const khoiHanhRaw = document.getElementById('new-chuyen-khoi-hanh').value
+            const khoiHanh = khoiHanhRaw ? new Date(khoiHanhRaw) : new Date()
+            // tao_boi có default auth.uid() ở DB — không cần gửi từ client.
             const { data, error } = await sb.from('chuyen').insert({
                 chieu,
-                khoi_hanh: new Date().toISOString(),
+                khoi_hanh: khoiHanh.toISOString(),
                 trang_thai: 'dang_chay'
             }).select().single()
             if (error) { showToast('Lỗi tạo chuyến: ' + error.message, 'error'); return }

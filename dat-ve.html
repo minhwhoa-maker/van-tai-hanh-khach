@@ -24,11 +24,28 @@
         }
         .public-header h1 { margin: 0 0 4px; font-size: 19px; }
         .public-header .sub { font-size: 13px; opacity: 0.9; }
-        .chuyen-info {
-            margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
-            background: var(--white); border: 1.5px solid var(--border); font-size: 14px; text-align: center;
+        /* Bước 0 — chọn NGÀY ĐI trước tất cả (2026-09-17, theo yêu cầu owner) — danh sách chuyến
+           'dang_chay' (crew giờ tạo được nhiều chuyến cùng lúc, mỗi chuyến 1 ngày khởi hành khác
+           nhau, xem hang.html) để khách chọn đúng chuyến muốn đi trước khi làm gì khác. */
+        .chuyen-chon-wrap { margin: 16px; }
+        .chuyen-chon-wrap h3 { margin: 0 0 10px; font-size: 16px; }
+        .chuyen-chon-item {
+            padding: 12px 14px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            background: var(--white); margin-bottom: 8px; cursor: pointer; font-size: 14px; font-family: inherit;
+            width: 100%; text-align: left; display: block;
         }
-        .chuyen-info b { color: var(--primary); }
+        .chuyen-chon-item b { color: var(--primary); display: block; }
+        .chuyen-chon-item .sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+        .chuyen-da-chon-bar {
+            margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
+            background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
+            display: flex; justify-content: space-between; align-items: center; gap: 10px;
+        }
+        .chuyen-da-chon-bar b { color: var(--primary); }
+        .btn-doi-chuyen {
+            background: none; border: none; color: var(--primary); font-size: 13px; font-weight: 600;
+            cursor: pointer; font-family: inherit; text-decoration: underline; flex-shrink: 0; padding: 0;
+        }
         /* Bước 1 — chọn điểm lên/xuống TRƯỚC sơ đồ giường (2026-09-17, theo yêu cầu owner: khách
            xác định trọn hành trình rồi mới chọn giường, thay vì chọn giường xong mới hỏi điểm như
            bản đầu). Dùng chung style khung trắng với .dat-ve-form cho đồng bộ hình thức. */
@@ -232,8 +249,9 @@
     <script>
         // KHÔNG dùng sb/Supabase client trực tiếp — mọi thao tác qua API route riêng (service key
         // ở server), xem SPEC "dat-ve.html" trong CLAUDE.md để biết lý do không mở RLS anon.
-        let currentChuyen = null
-        let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}]
+        let chuyenList = []        // TẤT CẢ chuyến 'dang_chay' (2026-09-17 — trước đây chỉ 1 chuyến gần nhất)
+        let currentChuyen = null   // null cho tới khi khách chọn xong ở Bước 0
+        let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}] — của ĐÚNG currentChuyen
         let diemKhachList = []
         let tinhList = []
         // Chọn NHIỀU giường cùng lúc (vd nhóm khách đi chung) — Map<giuong.id, giuong>, bấm lại
@@ -434,35 +452,89 @@
             capNhatFormChonGiuong()
         }
 
+        function nhanChuyen(c) {
+            const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (Đắk Lắk → Hải Dương)' : 'Vào Nam (Hải Dương → Đắk Lắk)'
+            return { chieuLabel, ngayLabel: formatDate(c.khoi_hanh) }
+        }
+
+        // Bước 0 — danh sách chuyến để chọn (chưa chọn chuyến nào, hoặc bấm "Đổi chuyến khác").
+        function renderChonChuyenStep() {
+            const wrap = document.getElementById('chuyen-info-wrap')
+            wrap.innerHTML = '<div class="chuyen-chon-wrap"><h3>0. Chọn ngày đi</h3><div id="chuyen-chon-list"></div></div>'
+            const list = document.getElementById('chuyen-chon-list')
+            chuyenList.forEach(c => {
+                const { chieuLabel, ngayLabel } = nhanChuyen(c)
+                const btn = document.createElement('button')
+                btn.type = 'button'
+                btn.className = 'chuyen-chon-item'
+                btn.innerHTML = `<b>${chieuLabel}</b><div class="sub">${ngayLabel}</div>`
+                btn.addEventListener('click', () => chonChuyen(c))
+                list.appendChild(btn)
+            })
+        }
+
+        // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho danh sách Bước 0.
+        function renderChuyenDaChonBar() {
+            const { chieuLabel, ngayLabel } = nhanChuyen(currentChuyen)
+            document.getElementById('chuyen-info-wrap').innerHTML = `
+                <div class="chuyen-da-chon-bar">
+                    <div>Chuyến đã chọn: <b>${chieuLabel}</b><br>${ngayLabel}</div>
+                    <button type="button" class="btn-doi-chuyen" id="btn-doi-chuyen">Đổi chuyến khác</button>
+                </div>
+            `
+            document.getElementById('btn-doi-chuyen').addEventListener('click', doiChuyenKhac)
+        }
+
+        // Chọn 1 chuyến ở Bước 0 → tải sơ đồ giường CỦA ĐÚNG chuyến đó (mỗi chuyến sơ đồ trống/đã
+        // đặt khác nhau), reset lựa chọn điểm + giường vì đều gắn với chuyến cũ (đổi ngày đi thì
+        // giường/điểm của chuyến trước không còn ý nghĩa).
+        async function chonChuyen(c) {
+            currentChuyen = c
+            selectedGiuongMap.clear()
+            renderChuyenDaChonBar()
+            document.getElementById('diem-chon-wrap').style.display = 'block'
+            document.getElementById('diem-len-select').value = ''
+            document.getElementById('diem-xuong-select').value = ''
+            renderDiemKhachOptions(document.getElementById('diem-len-select'), c.chieu, '')
+            renderDiemKhachOptions(document.getElementById('diem-xuong-select'), c.chieu, '')
+            capNhatHienThiSoDo()
+
+            const res = await fetch(`/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(c.id)}`)
+            const data = await res.json()
+            if (!res.ok) { showToast(data.error || 'Lỗi tải sơ đồ', 'error'); return }
+            soDoData = data.soDo || []
+            renderSoDo()
+        }
+
+        function doiChuyenKhac() {
+            currentChuyen = null
+            selectedGiuongMap.clear()
+            soDoData = []
+            document.getElementById('diem-chon-wrap').style.display = 'none'
+            document.getElementById('cho-chon-diem-hint').style.display = 'none'
+            document.getElementById('so-do-wrap').style.display = 'none'
+            document.getElementById('dat-ve-form').style.display = 'none'
+            renderChonChuyenStep()
+        }
+
         async function initPage() {
-            const chuyenRes = await fetch('/api/cong-khai-chuyen')
+            const [chuyenRes, diemRes] = await Promise.all([
+                fetch('/api/cong-khai-chuyen'),
+                fetch('/api/cong-khai-diem-khach')
+            ])
             const chuyenData = await chuyenRes.json()
+            const diemJson = await diemRes.json()
             if (!chuyenRes.ok) { document.getElementById('chuyen-info-wrap').innerHTML = `<div class="khong-co-chuyen">Lỗi tải chuyến: ${chuyenData.error || ''}</div>`; return }
-            if (!chuyenData.chuyen) {
+            if (!diemRes.ok) { showToast(diemJson.error || 'Lỗi tải điểm đón', 'error') }
+            diemKhachList = diemJson.diemKhach || []
+            tinhList = diemJson.tinh || []
+
+            chuyenList = chuyenData.chuyenList || []
+            if (!chuyenList.length) {
                 document.getElementById('chuyen-info-wrap').innerHTML = '<div class="khong-co-chuyen">🚫 Hiện chưa có chuyến nào mở bán. Vui lòng quay lại sau.</div>'
                 return
             }
-            currentChuyen = chuyenData.chuyen
-            const chieuLabel = currentChuyen.chieu === 'bac' ? 'Ra Bắc (Đắk Lắk → Hải Dương)' : 'Vào Nam (Hải Dương → Đắk Lắk)'
-            document.getElementById('chuyen-info-wrap').innerHTML =
-                `<div class="chuyen-info">Chuyến gần nhất: <b>${chieuLabel}</b><br>${formatDate(currentChuyen.khoi_hanh)}</div>`
-            document.getElementById('diem-chon-wrap').style.display = 'block'
-            document.getElementById('cho-chon-diem-hint').style.display = 'block'
-
-            const [soDoRes, diemRes] = await Promise.all([
-                fetch(`/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.id)}`),
-                fetch('/api/cong-khai-diem-khach')
-            ])
-            const soDoJson = await soDoRes.json()
-            const diemJson = await diemRes.json()
-            if (!soDoRes.ok) { showToast(soDoJson.error || 'Lỗi tải sơ đồ', 'error'); return }
-            if (!diemRes.ok) { showToast(diemJson.error || 'Lỗi tải điểm đón', 'error'); return }
-            soDoData = soDoJson.soDo || []
-            diemKhachList = diemJson.diemKhach || []
-            tinhList = diemJson.tinh || []
-            renderSoDo()
-            renderDiemKhachOptions(document.getElementById('diem-len-select'), currentChuyen.chieu, '')
-            renderDiemKhachOptions(document.getElementById('diem-xuong-select'), currentChuyen.chieu, '')
+            renderChonChuyenStep()
         }
 
         initPage()
