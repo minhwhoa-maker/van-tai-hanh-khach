@@ -4,8 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <title>Đặt vé xe khách</title>
+    <!-- Manifest RIÊNG cho trang này (2026-09-18) — `scope: "./dat-ve.html"` giới hạn PWA chỉ áp
+         dụng đúng URL này, KHÔNG dùng chung manifest.json của 5 trang crew (scope "./" bao trùm cả
+         app crew, sai hoàn toàn cho 1 trang public độc lập). Xem SPEC "Đặt vé công khai" CLAUDE.md. -->
+    <link rel="manifest" href="manifest-dat-ve.json">
     <link rel="stylesheet" href="style.css">
     <style>
         /* Trang CÔNG KHAI cho khách — KHÔNG requireSession/renderSideMenu/hamburger, khác hẳn 5
@@ -955,6 +961,18 @@
         }
 
         initPage()
+    </script>
+    <!-- Service worker RIÊNG (sw-dat-ve.js, KHÔNG phải sw.js của 5 trang crew) — scope thu hẹp về
+         đúng '/dat-ve.html' để không tranh scope '/' với SW crew nếu cùng trình duyệt từng cài cả
+         2. Trước đó trang này CỐ Ý chưa phải PWA thật (không đăng ký gì) — đăng ký thêm 2026-09-18
+         theo yêu cầu, để khách bấm "Thêm vào màn hình chính" cài được app đặt vé riêng. -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw-dat-ve.js', { scope: '/dat-ve.html' })
+                    .catch(err => console.error('SW register failed:', err))
+            })
+        }
     </script>
 </body>
 </html>
