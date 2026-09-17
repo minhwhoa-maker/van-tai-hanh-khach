@@ -345,6 +345,14 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       Huế) thì dropdown Bước 1 tuy hiện đủ 4 điểm cũ nhưng KHÔNG điểm nào thật sự thuộc 2 tỉnh đó
       (chỉ Đắk Lắk/Hải Dương có `diem_khach`) — "chọn xong không có gì đúng để chọn", owner quyết
       định bỏ hẳn bước hỏi thay vì chờ crew thêm đủ dữ liệu cho 17 tỉnh.
+    - **Thêm nút xác nhận tường minh "🪑 Chọn vị trí giường" (2026-09-19, đợt 11, theo phản ánh
+      thật)** — trước đó (đợt 6) xác nhận CHỈ xảy ra ngầm khi bấm vào nhãn/nền `.route-select-wrap`,
+      không có gì hiện rõ "bấm vào đâu để đi tiếp" — khách xem ảnh chụp thật cho thấy chọn xong tỉnh
+      rồi đứng yên không biết bấm gì. `#btn-chon-vi-tri-giuong` render NGAY DƯỚI `.route-select-wrap`
+      (sibling trong `#lich-chieu-wrap`, KHÔNG lồng trong khối có `user-select:none` của đợt 5 —
+      không cần tính lại vùng bắt click), gọi chung hàm `xacNhanChonChieu()` với vùng bấm ngầm cũ —
+      **KHÔNG tháo bỏ hành vi tap-to-confirm của đợt 6**, chỉ thêm 1 đường xác nhận tường minh song
+      song, cả 2 cùng dẫn tới `chonChuyen`.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
