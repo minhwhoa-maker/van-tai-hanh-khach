@@ -251,22 +251,37 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     PWA thật (không manifest, không đăng ký service worker), chỉ là trang tĩnh mở qua link. Đăng ký
     thêm 2 file RIÊNG, KHÔNG dùng chung với 5 trang crew:
     - **`manifest-dat-ve.json`** — `scope: "./dat-ve.html"` (thu hẹp về ĐÚNG 1 URL này, KHÔNG phải
-      `"./"` như `manifest.json` của crew — 2 manifest không được chồng scope lên nhau), `name`
-      "EaKar Xe Khách - Đặt vé" (khác hẳn "EaKar Hàng" của crew, tránh khách nhầm 2 app khi cài cả
-      2 về cùng máy). Icon dùng chung `icons/icon-192.png`/`icon-512.png` với crew (cùng thương
-      hiệu EaKar, chưa cần bộ icon riêng).
-    - **`sw-dat-ve.js`** — network-first + cache riêng `eakar-dat-ve-v1` (KHÔNG chung `CACHE_NAME`
-      với `eakar-hang-v2` của crew), đăng ký với `{ scope: '/dat-ve.html' }` tường minh (KHÔNG để
-      mặc định — mặc định sẽ là `/`, đụng scope `sw.js` nếu cùng trình duyệt từng cài cả 2 app).
-      **KHÁC `sw.js` ở đúng 1 điểm quan trọng**: offline navigate thất bại → fallback về CHÍNH
+      `"./"` như `manifest.json` của crew), `name`/`short_name` **"Booking"** (đổi 2026-09-18, đợt
+      15, theo yêu cầu — trước đó "EaKar Xe Khách - Đặt vé"). Icon dùng
+      `icons/icon-192-booking.png`/`icon-512-booking.png` — hình vé cam (`#f57c00`, generate bằng
+      script Python/PIL, KHÔNG dùng chung file với icon xe tải xanh của crew).
+    - **Bug thật gặp lúc cài (2026-09-18, đợt 15, cùng ngày với lúc thêm manifest ở trên)** — bấm
+      "Thêm vào màn hình chính" ở `dat-ve.html`, Chrome hiện *"This app is already installed"* thay
+      vì cho cài mới, kèm icon của app crew (ảnh chụp thật). Nguyên nhân: (1) `scope: "./"` của
+      `manifest.json` (crew) VỀ MẶT KỸ THUẬT đã bao trùm luôn URL `/dat-ve.html` (scope là prefix
+      URL, không phải danh sách trang cụ thể); (2) 2 manifest ban đầu DÙNG CHUNG file icon
+      (`icons/icon-192.png`/`icon-512.png`) nên nhìn ngoài giống hệt 1 app. Sửa bằng 3 lớp: thêm
+      trường **`"id": "/dat-ve.html"`** tường minh vào `manifest-dat-ve.json` (Chrome/Android dùng
+      `id` — mặc định suy từ `start_url` nếu thiếu — để phân biệt app, khai rõ tránh phụ thuộc suy
+      diễn ngầm); đổi `name` thành "Booking" (khác hẳn "EaKar Hàng" của crew); và đổi hẳn sang bộ
+      icon riêng (`icon-*-booking.png`) như trên. `theme_color`/`background_color` CỐ Ý giữ nguyên
+      `#1565c0`/`#f0f2f5` khớp header trong trang (chỉ đổi icon/tên/id ở tầng OS-install, không đổi
+      màu sắc hiển thị trong app).
+    - **`sw-dat-ve.js`** — network-first + cache riêng `eakar-dat-ve-v2` (bump từ `v1` lên `v2` cùng
+      lúc đổi icon, dọn sạch entry icon cũ trong cache trình duyệt — KHÔNG chung `CACHE_NAME` với
+      `eakar-hang-v2` của crew), đăng ký với `{ scope: '/dat-ve.html' }` tường minh (KHÔNG để mặc
+      định — mặc định sẽ là `/`, đụng scope `sw.js` nếu cùng trình duyệt từng cài cả 2 app). **KHÁC
+      `sw.js` ở đúng 1 điểm quan trọng**: offline navigate thất bại → fallback về CHÍNH
       `./dat-ve.html` (không phải `./login.html` như crew) — khách công khai không có tài khoản,
       đưa họ tới màn đăng nhập crew lúc mất mạng là sai hoàn toàn ngữ cảnh. Thêm 2 meta
       `apple-mobile-web-app-capable`/`apple-mobile-web-app-status-bar-style` vào `<head>` (đã có sẵn
-      `theme-color`/`apple-touch-icon` từ trước) — đủ bộ thẻ PWA/iOS theo checklist chung của app
-      (xem mục "Tối ưu mobile / PWA").
-    - **Chưa test thật trên thiết bị** (giống ghi chú của `sw.js` crew) — cần kiểm tra thực tế nút
-      "Thêm vào màn hình chính" tạo app standalone đúng tên/icon riêng, không bị nhầm với app crew
-      nếu cài cả 2 trên cùng máy.
+      `theme-color` từ trước, `apple-touch-icon` đổi sang icon riêng cùng lúc) — đủ bộ thẻ PWA/iOS
+      theo checklist chung của app (xem mục "Tối ưu mobile / PWA").
+    - **Chưa test thật trên thiết bị sau fix đợt 15** — mới verify qua `curl` (2 file icon mới trả
+      200, `manifest-dat-ve.json` trả đúng `id`/tên/icon mới) — cần crew/owner tự bấm "Thêm vào màn
+      hình chính" lại trên điện thoại thật để xác nhận Chrome không còn báo "already installed" và
+      app cài mới hiện đúng tên "Booking" + icon vé cam, tách biệt hẳn khỏi app crew trên home
+      screen.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
     tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. Bước 0 sau đó đổi tiếp 2
     lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
