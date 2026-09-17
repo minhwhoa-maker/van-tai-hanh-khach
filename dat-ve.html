@@ -19,6 +19,17 @@
            như vô lăng "lạc chỗ" trên PC dù trên điện thoại vẫn đúng vị trí. */
         html { background: var(--bg); }
         body { background: var(--bg); padding-bottom: 40px; max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+        /* Thêm padding-bottom khi #gia-ve-bar đang hiện (đợt 12) — bar position:fixed che mất phần
+           dưới trang, nếu không nới thêm thì nút "Đặt vé" ở cuối .dat-ve-form có thể bị bar đè lên
+           lúc cuộn hết trang. */
+        body.co-gia-ve-bar { padding-bottom: 92px; }
+        .gia-ve-bar {
+            display: none; position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
+            width: 100%; max-width: 480px; box-sizing: border-box; z-index: 500;
+            background: var(--primary); color: #fff; text-align: center;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            font-size: 14px; font-weight: 700; box-shadow: 0 -2px 10px rgba(0,0,0,.15);
+        }
         .public-header {
             background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
         }
@@ -324,6 +335,8 @@
         </div>
     </div>
 
+    <div class="gia-ve-bar" id="gia-ve-bar"></div>
+
     <div class="toast" id="toast"></div>
 
     <script src="shared.js"></script>
@@ -384,6 +397,38 @@
             return list[0] || null
         }
 
+        // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé/giường = |gia_moc(tỉnh đến) −
+        // gia_moc(tỉnh đi)|, KHÔNG phụ thuộc diem_khach cụ thể, chỉ phụ thuộc cặp tỉnh đã chọn ở
+        // Bước 0. `null` nếu 1 trong 2 tỉnh CHƯA có `gia_moc` (đa số 17 tỉnh hiện tại — xem
+        // CLAUDE.md) — coi như "chưa định giá", KHÔNG chặn đặt vé. Đây CHỈ là hiển thị tham khảo ở
+        // client — giá thật lưu vào `ve.gia` do SERVER tự tính lại (xem api/cong-khai-dat-ve.js),
+        // không tin giá gửi lên từ đây.
+        function tinhGiaVe() {
+            const a = noiXuatPhatTinh.gia_moc
+            const b = diemDenTinh.gia_moc
+            if (a == null || b == null) return null
+            return Math.abs(a - b)
+        }
+
+        // Thanh tổng cố định đáy màn hình (kiểu Vexere "Đã chọn N chỗ · Tổng: Xđ") — CHỈ hiện khi
+        // đang chọn ít nhất 1 giường. KHÔNG có nút riêng trên thanh này (giữ tối thiểu thay đổi) —
+        // nút "Đặt vé" thật vẫn nằm trong .dat-ve-form như cũ.
+        function capNhatGiaVeBar() {
+            const bar = document.getElementById('gia-ve-bar')
+            const n = selectedGiuongMap.size
+            if (!n) {
+                bar.style.display = 'none'
+                document.body.classList.remove('co-gia-ve-bar')
+                return
+            }
+            const giaVe = tinhGiaVe()
+            bar.textContent = giaVe == null
+                ? `Đã chọn ${n} giường · Giá: liên hệ sau`
+                : `Đã chọn ${n} giường · Tổng: ${formatMoney(giaVe * n)}`
+            bar.style.display = 'block'
+            document.body.classList.add('co-gia-ve-bar')
+        }
+
         function renderMotTang(tang, wrapId, captionId) {
             const wrap = document.getElementById(wrapId)
             wrap.textContent = ''
@@ -426,6 +471,7 @@
             else selectedGiuongMap.set(g.id, g)
             renderSoDo()
             capNhatFormChonGiuong()
+            capNhatGiaVeBar()
         }
 
         // Cập nhật dòng "Giường đã chọn" + hiện/ẩn form theo số lượng đang chọn — 0 giường thì ẩn
@@ -485,9 +531,12 @@
                     // ĐẦU TIÊN thành công trả về chuyen_id thật, gán lại currentChuyen.chuyen_id để
                     // các lượt đặt TIẾP THEO trong cùng vòng lặp (nhiều giường) và mọi lần
                     // taiSoDo() sau đó dùng đúng chuyến vừa tạo, không phải tự tạo/tra lại mỗi lần.
+                    // tinh_len_ma/tinh_xuong_ma — server tự tính lại giá từ đây (không tin `gia`
+                    // tính ở client), xem api/cong-khai-dat-ve.js. `noiXuatPhatTinh`/`diemDenTinh`
+                    // vẫn giữ đúng cặp tỉnh đã xác nhận ở Bước 0 (không bị reset sau confirm).
                     const body = currentChuyen.chuyen_id
-                        ? { chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc }
-                        : { ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc }
+                        ? { chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
+                        : { ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
                     const res = await fetch('/api/cong-khai-dat-ve', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -509,6 +558,7 @@
                 // dài dòng), tải lại sơ đồ để cập nhật giường vừa bị người khác đặt trước.
                 showToast(thatBai[0]?.error || 'Lỗi đặt vé', 'error')
                 selectedGiuongMap.clear()
+                capNhatGiaVeBar()
                 await taiSoDo()
                 btn.disabled = false
                 btn.textContent = 'Đặt vé'
@@ -520,6 +570,8 @@
             // trắng cả lượt đặt chỉ vì 1 giường trong nhóm bị trùng.
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
+            selectedGiuongMap.clear()
+            capNhatGiaVeBar()
             const maThanhCong = thanhCong.map(g => g.ma).join(', ')
             document.getElementById('xac-nhan-chi-tiet').textContent =
                 `Giường ${maThanhCong} — ${ten} — ${sdt}` +
@@ -723,6 +775,7 @@
                 noiXuatPhatTinh = diemDenTinh
                 diemDenTinh = tam
                 renderChieuSelector(entry)
+                capNhatGiaVeBar()
             })
             wrap.querySelectorAll('.route-place-value').forEach(el => {
                 el.addEventListener('click', (e) => {
@@ -762,6 +815,7 @@
                     else diemDenTinh = tinh
                     dongDiaDiemPicker()
                     renderChieuSelector(entryDangChonChieu)
+                    capNhatGiaVeBar()
                 })
             })
             document.getElementById('dia-diem-picker').classList.add('open')
@@ -827,6 +881,7 @@
             currentChuyen.diemLenId = timDiemChoTinh(noiXuatPhatTinh.ma)?.id || null
             currentChuyen.diemXuongId = timDiemChoTinh(diemDenTinh.ma)?.id || null
             selectedGiuongMap.clear()
+            capNhatGiaVeBar()
             document.getElementById('dat-ve-form').style.display = 'none'
             pushBackGuard()
             renderChuyenDaChonBar()
@@ -847,6 +902,7 @@
             soDoData = []
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
+            capNhatGiaVeBar()
             renderChonChuyenStep()
         }
 

@@ -145,6 +145,33 @@
             width: 100%; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
             font-size: 16px; font-family: inherit; box-sizing: border-box; margin-bottom: 8px;
         }
+        /* Bảng giá theo tỉnh (2026-09-19) — modal bottom-sheet cùng pattern .ve-modal/
+           .diemkhach-modal ở trên (list 17 tỉnh, mỗi dòng 1 ô nhập nghìn đồng + chữ đọc số, 1 nút
+           Lưu duy nhất cho cả bảng — xem CLAUDE.md). */
+        .gia-tinh-modal {
+            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+        }
+        .gia-tinh-modal.open { display: flex; }
+        .gia-tinh-modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+        .gia-tinh-modal-card {
+            position: relative; width: 100%; max-width: 480px; background: var(--white);
+            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+            max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow);
+        }
+        .gia-tinh-modal-card h3 { margin: 0 0 14px; font-size: 17px; }
+        .gia-tinh-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .gia-tinh-row:last-of-type { border-bottom: none; }
+        .gia-tinh-row-ten { font-weight: 600; margin-bottom: 6px; }
+        .gia-tinh-row input {
+            width: 100%; padding: 11px 13px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 16px; font-family: inherit; box-sizing: border-box;
+        }
+        .gia-tinh-modal-actions { display: flex; gap: 10px; margin-top: 18px; position: sticky; bottom: 0; background: var(--white); padding-top: 8px; }
+        .btn-gia-tinh-mo {
+            display: block; margin: 8px 16px 0; padding: 9px; width: calc(100% - 32px);
+            border: 1.5px solid var(--primary); border-radius: var(--radius-sm); background: var(--white);
+            color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +188,8 @@
     </div>
 
     <div class="doanhthu-ve-summary" id="doanhthu-ve-summary"></div>
+
+    <button type="button" class="btn-gia-tinh-mo" id="btn-gia-tinh-mo">💰 Giá vé theo tỉnh</button>
 
     <div class="view-toggle">
         <button type="button" class="view-tab active" id="tab-view-so-do">🗺️ Sơ đồ</button>
@@ -279,6 +308,18 @@
         </div>
     </div>
 
+    <div class="gia-tinh-modal" id="gia-tinh-modal">
+        <div class="gia-tinh-modal-backdrop"></div>
+        <div class="gia-tinh-modal-card">
+            <h3>💰 Giá vé theo tỉnh</h3>
+            <div id="gia-tinh-list"></div>
+            <div class="gia-tinh-modal-actions">
+                <button type="button" class="btn-ve-dong" id="btn-gia-tinh-dong">Đóng</button>
+                <button type="button" class="btn-ve-luu" id="btn-gia-tinh-luu">💾 Lưu bảng giá</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -317,7 +358,10 @@
         }
 
         async function loadTinhList() {
-            const { data, error } = await sb.from('tinh_tuyen').select('ma, ten, thu_tu').order('thu_tu')
+            // gia_moc — mốc giá theo tỉnh (đồng, nullable), dùng tính giá vé = |mốc đến − mốc đi|
+            // ở dat-ve.html — xem SPEC "Bảng giá theo tỉnh" trong CLAUDE.md. Sửa qua modal
+            // #gia-tinh-modal bên dưới, KHÔNG có UI riêng ở hang.html/manifest-hang.html.
+            const { data, error } = await sb.from('tinh_tuyen').select('ma, ten, thu_tu, gia_moc').order('thu_tu')
             if (error) { showToast('Lỗi tải tỉnh: ' + error.message, 'error'); return }
             tinhList = data || []
         }
@@ -755,6 +799,76 @@
             renderDiemKhachOptions(target, currentChuyen.chieu, data.id)
             showToast('Đã thêm điểm', 'success')
             closeDiemKhachModal()
+        })
+
+        // === Modal "Giá vé theo tỉnh" ===
+        // 17 tỉnh (loại Khánh Hòa, xe không qua — cùng filter đã dùng ở hang.html's loadTinh()),
+        // mỗi dòng 1 ô nhập giá theo NGHÌN ĐỒNG (cùng quy ước tien_thu/tien_thu_ho/ve.gia toàn
+        // app) + chữ đọc số bên dưới, prefill giá trị hiện có. `giaTinhOriginal` chụp lại
+        // gia_moc lúc MỞ modal (đồng, có thể null) để lúc Lưu chỉ UPDATE đúng dòng đã đổi giá trị.
+        let giaTinhOriginal = new Map()
+        function renderGiaTinhList() {
+            const wrap = document.getElementById('gia-tinh-list')
+            wrap.textContent = ''
+            giaTinhOriginal = new Map()
+            tinhList.filter(t => t.ma !== 'KHH').forEach(t => {
+                giaTinhOriginal.set(t.ma, t.gia_moc ?? null)
+                const row = document.createElement('div')
+                row.className = 'gia-tinh-row'
+                row.innerHTML = `
+                    <div class="gia-tinh-row-ten">${t.ten}</div>
+                    <input type="number" inputmode="numeric" class="gia-tinh-input" data-ma="${t.ma}"
+                        placeholder="vd 550 = 550.000đ" value="${t.gia_moc != null ? t.gia_moc / 1000 : ''}">
+                    <div class="tien-chu gia-tinh-chu"></div>
+                `
+                wrap.appendChild(row)
+                const input = row.querySelector('.gia-tinh-input')
+                const chuEl = row.querySelector('.gia-tinh-chu')
+                const capNhatChu = () => {
+                    const raw = input.value.trim()
+                    const so = raw === '' ? null : Number(raw) * 1000
+                    chuEl.textContent = so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+                }
+                capNhatChu()
+                input.addEventListener('input', capNhatChu)
+            })
+        }
+        function openGiaTinhModal() {
+            renderGiaTinhList()
+            document.getElementById('gia-tinh-modal').classList.add('open')
+        }
+        function closeGiaTinhModal() {
+            document.getElementById('gia-tinh-modal').classList.remove('open')
+        }
+        document.getElementById('btn-gia-tinh-mo').addEventListener('click', openGiaTinhModal)
+        document.querySelector('#gia-tinh-modal .gia-tinh-modal-backdrop').addEventListener('click', closeGiaTinhModal)
+        document.getElementById('btn-gia-tinh-dong').addEventListener('click', closeGiaTinhModal)
+
+        // Chỉ đây là nơi DUY NHẤT ghi `tinh_tuyen.gia_moc` trong app — không phải hành động phá
+        // huỷ (chỉ chỉnh cấu hình giá) nên KHÔNG dùng confirmDialog(), khác quy ước "Kết thúc
+        // chuyến"/"Hủy đơn". Chỉ UPDATE các dòng có giá trị THAY ĐỔI so với `giaTinhOriginal` —
+        // tránh ghi lại 17 dòng mỗi lần bấm Lưu dù phần lớn không đổi gì.
+        document.getElementById('btn-gia-tinh-luu').addEventListener('click', async () => {
+            const inputs = [...document.querySelectorAll('.gia-tinh-input')]
+            const thayDoi = []
+            for (const input of inputs) {
+                const ma = input.dataset.ma
+                const raw = input.value.trim()
+                const giaMoi = raw === '' ? null : Number(raw) * 1000
+                if (giaMoi !== null && (!Number.isFinite(giaMoi) || giaMoi < 0)) {
+                    showToast(`Giá không hợp lệ: ${ma}`, 'error'); return
+                }
+                if (giaMoi !== (giaTinhOriginal.get(ma) ?? null)) thayDoi.push({ ma, giaMoi })
+            }
+            if (!thayDoi.length) { closeGiaTinhModal(); return }
+            for (const { ma, giaMoi } of thayDoi) {
+                const { error } = await sb.from('tinh_tuyen').update({ gia_moc: giaMoi }).eq('ma', ma)
+                if (error) { showToast(`Lỗi lưu giá ${ma}: ${error.message}`, 'error'); return }
+                const t = tinhList.find(x => x.ma === ma)
+                if (t) t.gia_moc = giaMoi
+            }
+            showToast('Đã lưu bảng giá', 'success')
+            closeGiaTinhModal()
         })
 
         const { open: openMenu } = renderSideMenu(sb)

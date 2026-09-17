@@ -10,7 +10,10 @@ export default async function handler(req, res) {
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
     const [diemRes, tinhRes] = await Promise.all([
         sbAdmin.from('diem_khach').select('id, ten, tinh_ma, thu_tu'),
-        sbAdmin.from('tinh_tuyen').select('ma, ten, thu_tu').order('thu_tu')
+        // gia_moc — mốc giá theo tỉnh (đồng, nullable), dat-ve.html dùng tính giá vé =
+        // |mốc(tỉnh đến) − mốc(tỉnh đi)| ở Bước 0 (client, chỉ để hiển thị — giá thật do server
+        // tự tính lại ở api/cong-khai-dat-ve.js, xem CLAUDE.md).
+        sbAdmin.from('tinh_tuyen').select('ma, ten, thu_tu, gia_moc').order('thu_tu')
     ])
     if (diemRes.error) { res.status(500).json({ error: diemRes.error.message }); return }
     if (tinhRes.error) { res.status(500).json({ error: tinhRes.error.message }); return }

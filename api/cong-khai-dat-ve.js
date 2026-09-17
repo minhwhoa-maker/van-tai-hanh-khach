@@ -9,6 +9,10 @@
 // Nhận CHUYEN_ID trực tiếp (chuyến đã có sẵn) HOẶC {ngay, chieu} (lịch chạy cố định — xem
 // api/cong-khai-lich-chay.js) để TỰ TẠO `chuyen` (trang_thai='dat_truoc') nếu ngày đó chưa có ai
 // đặt trước, xem SPEC "Lịch chạy cố định theo ngày chẵn âm lịch" trong CLAUDE.md.
+//
+// Giá vé (`ve.gia`) LUÔN do SERVER tự tính lại từ `tinh_tuyen.gia_moc` (2 mã tỉnh client gửi kèm
+// qua `tinh_len_ma`/`tinh_xuong_ma`), KHÔNG bao giờ tin `gia` client gửi lên (có thể bị sửa qua
+// DevTools trước khi gửi request) — xem SPEC "Bảng giá theo tỉnh" trong CLAUDE.md.
 import { createClient } from '@supabase/supabase-js'
 
 function docGioEnv(bien, fallback) {
@@ -52,7 +56,7 @@ function laSdtHopLe(daChuanHoa) {
 export default async function handler(req, res) {
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
 
-    const { chuyen_id, ngay, chieu, giuong_id, ten, sdt, diem_len_id, diem_xuong_id, hinh_thuc_thanh_toan, gia } = req.body || {}
+    const { chuyen_id, ngay, chieu, giuong_id, ten, sdt, diem_len_id, diem_xuong_id, hinh_thuc_thanh_toan, tinh_len_ma, tinh_xuong_ma } = req.body || {}
 
     if (!giuong_id) { res.status(400).json({ error: 'Thiếu giuong_id' }); return }
     if (!chuyen_id && !(ngay && chieu)) { res.status(400).json({ error: 'Thiếu chuyen_id hoặc ngay/chieu' }); return }
@@ -67,13 +71,24 @@ export default async function handler(req, res) {
     if (hinh_thuc_thanh_toan !== 'tien_mat_len_xe' && hinh_thuc_thanh_toan !== 'chuyen_khoan_truoc') {
         res.status(400).json({ error: 'Vui lòng chọn phương thức thanh toán' }); return
     }
-    let giaSo = null
-    if (gia !== undefined && gia !== null && gia !== '') {
-        giaSo = Number(gia)
-        if (!Number.isFinite(giaSo) || giaSo < 0) { res.status(400).json({ error: 'Giá vé không hợp lệ' }); return }
-    }
 
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+
+    // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)|,
+    // tính LẠI HOÀN TOÀN Ở SERVER từ `tinh_len_ma`/`tinh_xuong_ma` client gửi kèm (không phải từ
+    // `diem_len_id`/`diem_xuong_id` — 2 field đó chỉ là điểm CỤ THỂ, có thể null, không đủ để suy
+    // ra tỉnh nếu chưa có `diem_khach` nào). `null` nếu thiếu mã tỉnh hoặc 1 trong 2 tỉnh chưa có
+    // `gia_moc` — coi như "chưa định giá", KHÔNG chặn đặt vé (giữ hành vi cũ).
+    let giaSo = null
+    if (tinh_len_ma && tinh_xuong_ma) {
+        const { data: tinhRows, error: tinhErr } = await sbAdmin
+            .from('tinh_tuyen').select('ma, gia_moc').in('ma', [tinh_len_ma, tinh_xuong_ma])
+        if (tinhErr) { res.status(500).json({ error: tinhErr.message }); return }
+        const mocMap = new Map(tinhRows.map(t => [t.ma, t.gia_moc]))
+        const mocDi = mocMap.get(tinh_len_ma)
+        const mocDen = mocMap.get(tinh_xuong_ma)
+        if (mocDi != null && mocDen != null) giaSo = Math.abs(Number(mocDen) - Number(mocDi))
+    }
 
     let chuyenId = chuyen_id
 
