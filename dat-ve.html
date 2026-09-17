@@ -69,12 +69,17 @@
         .lich-chieu-wrap { margin: 14px 16px 0; }
         /* Chọn chiều kiểu "Nơi xuất phát / Điểm đến" giống Vexere (2026-09-19, đợt 4, theo yêu
            cầu) — thay cho 2 nút rời rạc "Đắk Lắk → Hải Dương"/"Hải Dương → Đắk Lắk" trước đó. Vì
-           app chỉ có ĐÚNG 2 hướng cố định (không phải chọn tự do như Vexere), nút "⇅" ở đây chỉ
-           TOGGLE giữa 2 hướng có sẵn (không mở ô tìm kiếm tự do) — bấm "Tiếp tục" mới thật sự chọn
-           xong (gọi `chonChuyen`), tương đương bấm 1 trong 2 nút cũ. */
+           app chỉ có ĐÚNG 2 hướng cố định (không phải chọn tự do như Vexere), bấm BẤT KỲ ĐÂU trong
+           khối này chỉ TOGGLE giữa 2 hướng có sẵn ngay tại trang, không mở ô tìm kiếm/popup nào —
+           bấm "Tiếp tục" mới thật sự chọn xong (gọi `chonChuyen`). Đợt 5 (cùng ngày): mở rộng vùng
+           bắt click từ chỉ đúng nút tròn "⇅" (38px, dễ bấm trượt sang chữ) ra CẢ KHỐI, kèm
+           `user-select:none` — trước đó bấm trúng chữ "Đắk Lắk"/"Hải Dương" bị Android Chrome hiểu
+           thành CHỌN TEXT, bật popup "Tìm kiếm trên Google" thay vì đổi chiều (lỗi thật, xem ảnh
+           chụp báo lỗi). */
         .route-select-wrap {
-            position: relative; margin: 0 0 10px; padding: 12px 50px 12px 16px;
+            position: relative; margin: 0 0 10px; padding: 12px 50px 12px 16px; cursor: pointer;
             background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
         }
         .route-select-wrap::before {
             content: ''; position: absolute; left: 21px; top: 28px; bottom: 28px;
@@ -676,7 +681,12 @@
                 ${info.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
                 <button type="button" class="btn-dat-ve" id="route-confirm-btn">Tiếp tục</button>
             `
-            document.getElementById('route-swap-btn').addEventListener('click', () => {
+            // Cả khối (không chỉ riêng nút "⇅") bấm vào đâu cũng đổi chiều — vùng chạm nhỏ trước
+            // đó (chỉ đúng nút tròn 38px) khiến khách bấm nhầm vào chữ "Đắk Lắk"/"Hải Dương", trên
+            // Android Chrome việc đó chọn text + bật popup "Tìm kiếm trên Google" thay vì đổi
+            // chiều — thêm `user-select:none` (CSS) NGĂN chọn text, và toàn bộ `.route-select-wrap`
+            // giờ đều bắt click để đổi chiều ngay tại trang, không còn popup nào cả.
+            document.querySelector('.route-select-wrap').addEventListener('click', () => {
                 chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'
                 renderChieuSelector(entry)
             })

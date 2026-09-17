@@ -276,6 +276,16 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     Nút "Tiếp tục" (dùng lại class `.btn-dat-ve` có sẵn — không tạo class mới cho 1 nút full-width
     màu primary) mới thật sự gọi `chonChuyen`, tương đương hành vi bấm 1 trong 2 nút rời rạc ở bản
     trước — KHÔNG đổi gì ở `chonChuyen`/các bước sau, chỉ đổi UI CHỌN chiều.
+    - **Bug thật gặp ngay sau khi ra mắt (2026-09-19, đợt 5, cùng ngày)** — listener đổi chiều ban
+      đầu chỉ gắn vào `#route-swap-btn` (nút tròn 38px), khách bấm trúng CHỮ "Đắk Lắk"/"Hải Dương"
+      (vùng chạm lớn hơn, trực giác hơn nút tròn nhỏ) thì KHÔNG đổi chiều mà bị Android Chrome hiểu
+      thành thao tác CHỌN TEXT, bật popup gốc trình duyệt "Tìm kiếm trên Google" — trải nghiệm rất
+      tệ trên PWA (giống hệt lý do `confirmDialog()` thay `confirm()` gốc ở các trang crew). Sửa 2
+      phần: (1) `user-select: none` + `-webkit-tap-highlight-color: transparent` trên
+      `.route-select-wrap` — chặn hẳn khả năng chọn text trong khối; (2) listener đổi chiều dời từ
+      `#route-swap-btn` sang GẮN THẲNG vào `.route-select-wrap` (`document.querySelector`, không
+      còn giữ `id` riêng cho nút — bấm nút tròn vẫn hoạt động qua bubbling) — cả khối giờ là 1 vùng
+      chạm lớn, bấm đâu cũng đổi chiều ngay tại trang, đúng yêu cầu "không popup".
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
