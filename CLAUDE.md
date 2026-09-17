@@ -554,8 +554,16 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
   `Math.abs(a - b)`. **Thanh `#gia-ve-bar` cố định đáy màn hình** (`position: fixed; bottom: 0`,
   kiểu Vexere "Đã chọn N chỗ · Tổng: Xđ") — CHỈ hiện khi `selectedGiuongMap.size > 0`, nội dung
   `"Đã chọn N giường · Tổng: {N × giá vé}"` hoặc `"Đã chọn N giường · Giá: liên hệ sau"` nếu `null`.
-  **KHÔNG có nút riêng trên thanh** — nút "Đặt vé" thật vẫn trong `.dat-ve-form` như cũ, tránh trùng
-  logic submit. Cập nhật qua `capNhatGiaVeBar()`, gọi ở mọi điểm đổi `selectedGiuongMap` (
+  **Nút "Tiếp tục" trên thanh (đợt 13, 2026-09-19, theo yêu cầu — đổi ngay sau đợt 12 cùng ngày,
+  owner muốn giống đúng luồng Vexere: chọn ghế → bấm Tiếp tục → mới điền thông tin)** — trước đó
+  chọn giường XONG là TỰ ĐỘNG hiện `.dat-ve-form` ngay (`capNhatFormChonGiuong` tự set
+  `display:block` + cuộn xuống); giờ chọn/bỏ giường CHỈ cập nhật dòng "Giường đã chọn" và số tiền
+  trên bar, KHÔNG tự hiện form nữa — `moFormLienHe()` (gọi từ `#btn-gia-ve-tiep-tuc`) là đường DUY
+  NHẤT set `display:block` + `scrollIntoView`. Bỏ chọn hết giường vẫn tự ẩn form như cũ (giữ nguyên
+  ở `capNhatFormChonGiuong`, chỉ bỏ nhánh TỰ HIỆN). `#gia-ve-bar` đổi cấu trúc: 2 con `#gia-ve-bar-
+  text` (nội dung) + `#btn-gia-ve-tiep-tuc` (nút trắng nổi trên nền xanh `--primary` của bar), toggle
+  hiện/ẩn qua class `.hien` (`display:flex`) thay vì gán trực tiếp `style.display` như trước — do
+  bar giờ là flex-row 2 phần tử, không còn 1 khối text đơn. Cập nhật qua `capNhatGiaVeBar()`, gọi ở mọi điểm đổi `selectedGiuongMap` (
   `toggleChonGiuong`, cả 2 nhánh kết quả đặt vé, `doiChuyenKhac`, đầu `chonChuyen`) và mọi điểm đổi
   tỉnh ở Bước 0 (`#route-swap-btn`, chọn tỉnh trong `#dia-diem-picker`) — dù về lý thuyết tỉnh chỉ
   đổi được TRƯỚC khi có giường nào được chọn (Bước 0 tự thu gọn sau khi confirm) nên 2 nhóm gọi này
