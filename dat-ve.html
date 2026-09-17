@@ -26,9 +26,17 @@
         .gia-ve-bar {
             display: none; position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
             width: 100%; max-width: 480px; box-sizing: border-box; z-index: 500;
-            background: var(--primary); color: #fff; text-align: center;
-            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-            font-size: 14px; font-weight: 700; box-shadow: 0 -2px 10px rgba(0,0,0,.15);
+            background: var(--primary); color: #fff;
+            padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+            box-shadow: 0 -2px 10px rgba(0,0,0,.15);
+            align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .gia-ve-bar.hien { display: flex; }
+        .gia-ve-bar-text { font-size: 13px; font-weight: 700; line-height: 1.4; }
+        .btn-gia-ve-tiep-tuc {
+            flex-shrink: 0; padding: 11px 22px; border: none; border-radius: var(--radius-sm);
+            background: #fff; color: var(--primary); font-size: 15px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
         }
         .public-header {
             background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
@@ -339,7 +347,10 @@
         </div>
     </div>
 
-    <div class="gia-ve-bar" id="gia-ve-bar"></div>
+    <div class="gia-ve-bar" id="gia-ve-bar">
+        <div class="gia-ve-bar-text" id="gia-ve-bar-text"></div>
+        <button type="button" class="btn-gia-ve-tiep-tuc" id="btn-gia-ve-tiep-tuc">Tiếp tục</button>
+    </div>
 
     <div class="toast" id="toast"></div>
 
@@ -414,22 +425,23 @@
             return Math.abs(a - b)
         }
 
-        // Thanh tổng cố định đáy màn hình (kiểu Vexere "Đã chọn N chỗ · Tổng: Xđ") — CHỈ hiện khi
-        // đang chọn ít nhất 1 giường. KHÔNG có nút riêng trên thanh này (giữ tối thiểu thay đổi) —
-        // nút "Đặt vé" thật vẫn nằm trong .dat-ve-form như cũ.
+        // Thanh tổng cố định đáy màn hình (kiểu Vexere "Đã chọn N chỗ · Tổng: Xđ" + nút "Tiếp
+        // tục") — CHỈ hiện khi đang chọn ít nhất 1 giường. Nút "Tiếp tục" (đợt 13, theo yêu cầu
+        // giống Vexere) là nơi DUY NHẤT mở `.dat-ve-form` — chọn giường xong KHÔNG tự hiện form
+        // điền thông tin nữa (xem `moFormLienHe`/`capNhatFormChonGiuong`), phải bấm nút này trước.
         function capNhatGiaVeBar() {
             const bar = document.getElementById('gia-ve-bar')
             const n = selectedGiuongMap.size
             if (!n) {
-                bar.style.display = 'none'
+                bar.classList.remove('hien')
                 document.body.classList.remove('co-gia-ve-bar')
                 return
             }
             const giaVe = tinhGiaVe()
-            bar.textContent = giaVe == null
+            document.getElementById('gia-ve-bar-text').textContent = giaVe == null
                 ? `Đã chọn ${n} giường · Giá: liên hệ sau`
                 : `Đã chọn ${n} giường · Tổng: ${formatMoney(giaVe * n)}`
-            bar.style.display = 'block'
+            bar.classList.add('hien')
             document.body.classList.add('co-gia-ve-bar')
         }
 
@@ -478,8 +490,11 @@
             capNhatGiaVeBar()
         }
 
-        // Cập nhật dòng "Giường đã chọn" + hiện/ẩn form theo số lượng đang chọn — 0 giường thì ẩn
-        // hẳn form (bỏ chọn giường cuối cùng cũng coi như đóng form).
+        // Cập nhật dòng "Giường đã chọn" — 0 giường thì ẩn hẳn form (bỏ chọn giường cuối cùng cũng
+        // coi như đóng form, phải bấm "Tiếp tục" lại từ đầu nếu chọn lại). KHÔNG tự hiện form nữa
+        // (đợt 13, theo yêu cầu giống Vexere: chọn giường xong bấm "Tiếp tục" trên #gia-ve-bar mới
+        // điền thông tin) — nếu form ĐANG mở sẵn (khách đã bấm "Tiếp tục" rồi quay lại đổi giường)
+        // thì chỉ cập nhật lại nội dung, không đụng `display`.
         function capNhatFormChonGiuong() {
             const list = [...selectedGiuongMap.values()]
             const formEl = document.getElementById('dat-ve-form')
@@ -489,10 +504,15 @@
             }
             document.getElementById('giuong-da-chon').textContent =
                 `Giường đã chọn (${list.length}): ${list.map(g => g.ma).join(', ')}`
-            const wasHidden = formEl.style.display !== 'block'
-            formEl.style.display = 'block'
-            if (wasHidden) formEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
+
+        // Duy nhất đường mở `.dat-ve-form` — gọi từ nút "Tiếp tục" trên #gia-ve-bar.
+        function moFormLienHe() {
+            const formEl = document.getElementById('dat-ve-form')
+            formEl.style.display = 'block'
+            formEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+        document.getElementById('btn-gia-ve-tiep-tuc').addEventListener('click', moFormLienHe)
 
         document.querySelectorAll('input[name="thanh-toan"]').forEach(r => {
             r.addEventListener('change', () => {
