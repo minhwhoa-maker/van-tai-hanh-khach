@@ -1,6 +1,7 @@
 {
-  "name": "EaKar Xe Khách - Đặt vé",
-  "short_name": "Đặt vé EaKar",
+  "id": "/dat-ve.html",
+  "name": "Booking",
+  "short_name": "Booking",
   "description": "Đặt vé xe khách giường nằm tuyến Đắk Lắk - Hải Dương",
   "start_url": "./dat-ve.html",
   "scope": "./dat-ve.html",
@@ -11,25 +12,25 @@
   "lang": "vi",
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/icon-192-booking.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-192.png",
+      "src": "icons/icon-192-booking.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/icon-512-booking.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/icon-512-booking.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

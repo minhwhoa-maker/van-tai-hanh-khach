@@ -6,11 +6,14 @@
     <meta name="theme-color" content="#1565c0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192-booking.png">
     <title>Đặt vé xe khách</title>
-    <!-- Manifest RIÊNG cho trang này (2026-09-18) — `scope: "./dat-ve.html"` giới hạn PWA chỉ áp
-         dụng đúng URL này, KHÔNG dùng chung manifest.json của 5 trang crew (scope "./" bao trùm cả
-         app crew, sai hoàn toàn cho 1 trang public độc lập). Xem SPEC "Đặt vé công khai" CLAUDE.md. -->
+    <!-- Manifest RIÊNG cho trang này (2026-09-18, đợt 15: icon/tên/id TÁCH HẲN khỏi app crew —
+         Chrome từng báo "This app is already installed" lúc cài, vì scope "./" của manifest.json
+         (crew) VỀ MẶT KỸ THUẬT đã bao trùm luôn URL /dat-ve.html, cộng thêm dùng chung icon khiến
+         nhìn giống 1 app. `id` tường minh + icon riêng (icons/icon-*-booking.png, không dùng chung
+         file với crew) + tên "Booking" đảm bảo Chrome/Android coi đây là 1 app độc lập hoàn toàn,
+         không đề nghị "mở app đã cài" khi khách bấm "Thêm vào màn hình chính". Xem CLAUDE.md. -->
     <link rel="manifest" href="manifest-dat-ve.json">
     <link rel="stylesheet" href="style.css">
     <style>

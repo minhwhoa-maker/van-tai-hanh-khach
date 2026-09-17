@@ -3,14 +3,16 @@
 // sw.js của crew fallback offline về './login.html' (đúng cho app nội bộ, sai hoàn toàn cho khách
 // công khai — khách vãng lai không có tài khoản, không nên bị đưa tới màn đăng nhập crew). Xem
 // SPEC "Đặt vé công khai cho khách" trong CLAUDE.md.
-const CACHE_NAME = 'eakar-dat-ve-v1';
+// v2 (2026-09-18, đợt 15): đổi icon riêng (icon-*-booking.png, không dùng chung file với crew nữa
+// — xem lý do ở dat-ve.html) — bump CACHE_NAME để dọn sạch entry icon cũ trong cache trình duyệt.
+const CACHE_NAME = 'eakar-dat-ve-v2';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',
     './style.css',
     './manifest-dat-ve.json',
-    './icons/icon-192.png',
-    './icons/icon-512.png'
+    './icons/icon-192-booking.png',
+    './icons/icon-512-booking.png'
 ];
 
 self.addEventListener('install', e => {
