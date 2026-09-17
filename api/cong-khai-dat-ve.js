@@ -60,7 +60,10 @@ export default async function handler(req, res) {
     if (!tenSach) { res.status(400).json({ error: 'Vui lòng nhập tên' }); return }
     const sdtChuan = chuanHoaSdt(sdt)
     if (!laSdtHopLe(sdtChuan)) { res.status(400).json({ error: 'Số điện thoại không hợp lệ' }); return }
-    if (!diem_len_id || !diem_xuong_id) { res.status(400).json({ error: 'Vui lòng chọn điểm lên/xuống' }); return }
+    // diem_len_id/diem_xuong_id KHÔNG còn bắt buộc (đợt 10, 2026-09-19) — dat-ve.html bỏ hẳn Bước
+    // "Chọn điểm lên/xuống" (dropdown diem_khach cụ thể), tự suy ra điểm ĐẦU TIÊN của tỉnh đã chọn
+    // ở Bước 0 (client-side, xem CLAUDE.md) hoặc để null nếu tỉnh đó chưa có diem_khach nào — cả 2
+    // cột đã nullable sẵn trong schema, không cần migration.
     if (hinh_thuc_thanh_toan !== 'tien_mat_len_xe' && hinh_thuc_thanh_toan !== 'chuyen_khoan_truoc') {
         res.status(400).json({ error: 'Vui lòng chọn phương thức thanh toán' }); return
     }

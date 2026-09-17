@@ -138,24 +138,6 @@
             background: none; border: none; color: var(--primary); font-size: 13px; font-weight: 600;
             cursor: pointer; font-family: inherit; text-decoration: underline; flex-shrink: 0; padding: 0;
         }
-        /* Bước 1 — chọn điểm lên/xuống TRƯỚC sơ đồ giường (2026-09-17, theo yêu cầu owner: khách
-           xác định trọn hành trình rồi mới chọn giường, thay vì chọn giường xong mới hỏi điểm như
-           bản đầu). Dùng chung style khung trắng với .dat-ve-form cho đồng bộ hình thức. */
-        .diem-chon-wrap {
-            display: none; margin: 16px; padding: 16px; background: var(--white);
-            border-radius: var(--radius-sm); border: 1.5px solid var(--border);
-        }
-        .diem-chon-wrap h3 { margin: 0 0 12px; font-size: 16px; }
-        .diem-chon-wrap label { display: block; font-size: 13px; color: var(--text-muted); margin: 0 0 4px; }
-        .diem-chon-wrap label:not(:first-of-type) { margin-top: 12px; }
-        .diem-chon-wrap select {
-            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
-        }
-        .cho-chon-diem-hint {
-            display: none; margin: 16px; padding: 16px; text-align: center; color: var(--text-muted);
-            font-size: 13px; background: var(--white); border-radius: var(--radius-sm); border: 1.5px dashed var(--border);
-        }
         .khong-co-chuyen {
             margin: 24px 16px; padding: 20px 16px; text-align: center; color: var(--text-muted);
             background: var(--white); border-radius: var(--radius-sm); border: 1.5px solid var(--border);
@@ -237,18 +219,8 @@
 
     <div id="chuyen-info-wrap"></div>
 
-    <div class="diem-chon-wrap" id="diem-chon-wrap">
-        <h3>1. Chọn điểm lên & điểm xuống</h3>
-        <label>Điểm lên *</label>
-        <select id="diem-len-select"><option value="">— Chọn điểm lên —</option></select>
-        <label>Điểm xuống *</label>
-        <select id="diem-xuong-select"><option value="">— Chọn điểm xuống —</option></select>
-    </div>
-
-    <div class="cho-chon-diem-hint" id="cho-chon-diem-hint">Chọn xong điểm lên & điểm xuống ở trên để xem sơ đồ giường.</div>
-
     <div id="so-do-wrap" style="display:none;">
-        <h3 style="margin:16px 16px 4px; font-size:16px;">2. Chọn giường</h3>
+        <h3 style="margin:16px 16px 4px; font-size:16px;">1. Chọn giường</h3>
         <div class="chu-thich-giuong">
             <div class="chu-thich-item">
                 <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
@@ -307,7 +279,7 @@
     </div>
 
     <div class="dat-ve-form" id="dat-ve-form">
-        <h3>3. Thông tin liên hệ & thanh toán</h3>
+        <h3>2. Thông tin liên hệ & thanh toán</h3>
         <div class="giuong-da-chon" id="giuong-da-chon"></div>
         <label>Họ tên *</label>
         <input type="text" id="f-ten" placeholder="Nhập họ tên">
@@ -390,28 +362,17 @@
             setTimeout(() => toast.className = 'toast', 3000)
         }
 
-        function renderDiemKhachOptions(selectEl, chieu, selectedId) {
-            const thuTuMap = new Map(tinhList.map(t => [t.ma, t.thu_tu]))
-            const sorted = [...diemKhachList].sort((a, b) => {
-                const ta = thuTuMap.get(a.tinh_ma) ?? 0
-                const tb = thuTuMap.get(b.tinh_ma) ?? 0
-                const d = chieu === 'nam' ? tb - ta : ta - tb
-                if (d !== 0) return d
-                return (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi')
-            })
-            selectEl.textContent = ''
-            const optEmpty = document.createElement('option')
-            optEmpty.value = ''
-            optEmpty.textContent = '— Chọn điểm —'
-            selectEl.appendChild(optEmpty)
-            sorted.forEach(d => {
-                const tinh = tinhList.find(t => t.ma === d.tinh_ma)
-                const opt = document.createElement('option')
-                opt.value = d.id
-                opt.textContent = `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
-                selectEl.appendChild(opt)
-            })
-            selectEl.value = selectedId || ''
+        // Bỏ hẳn Bước "Chọn điểm lên/xuống" (dropdown diem_khach, đợt 10, 2026-09-19, theo yêu
+        // cầu) — thay bằng tự suy ĐIỂM ĐẦU TIÊN (theo thu_tu, null xuống cuối) của đúng tỉnh vừa
+        // chọn ở Bước 0 (`noiXuatPhatTinh`/`diemDenTinh`), không hỏi lại khách. Tỉnh chưa có
+        // `diem_khach` nào (đa số 17 tỉnh hiện chỉ Đắk Lắk/Hải Dương có điểm, xem CLAUDE.md) →
+        // trả `null`, `chonChuyen` vẫn cho đặt vé bình thường với `diem_len_id`/`diem_xuong_id`
+        // để trống (2 cột đã nullable sẵn trong schema) — crew tự điền điểm chính xác sau qua
+        // `khach.html` nếu cần.
+        function timDiemChoTinh(tinhMa) {
+            const list = diemKhachList.filter(d => d.tinh_ma === tinhMa)
+                .sort((a, b) => (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi'))
+            return list[0] || null
         }
 
         function renderMotTang(tang, wrapId, captionId) {
@@ -450,20 +411,6 @@
             renderMotTang(1, 'seat-grid-wrap-1', 'availability-caption-1')
             renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
         }
-
-        // Bước 1 (điểm lên/xuống) phải chọn xong CẢ 2 mới hiện Bước 2 (sơ đồ giường) — sơ đồ vẫn
-        // được tải sẵn ở initPage (không chờ tới lúc này), chỉ ẨN/HIỆN theo điều kiện, tránh phải
-        // fetch lại mỗi lần đổi điểm. Đổi điểm sau khi đã chọn giường KHÔNG xoá giường đã chọn —
-        // chỉ ẩn/hiện lại khối, giường vẫn giữ nguyên trong selectedGiuongMap.
-        function capNhatHienThiSoDo() {
-            const coDuDiem = document.getElementById('diem-len-select').value && document.getElementById('diem-xuong-select').value
-            document.getElementById('so-do-wrap').style.display = coDuDiem ? 'block' : 'none'
-            document.getElementById('cho-chon-diem-hint').style.display = coDuDiem ? 'none' : 'block'
-            if (!coDuDiem) document.getElementById('dat-ve-form').style.display = 'none'
-            else capNhatFormChonGiuong()
-        }
-        document.getElementById('diem-len-select').addEventListener('change', capNhatHienThiSoDo)
-        document.getElementById('diem-xuong-select').addEventListener('change', capNhatHienThiSoDo)
 
         function toggleChonGiuong(g) {
             if (selectedGiuongMap.has(g.id)) selectedGiuongMap.delete(g.id)
@@ -505,12 +452,15 @@
             if (!currentChuyen || !dsGiuong.length) return
             const ten = document.getElementById('f-ten').value.trim()
             const sdt = document.getElementById('f-sdt').value.trim()
-            const diemLenId = document.getElementById('diem-len-select').value
-            const diemXuongId = document.getElementById('diem-xuong-select').value
+            // diem_len_id/diem_xuong_id tự suy từ tỉnh đã chọn ở Bước 0 (xem timDiemChoTinh, gán
+            // vào currentChuyen lúc chonChuyen) — CÓ THỂ null nếu tỉnh đó chưa có diem_khach nào,
+            // KHÔNG còn chặn đặt vé vì thiếu điểm (đợt 10, 2026-09-19, theo yêu cầu bỏ hẳn Bước
+            // "Chọn điểm lên/xuống").
+            const diemLenId = currentChuyen.diemLenId
+            const diemXuongId = currentChuyen.diemXuongId
             const hinhThuc = document.querySelector('input[name="thanh-toan"]:checked').value
             if (!ten) { showToast('Vui lòng nhập họ tên', 'error'); return }
             if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
-            if (!diemLenId || !diemXuongId) { showToast('Vui lòng chọn điểm lên/xuống', 'error'); return }
 
             const btn = document.getElementById('btn-dat-ve')
             btn.disabled = true
@@ -701,8 +651,8 @@
 
         // 17 tỉnh dọc tuyến cho picker địa danh — loại Khánh Hòa (xe không qua, cùng lý do filter
         // đã có ở hang.html's loadTinh()). Tái dùng `tinhList` đã tải sẵn từ api/cong-khai-diem-khach.js
-        // (đang phục vụ dropdown điểm lên/xuống Bước 1), KHÔNG gọi thêm API riêng. Đã sắp `thu_tu`
-        // tăng dần từ server, không cần sort lại.
+        // (dùng chung với `timDiemChoTinh` để tự suy điểm lên/xuống — xem đợt 10), KHÔNG gọi thêm
+        // API riêng. Đã sắp `thu_tu` tăng dần từ server, không cần sort lại.
         function tinhTuyenChoDatVe() {
             return tinhList.filter(t => t.ma !== 'KHH')
         }
@@ -848,25 +798,25 @@
         })
 
         // Chọn 1 ngày+chiều (bấm nút ở chonNgay) → tải sơ đồ giường CỦA ĐÚNG ngày/chiều đó
-        // (chuyen_id có thể null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn điểm + giường vì
-        // đều gắn với lựa chọn cũ (đổi ngày đi thì giường/điểm của chuyến trước không còn ý nghĩa).
+        // (chuyen_id có thể null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn giường vì gắn với
+        // lựa chọn cũ (đổi ngày đi thì giường của chuyến trước không còn ý nghĩa). KHÔNG còn Bước
+        // "Chọn điểm lên/xuống" riêng (bỏ hẳn 2026-09-19, đợt 10, theo yêu cầu) — đi thẳng từ chọn
+        // tỉnh (Bước 0) sang sơ đồ giường, `diemLenId`/`diemXuongId` tự suy từ tỉnh vừa chọn qua
+        // `timDiemChoTinh` (có thể null nếu tỉnh chưa có `diem_khach`, vẫn cho đặt bình thường).
         async function chonChuyen(c) {
             currentChuyen = c
+            currentChuyen.diemLenId = timDiemChoTinh(noiXuatPhatTinh.ma)?.id || null
+            currentChuyen.diemXuongId = timDiemChoTinh(diemDenTinh.ma)?.id || null
             selectedGiuongMap.clear()
+            document.getElementById('dat-ve-form').style.display = 'none'
             pushBackGuard()
             renderChuyenDaChonBar()
-            document.getElementById('diem-chon-wrap').style.display = 'block'
-            document.getElementById('diem-len-select').value = ''
-            document.getElementById('diem-xuong-select').value = ''
-            renderDiemKhachOptions(document.getElementById('diem-len-select'), c.chieu, '')
-            renderDiemKhachOptions(document.getElementById('diem-xuong-select'), c.chieu, '')
-            capNhatHienThiSoDo()
+            document.getElementById('so-do-wrap').style.display = 'block'
             await taiSoDo()
             // Confirm xong thì lịch/khối chọn chiều (chuyen-info-wrap) THU GỌN LẠI thành 1 thanh
-            // nhỏ (renderChuyenDaChonBar) — trang co lại đột ngột, cuộn xuống tiếp #diem-chon-wrap
-            // như trước đây (giống lúc chọn ngày) khiến người dùng thấy hụt, không rõ vừa xác nhận
-            // xong gì. Cuộn LÊN lại đầu #chuyen-info-wrap thay vào đó — thanh xác nhận + Bước 1 giờ
-            // nằm sát nhau nên cùng lọt vào khung nhìn, không cần cuộn xuống nữa.
+            // nhỏ (renderChuyenDaChonBar) — trang co lại đột ngột, cuộn lên đầu #chuyen-info-wrap
+            // để thanh xác nhận + sơ đồ giường cùng lọt vào khung nhìn (xem đợt 9 — trước đó cuộn
+            // xuống #diem-chon-wrap, bước đó giờ không còn tồn tại).
             document.getElementById('chuyen-info-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
 
@@ -876,8 +826,6 @@
             baseMonthOffset = 0
             selectedGiuongMap.clear()
             soDoData = []
-            document.getElementById('diem-chon-wrap').style.display = 'none'
-            document.getElementById('cho-chon-diem-hint').style.display = 'none'
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
             renderChonChuyenStep()
