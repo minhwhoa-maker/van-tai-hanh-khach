@@ -533,6 +533,53 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
   trạng thái; không huỷ/gộp chuyến `dat_truoc` nếu 0 khách đặt tới sát ngày — crew tự xử lý tay qua
   Supabase dashboard nếu cần, không có luồng UI riêng cho việc này ở bản test.
 
+### Bảng giá theo tỉnh (2026-09-19, đợt 12)
+
+`tinh_tuyen` thêm cột `gia_moc numeric` (nullable, đơn vị **đồng thật**, giống `ve.gia`/
+`kien.tien_thu` — UI luôn nhập/hiện theo nghìn đồng, × 1000 lúc lưu, ÷ 1000 lúc hiện) — **mốc giá**
+riêng từng tỉnh, KHÔNG phải bảng giá 2 chiều/cặp tỉnh riêng. **Giá vé = `|gia_moc(tỉnh đến) −
+gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bước 0 của `dat-ve.html`, không phụ thuộc
+`diem_khach` cụ thể trong tỉnh. `null` ở 1 trong 2 tỉnh → "chưa định giá", không chặn đặt vé.
+
+- **Seed ban đầu (owner cung cấp trực tiếp bằng SQL, không qua modal)**: `DLK=0` (gốc),
+  `DNG,TTH=550000`, `QTR,QBH=600000`, `HTI,NAN=700000`, `THA,NBH,HNI,HYN,HDG=800000`. **5 tỉnh còn
+  lại (KHH, PYN, BDN, QNG, QNM) vẫn `null`** — chưa được owner cho giá, coi như "chưa định giá" cho
+  tới khi crew tự nhập qua modal `khach.html` (KHH bị loại khỏi Bước 0 `dat-ve.html` nên thực chất
+  không cần giá — 4 tỉnh còn lại PYN/BDN/QNG/QNM chọn được nhưng sẽ luôn hiện "Giá: liên hệ sau" cho
+  tới khi có giá).
+- **`api/cong-khai-diem-khach.js`** — `.select(...)` của `tinh_tuyen` (response đã có sẵn, dùng cho
+  dropdown/picker tỉnh ở `dat-ve.html`) thêm cột `gia_moc`, KHÔNG cần API mới.
+- **`dat-ve.html`**: `tinhGiaVe()` đọc `noiXuatPhatTinh.gia_moc`/`diemDenTinh.gia_moc` (đã có sẵn
+  trong `tinhList` fetch từ trên, không fetch thêm) — trả `null` nếu thiếu 1 trong 2, ngược lại
+  `Math.abs(a - b)`. **Thanh `#gia-ve-bar` cố định đáy màn hình** (`position: fixed; bottom: 0`,
+  kiểu Vexere "Đã chọn N chỗ · Tổng: Xđ") — CHỈ hiện khi `selectedGiuongMap.size > 0`, nội dung
+  `"Đã chọn N giường · Tổng: {N × giá vé}"` hoặc `"Đã chọn N giường · Giá: liên hệ sau"` nếu `null`.
+  **KHÔNG có nút riêng trên thanh** — nút "Đặt vé" thật vẫn trong `.dat-ve-form` như cũ, tránh trùng
+  logic submit. Cập nhật qua `capNhatGiaVeBar()`, gọi ở mọi điểm đổi `selectedGiuongMap` (
+  `toggleChonGiuong`, cả 2 nhánh kết quả đặt vé, `doiChuyenKhac`, đầu `chonChuyen`) và mọi điểm đổi
+  tỉnh ở Bước 0 (`#route-swap-btn`, chọn tỉnh trong `#dia-diem-picker`) — dù về lý thuyết tỉnh chỉ
+  đổi được TRƯỚC khi có giường nào được chọn (Bước 0 tự thu gọn sau khi confirm) nên 2 nhóm gọi này
+  hiếm khi cùng ảnh hưởng 1 lượt, vẫn gọi đủ cả 2 cho đúng tinh thần "luôn đồng bộ với state mới
+  nhất", tránh phải nhớ lại chỗ nào cần gọi nếu sau này đổi luồng.
+  `body.co-gia-ve-bar { padding-bottom: 92px }` toggle theo cùng lúc với bar — tránh bar (fixed)
+  đè lên nút "Đặt vé" khi cuộn hết trang.
+- **`api/cong-khai-dat-ve.js` — SERVER TỰ TÍNH LẠI GIÁ, KHÔNG TIN GIÁ CLIENT GỬI LÊN** — nhận thêm
+  `tinh_len_ma`/`tinh_xuong_ma` (mã tỉnh, KHÔNG PHẢI `diem_len_id`/`diem_xuong_id` — 2 field đó chỉ
+  là điểm cụ thể, có thể `null`, không đủ suy ra tỉnh nếu tỉnh đó chưa có `diem_khach`), tự query
+  `tinh_tuyen.gia_moc` của 2 mã này rồi `Math.abs(diff)`, ghi thẳng vào `ve.gia` — **route KHÔNG còn
+  nhận `gia` từ body nữa** (đã bỏ hẳn tham số này, trước đó `dat-ve.html` luôn gửi `gia: null`).
+  Lý do: giá tính ở client có thể bị sửa qua DevTools trước khi gửi request, không tin dữ liệu tiền
+  từ phía client — cùng nguyên tắc "không tin client" đã áp dụng cho các route công khai khác.
+- **`khach.html` — modal "💰 Giá vé theo tỉnh"** (`#gia-tinh-modal`, nút mở `#btn-gia-tinh-mo` ngay
+  dưới banner "💺 N/44 khách") — list 17 tỉnh (loại Khánh Hòa, sort `thu_tu`, cùng filter đã dùng ở
+  `hang.html`'s `loadTinh()`), mỗi dòng 1 ô nhập giá theo nghìn đồng + chữ đọc số (`soTienBangChu`,
+  cùng convention `ve.gia`/`kien.tien_thu`), prefill giá hiện có. **1 nút "💾 Lưu bảng giá" duy nhất**
+  — `giaTinhOriginal` (Map, chụp lúc MỞ modal) dùng so sánh, CHỈ `UPDATE tinh_tuyen SET gia_moc=...
+  WHERE ma=...` cho dòng thật sự đổi giá trị, không ghi lại cả 17 dòng mỗi lần bấm Lưu. KHÔNG dùng
+  `confirmDialog()` — đây là chỉnh cấu hình, không phải hành động phá huỷ (khác "Kết thúc chuyến"/
+  "Hủy đơn"). `loadTinhList()` (đã có sẵn, dùng cho dropdown chọn tỉnh khi thêm `diem_khach`) thêm
+  cột `gia_moc` vào `.select(...)`.
+
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 
 Mục đích: trong `manifest-hang.html`, sắp xếp thứ tự kiện *bên trong 1 tỉnh* theo đúng thứ tự đi trên đường (tránh xe chạy ngược xuôi khi giao nhiều điểm cùng tỉnh) — dùng `diem.km_moc` (km tích lũy từ Đắk Lắk).
@@ -553,7 +600,11 @@ Mục đích: trong `manifest-hang.html`, sắp xếp thứ tự kiện *bên tr
 ## Database (đối chiếu `eakar_hang_v1.sql`)
 
 ```
-tinh_tuyen (ma text PK, ten, ten_moi, thu_tu smallint)
+tinh_tuyen (ma text PK, ten, ten_moi, thu_tu smallint, gia_moc numeric)
+           -- gia_moc: thêm sau v1 (alter table, 2026-09-19), nullable, đơn vị đồng — mốc giá riêng
+           -- từng tỉnh, giá vé = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)| (xem mục "Bảng giá theo
+           -- tỉnh"). Sửa qua modal "💰 Giá vé theo tỉnh" ở khach.html, KHÔNG có UI ở hang.html/
+           -- manifest-hang.html.
 diem       (id uuid PK, ten, ten_norm, tinh_ma FK -> tinh_tuyen.ma,
             huyen_cu, lat, lng, km_moc, so_lan_giao, created_at)
            -- UNIQUE(tinh_ma, ten_norm): DB tự chặn trùng điểm trong cùng tỉnh
