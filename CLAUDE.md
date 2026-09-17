@@ -273,19 +273,21 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     nào — chỉ `chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'` rồi vẽ lại
     đúng khối này với nhãn đảo ngược (`DIEM_THEO_CHIEU`). Bấm ngày mới (`chonNgay`) LUÔN reset
     `chieuDangChonTrongLich` về mặc định `'bac'` — không giữ hướng đã bấm tạm của ngày trước đó.
-    Nút "Tiếp tục" (dùng lại class `.btn-dat-ve` có sẵn — không tạo class mới cho 1 nút full-width
-    màu primary) mới thật sự gọi `chonChuyen`, tương đương hành vi bấm 1 trong 2 nút rời rạc ở bản
-    trước — KHÔNG đổi gì ở `chonChuyen`/các bước sau, chỉ đổi UI CHỌN chiều.
     - **Bug thật gặp ngay sau khi ra mắt (2026-09-19, đợt 5, cùng ngày)** — listener đổi chiều ban
       đầu chỉ gắn vào `#route-swap-btn` (nút tròn 38px), khách bấm trúng CHỮ "Đắk Lắk"/"Hải Dương"
       (vùng chạm lớn hơn, trực giác hơn nút tròn nhỏ) thì KHÔNG đổi chiều mà bị Android Chrome hiểu
       thành thao tác CHỌN TEXT, bật popup gốc trình duyệt "Tìm kiếm trên Google" — trải nghiệm rất
-      tệ trên PWA (giống hệt lý do `confirmDialog()` thay `confirm()` gốc ở các trang crew). Sửa 2
-      phần: (1) `user-select: none` + `-webkit-tap-highlight-color: transparent` trên
-      `.route-select-wrap` — chặn hẳn khả năng chọn text trong khối; (2) listener đổi chiều dời từ
-      `#route-swap-btn` sang GẮN THẲNG vào `.route-select-wrap` (`document.querySelector`, không
-      còn giữ `id` riêng cho nút — bấm nút tròn vẫn hoạt động qua bubbling) — cả khối giờ là 1 vùng
-      chạm lớn, bấm đâu cũng đổi chiều ngay tại trang, đúng yêu cầu "không popup".
+      tệ trên PWA (giống hệt lý do `confirmDialog()` thay `confirm()` gốc ở các trang crew). Sửa
+      bằng `user-select: none` + `-webkit-tap-highlight-color: transparent` trên
+      `.route-select-wrap` — chặn hẳn khả năng chọn text trong khối (giữ nguyên tới tận bây giờ,
+      không đổi lại dù đợt 6 dưới đây tách lại vùng bắt click).
+    - **BỎ nút "Tiếp tục" (2026-09-19, đợt 6, cùng ngày, theo yêu cầu) — tách lại 2 vùng bắt
+      click, KHÔNG dùng chung 1 vùng như đợt 5 nữa**: nút tròn `#route-swap-btn` giờ
+      `e.stopPropagation()` khi bấm — CHỈ đổi chiều hiển thị, không xác nhận gì; bấm vào PHẦN CÒN
+      LẠI của `.route-select-wrap` (2 dòng "Nơi xuất phát"/"Điểm đến") mới THẬT SỰ CHỌN XONG, gọi
+      thẳng `chonChuyen` với chiều đang hiển thị tại thời điểm bấm — không còn bước xác nhận riêng
+      biệt nào nữa. `user-select:none` của đợt 5 vẫn cần giữ nguyên (lý do không đổi: bấm vào 2
+      dòng text giờ là hành động CHỌN XONG, càng cần chặn chọn text hơn cả trước).
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
