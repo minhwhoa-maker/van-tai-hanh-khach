@@ -708,8 +708,38 @@
                     <button type="button" class="btn-doi-chuyen" id="btn-doi-chuyen">Đổi chuyến khác</button>
                 </div>
             `
-            document.getElementById('btn-doi-chuyen').addEventListener('click', doiChuyenKhac)
+            // Bấm "Đổi chuyến khác" đi qua history.back() (không gọi doiChuyenKhac() trực tiếp) —
+            // để dùng CHUNG đúng 1 đường xử lý với nút Back Android/trình duyệt (`popstate` bên
+            // dưới), tránh lệch trạng thái history thật với UI hiển thị (xem `pushBackGuard`).
+            document.getElementById('btn-doi-chuyen').addEventListener('click', () => {
+                if (backGuardPushed) history.back()
+                else doiChuyenKhac()
+            })
         }
+
+        // Guard Back Android/trình duyệt (2026-09-19, đợt 7, theo yêu cầu) — trước đó dat-ve.html
+        // KHÔNG có cơ chế này (khác 5 trang crew nội bộ, xem "Phím Back Android" ở hang.html trong
+        // CLAUDE.md): bấm Back/vuốt gesture lúc đang ở Bước 1-3 sẽ THOÁT HẲN khỏi trang, MẤT TRẮNG
+        // toàn bộ lựa chọn ngày/điểm/giường đã chọn — rất dễ xảy ra vì đây là trang public mở qua
+        // link, không phải app cài đặt riêng. CHỈ CẦN 1 CẤP GUARD (khác `stepStack` nhiều bước của
+        // hang.html) vì dat-ve.html chỉ có ĐÚNG 1 chuyển màn thật sự thay thế nội dung cũ — chọn
+        // xong ngày/chiều ở Bước 0 (`chonChuyen`) sẽ thu gọn cả khối lịch thành 1 thanh nhỏ; Bước
+        // 1-3 chỉ là hiện dần thêm nội dung trên CÙNG 1 trang cuộn, không phải màn hình riêng. Back
+        // trong lúc đó nên đưa NGƯỜI DÙNG VỀ LẠI Bước 0 (tương đương "Đổi chuyến khác"), Back LẦN
+        // NỮA sau đó mới thật sự rời trang (không giữ guard vĩnh viễn như hang.html — trang này
+        // không phải dashboard chính của app, người dùng có quyền rời hẳn sau khi đã lùi về gốc).
+        let backGuardPushed = false
+        function pushBackGuard() {
+            if (backGuardPushed) return
+            history.pushState({ datVeBuoc: 'booking' }, '')
+            backGuardPushed = true
+        }
+        window.addEventListener('popstate', () => {
+            if (backGuardPushed) {
+                backGuardPushed = false
+                doiChuyenKhac()
+            }
+        })
 
         // Chọn 1 ngày+chiều (bấm nút ở chonNgay) → tải sơ đồ giường CỦA ĐÚNG ngày/chiều đó
         // (chuyen_id có thể null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn điểm + giường vì
@@ -717,6 +747,7 @@
         async function chonChuyen(c) {
             currentChuyen = c
             selectedGiuongMap.clear()
+            pushBackGuard()
             renderChuyenDaChonBar()
             document.getElementById('diem-chon-wrap').style.display = 'block'
             document.getElementById('diem-len-select').value = ''

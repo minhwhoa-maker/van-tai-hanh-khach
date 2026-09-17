@@ -332,6 +332,23 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     SANG NGÀY/CHIỀU KHÁC nghĩa là sơ đồ giường/tập điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ
     tham chiếu tới giường/context không còn đúng. Reset về đúng tháng hiện tại (không giữ tháng đang
     xem trước đó) — chọn lại luôn bắt đầu từ hôm nay, đơn giản hơn nhớ lại vị trí cũ.
+  - **Guard Back Android/trình duyệt (2026-09-19, đợt 7, theo yêu cầu)** — trước đó `dat-ve.html`
+    KHÔNG có cơ chế Back riêng (khác 5 trang crew nội bộ, xem "Phím Back Android" ở `hang.html`
+    trong CLAUDE.md): bấm Back cứng/vuốt gesture lúc đang ở Bước 1-3 sẽ THOÁT HẲN khỏi trang, MẤT
+    TRẮNG mọi lựa chọn — rủi ro cao hơn hẳn app cài đặt riêng vì đây là trang public mở qua link.
+    **Chỉ cần ĐÚNG 1 CẤP GUARD** (khác `stepStack` nhiều bước của `hang.html`) vì `dat-ve.html` chỉ
+    có ĐÚNG 1 lần chuyển màn thật sự thay thế nội dung — chọn xong ngày/chiều ở Bước 0
+    (`chonChuyen`) thu gọn khối lịch thành 1 thanh nhỏ (`renderChuyenDaChonBar`); Bước 1-3 chỉ hiện
+    dần thêm nội dung trên CÙNG 1 trang cuộn, không phải màn hình riêng cần guard riêng cho từng
+    bước. `pushBackGuard()` (`history.pushState`, có guard `backGuardPushed` chống push trùng) gọi
+    ngay đầu `chonChuyen` — Back sau đó (`popstate`, đăng ký DUY NHẤT 1 lần ở top-level) gọi thẳng
+    `doiChuyenKhac()` để đưa người dùng về lại Bước 0. **KHÔNG tái tạo guard vĩnh viễn như
+    `hang.html`** (trang đó là dashboard chính, cố tình không bao giờ cho thoát qua Back) — ở đây
+    Back LẦN NỮA sau khi đã về Bước 0 sẽ THẬT SỰ rời trang, vì đó là màn gốc hợp lý để người dùng
+    public rời khỏi trang đặt vé. Nút "Đổi chuyến khác" cũng đi qua ĐÚNG 1 đường xử lý này
+    (`history.back()` thay vì gọi thẳng `doiChuyenKhac()`) — tránh lệch giữa history thật của trình
+    duyệt và trạng thái UI hiển thị (bấm nút mà không tiêu thụ entry đã push thì lần Back kế tiếp
+    của khách sẽ vô tình lùi thêm 1 bước ngoài ý muốn).
   - **Đổi lại điểm lên/xuống (trong CÙNG 1 chuyến) sau khi đã chọn giường KHÔNG xoá giường đã
     chọn** — `selectedGiuongMap` độc lập với việc Bước 2 đang hiện hay ẩn, chỉ ẩn/hiện lại đúng
     khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó (khác hẳn việc
