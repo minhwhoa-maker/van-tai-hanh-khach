@@ -373,6 +373,22 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       không cần tính lại vùng bắt click), gọi chung hàm `xacNhanChonChieu()` với vùng bấm ngầm cũ —
       **KHÔNG tháo bỏ hành vi tap-to-confirm của đợt 6**, chỉ thêm 1 đường xác nhận tường minh song
       song, cả 2 cùng dẫn tới `chonChuyen`.
+    - **BỎ mặc định Đắk Lắk/Hải Dương (2026-09-18, đợt 14, theo yêu cầu) — `noiXuatPhatTinh`/
+      `diemDenTinh` giờ khởi tạo `null`, `chonNgay` reset về `null`/`null` mỗi lần chọn ngày mới**
+      — trước đó (đợt 9-13) MỌI lần bấm ngày trên lịch đều TỰ ĐỘNG preset lại 2 đầu tuyến cố định
+      (`tinhList.find(t => t.ma === 'DLK'/'HDG')`), kể cả khi khách đã chủ động đổi sang cặp tỉnh
+      khác ở lượt chọn ngày trước đó — mỗi lần đổi ngày là mất lựa chọn tỉnh, phải chọn lại từ đầu.
+      `renderChieuSelector` giờ hiện **placeholder** "Chọn nơi xuất phát"/"Chọn điểm đến" (class
+      `.route-place-placeholder`, chữ nhỏ `16px` màu xám thay vì `28px` bold của tên tỉnh thật) khi
+      tương ứng đang `null`, và `#btn-chon-vi-tri-giuong` tự `disabled` (nền xám `#b0bec5`) cho tới
+      khi CẢ 2 đã chọn. Vùng bấm ngầm (3) trên `.route-select-wrap` — nếu bấm khi chưa đủ 2 tỉnh —
+      giờ báo toast "Vui lòng chọn cả nơi xuất phát và điểm đến" thay vì crash (trước đó code giả
+      định 2 biến này LUÔN là object, không bao giờ `null`) chứ không tự tiến hành. `moDiaDiemPicker`
+      dùng optional chaining (`tinhBenKia?.ma`, `(...)?.ma`) khi tính danh sách loại trừ/tô đậm —
+      tỉnh bên kia `null` thì không loại thêm gì khỏi list 17 tỉnh. `tinhGiaVe()` (đọc
+      `noiXuatPhatTinh.gia_moc`) chỉ được gọi từ `capNhatGiaVeBar()` khi `selectedGiuongMap.size >
+      0`, tức LUÔN sau khi đã confirm (2 tỉnh chắc chắn không `null` ở thời điểm đó) — không cần
+      thêm guard riêng.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
