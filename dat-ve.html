@@ -67,15 +67,32 @@
         .lich-ngay-o.dang-chon { background: #fb8c00; border-color: #fb8c00; }
         .lich-ngay-o.dang-chon .duong, .lich-ngay-o.dang-chon .am { color: #fff; }
         .lich-chieu-wrap { margin: 14px 16px 0; }
-        .lich-chieu-wrap .goi-y { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
-        .chieu-btns { display: flex; gap: 8px; }
-        .chuyen-chon-item {
-            flex: 1; padding: 12px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-            background: var(--white); cursor: pointer; font-size: 13px; font-family: inherit;
-            text-align: center; display: block;
+        /* Chọn chiều kiểu "Nơi xuất phát / Điểm đến" giống Vexere (2026-09-19, đợt 4, theo yêu
+           cầu) — thay cho 2 nút rời rạc "Đắk Lắk → Hải Dương"/"Hải Dương → Đắk Lắk" trước đó. Vì
+           app chỉ có ĐÚNG 2 hướng cố định (không phải chọn tự do như Vexere), nút "⇅" ở đây chỉ
+           TOGGLE giữa 2 hướng có sẵn (không mở ô tìm kiếm tự do) — bấm "Tiếp tục" mới thật sự chọn
+           xong (gọi `chonChuyen`), tương đương bấm 1 trong 2 nút cũ. */
+        .route-select-wrap {
+            position: relative; margin: 0 0 10px; padding: 12px 50px 12px 16px;
+            background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
         }
-        .chuyen-chon-item b { color: var(--primary); display: block; font-size: 13px; }
-        .chuyen-chon-item .da-co-khach { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+        .route-select-wrap::before {
+            content: ''; position: absolute; left: 21px; top: 28px; bottom: 28px;
+            border-left: 2px dashed var(--border);
+        }
+        .route-row { display: flex; align-items: flex-start; gap: 12px; padding: 6px 0; position: relative; z-index: 1; }
+        .route-row .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+        .route-row.origin .dot { background: var(--primary); }
+        .route-row.dest .dot { background: #e53935; }
+        .route-row .route-label { font-size: 12px; color: var(--text-muted); }
+        .route-row .route-value { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 1px; }
+        .route-swap-btn {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
+            background: var(--white); font-size: 17px; cursor: pointer; color: var(--primary);
+            display: flex; align-items: center; justify-content: center; font-family: inherit;
+        }
+        .route-da-co-khach { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
         .chuyen-da-chon-bar {
             margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
@@ -300,6 +317,10 @@
         let homNayStr = ''         // = lichList[0].ngay (server LUÔN trả hôm nay là phần tử đầu)
         let baseMonthOffset = 0    // 0 = khối lịch trái đang hiện đúng THÁNG HIỆN TẠI, khối phải = +1 tháng
         let ngayDangChonTam = null // ngày đang tô cam trên lịch (đã chọn ngày, CHƯA bấm chiều)
+        // Chiều đang xem trong khối "Nơi xuất phát/Điểm đến" (2026-09-19, đợt 4) — mặc định 'bac'
+        // mỗi lần chọn ngày mới, nút ⇅ toggle giữa 'bac'/'nam', KHÔNG phải lựa chọn cuối cùng cho
+        // tới khi bấm "Tiếp tục" (xem `chonNgay`/`renderChieuSelector`).
+        let chieuDangChonTrongLich = 'bac'
         // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, ten, chuyen_id} — chuyen_id CÓ THỂ
         // null (ngày/chiều chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có
         // lượt đặt vé đầu tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id,
@@ -616,29 +637,54 @@
             return btn
         }
 
-        // Bấm 1 ô ngày hợp lệ → tô cam (bỏ tô ô cũ nếu có, chỉ chọn 1 ngày/lúc), hiện 2 nút chiều
-        // NGAY BÊN DƯỚI lịch — lịch vẫn hiện nguyên, chưa coi là "đã chọn xong" cho tới khi bấm 1
-        // trong 2 nút chiều (chonChuyen). Đổi sang ngày khác thì gọi lại đúng hàm này, 2 nút chiều
-        // cũ tự bị thay bằng 2 nút của ngày mới — không cần xoá tay.
+        // Bấm 1 ô ngày hợp lệ → tô cam (bỏ tô ô cũ nếu có, chỉ chọn 1 ngày/lúc), hiện khối
+        // "Nơi xuất phát / Điểm đến" NGAY BÊN DƯỚI lịch (giống Vexere) — lịch vẫn hiện nguyên, CHƯA
+        // coi là "đã chọn xong" cho tới khi bấm "Tiếp tục" (`chonChuyen`). Đổi sang ngày khác thì
+        // gọi lại đúng hàm này, khối cũ tự bị thay bằng khối của ngày mới, `chieuDangChonTrongLich`
+        // reset về mặc định 'bac' — không giữ hướng đã chọn tạm của ngày trước.
         function chonNgay(entry) {
             ngayDangChonTam = entry.ngay
+            chieuDangChonTrongLich = 'bac'
             renderLichThang()
+            renderChieuSelector(entry)
+        }
+
+        // Khối chọn chiều kiểu "Nơi xuất phát / Điểm đến" — app chỉ có ĐÚNG 2 hướng cố định (không
+        // phải ô tìm kiếm tự do như Vexere), nút "⇅" chỉ TOGGLE `chieuDangChonTrongLich` giữa
+        // 'bac'/'nam' rồi vẽ lại đúng khối này, KHÔNG tự chọn xong — bấm "Tiếp tục" mới gọi
+        // `chonChuyen` (tương đương bấm 1 trong 2 nút rời rạc ở bản trước).
+        const DIEM_THEO_CHIEU = {
+            bac: { di: 'Đắk Lắk', den: 'Hải Dương' },
+            nam: { di: 'Hải Dương', den: 'Đắk Lắk' },
+        }
+        function renderChieuSelector(entry) {
+            const chieu = chieuDangChonTrongLich
+            const info = entry[chieu]
+            const diem = DIEM_THEO_CHIEU[chieu]
             const wrap = document.getElementById('lich-chieu-wrap')
             wrap.style.display = 'block'
-            wrap.innerHTML = '<div class="chieu-btns" id="lich-chieu-btns"></div>'
-            const btns = document.getElementById('lich-chieu-btns')
-            ;['bac', 'nam'].forEach(chieu => {
-                const info = entry[chieu]
-                const btn = document.createElement('button')
-                btn.type = 'button'
-                btn.className = 'chuyen-chon-item'
-                btn.innerHTML = `<b>🚏 ${info.ten}</b>` +
-                    (info.chuyen_id ? '<div class="da-co-khach">Đã có khách đặt</div>' : '')
-                btn.addEventListener('click', () => chonChuyen({
+            wrap.innerHTML = `
+                <div class="route-select-wrap">
+                    <div class="route-row origin"><span class="dot"></span>
+                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value">${diem.di}</div></div>
+                    </div>
+                    <div class="route-row dest"><span class="dot"></span>
+                        <div><div class="route-label">Điểm đến</div><div class="route-value">${diem.den}</div></div>
+                    </div>
+                    <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
+                </div>
+                ${info.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
+                <button type="button" class="btn-dat-ve" id="route-confirm-btn">Tiếp tục</button>
+            `
+            document.getElementById('route-swap-btn').addEventListener('click', () => {
+                chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'
+                renderChieuSelector(entry)
+            })
+            document.getElementById('route-confirm-btn').addEventListener('click', () => {
+                chonChuyen({
                     ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
                     chieu, ten: info.ten, chuyen_id: info.chuyen_id
-                }))
-                btns.appendChild(btn)
+                })
             })
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }

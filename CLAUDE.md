@@ -255,18 +255,27 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     (0) `renderChonChuyenStep` dựng khung `#lich-thang-wrap` (1 khối tháng) + `#lich-chieu-wrap`
     (ẩn ban đầu), gọi `renderLichThang()` vẽ tháng đang xem (`baseMonthOffset`, xem bullet lịch bên
     dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng `api/cong-khai-lich-chay.js`
-    trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`)
-    → tô cam (`ngayDangChonTam`), hiện 2 nút `.chuyen-chon-item` (nhãn = ĐÚNG điểm đi → điểm đến,
-    vd "Đắk Lắk → Hải Dương" — đổi 2026-09-19 từ chữ "Ra Bắc"/"Vào Nam", xem bullet riêng bên dưới)
-    trong
-    `#lich-chieu-wrap` NGAY BÊN DƯỚI lịch (lịch vẫn hiện nguyên, CHƯA coi là chọn xong) — bấm 1
-    trong 2 nút đó mới thật sự chọn xong (`chonChuyen`, nhận
+    trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`) → tô cam (`ngayDangChonTam`),
+    hiện khối "Nơi xuất phát / Điểm đến" kiểu Vexere (`renderChieuSelector`, xem bullet riêng bên
+    dưới) trong `#lich-chieu-wrap` NGAY BÊN DƯỚI lịch (lịch vẫn hiện nguyên, CHƯA coi là chọn xong)
+    — bấm "Tiếp tục" mới thật sự chọn xong (`chonChuyen`, nhận
     `{ngay, lunarDay, lunarMonth, chieu, chuyen_id (có thể null), ten}`), lúc đó mới sang bước
     điểm; (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`),
     CHỈ hiện sau khi đã chọn xong ở Bước 0; (2) `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2
     điểm đã chọn (`capNhatHienThiSoDo`, gọi từ listener `change` của cả 2 select) — trống thì hiện
     `#cho-chon-diem-hint` thay chỗ; (3) `#dat-ve-form` — CHỈ còn Tên*/SĐT*/Phương thức thanh toán (2
     field điểm đã dời sang Bước 1) — hiện khi có ít nhất 1 giường đã chọn (`capNhatFormChonGiuong`).
+  - **Khối "Nơi xuất phát / Điểm đến" (`renderChieuSelector`, 2026-09-19, đợt 4 — thay 2 nút
+    "Đắk Lắk → Hải Dương"/"Hải Dương → Đắk Lắk" đứng cạnh nhau của đợt 3)** — theo yêu cầu làm giống
+    layout Vexere (dot xanh "Nơi xuất phát" + dot đỏ "Điểm đến", nối bằng đường kẻ đứt nét, nút
+    tròn "⇅" bên phải để đổi chiều). **Khác Vexere ở bản chất**: Vexere cho gõ tự do 2 ô tìm thành
+    phố bất kỳ; app này CHỈ CÓ ĐÚNG 2 HƯỚNG CỐ ĐỊNH (Đắk Lắk↔Hải Dương) nên "⇅" không mở ô tìm kiếm
+    nào — chỉ `chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'` rồi vẽ lại
+    đúng khối này với nhãn đảo ngược (`DIEM_THEO_CHIEU`). Bấm ngày mới (`chonNgay`) LUÔN reset
+    `chieuDangChonTrongLich` về mặc định `'bac'` — không giữ hướng đã bấm tạm của ngày trước đó.
+    Nút "Tiếp tục" (dùng lại class `.btn-dat-ve` có sẵn — không tạo class mới cho 1 nút full-width
+    màu primary) mới thật sự gọi `chonChuyen`, tương đương hành vi bấm 1 trong 2 nút rời rạc ở bản
+    trước — KHÔNG đổi gì ở `chonChuyen`/các bước sau, chỉ đổi UI CHỌN chiều.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
