@@ -632,7 +632,7 @@
                 const btn = document.createElement('button')
                 btn.type = 'button'
                 btn.className = 'chuyen-chon-item'
-                btn.innerHTML = `<b>${chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'}</b>` +
+                btn.innerHTML = `<b>🚏 ${info.ten}</b>` +
                     (info.chuyen_id ? '<div class="da-co-khach">Đã có khách đặt</div>' : '')
                 btn.addEventListener('click', () => chonChuyen({
                     ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,

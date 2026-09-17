@@ -256,7 +256,9 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     (ẩn ban đầu), gọi `renderLichThang()` vẽ tháng đang xem (`baseMonthOffset`, xem bullet lịch bên
     dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng `api/cong-khai-lich-chay.js`
     trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`)
-    → tô cam (`ngayDangChonTam`), hiện 2 nút `.chuyen-chon-item` (Ra Bắc/Vào Nam) trong
+    → tô cam (`ngayDangChonTam`), hiện 2 nút `.chuyen-chon-item` (nhãn = ĐÚNG điểm đi → điểm đến,
+    vd "Đắk Lắk → Hải Dương" — đổi 2026-09-19 từ chữ "Ra Bắc"/"Vào Nam", xem bullet riêng bên dưới)
+    trong
     `#lich-chieu-wrap` NGAY BÊN DƯỚI lịch (lịch vẫn hiện nguyên, CHƯA coi là chọn xong) — bấm 1
     trong 2 nút đó mới thật sự chọn xong (`chonChuyen`, nhận
     `{ngay, lunarDay, lunarMonth, chieu, chuyen_id (có thể null), ten}`), lúc đó mới sang bước
@@ -384,6 +386,13 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
     chiều SỚM nhưng chưa qua giờ chiều MUỘN, cả 2 chiều đều bị coi là hết hạn cùng lúc (thà chặn
     nhầm 1 chiều còn kịp giờ, còn hơn giữ logic phức tạp "1 ngày 2 trạng thái" cho 1 giao diện vốn
     chỉ có 1 ô/ngày) — chấp nhận được vì đây là bản TEST, khác biệt rất nhỏ (vài giờ trong ngày).
+  - **`bac.ten`/`nam.ten` đổi từ "Ra Bắc (Đắk Lắk → Hải Dương)"/"Vào Nam (Hải Dương → Đắk Lắk)"
+    sang chỉ còn ĐÚNG "Đắk Lắk → Hải Dương"/"Hải Dương → Đắk Lắk" (2026-09-19, đợt 3, theo yêu
+    cầu)** — khách không cần biết/quan tâm khái niệm hướng tuyến Bắc/Nam nội bộ của crew, chỉ cần
+    thấy rõ đi từ đâu tới đâu. `dat-ve.html` không có logic riêng nào phụ thuộc chữ "Ra Bắc"/"Vào
+    Nam" (chỉ in thẳng `info.ten`/`c.ten` ra 2 nút chiều + thanh "Chuyến đã chọn") nên đổi 1 chỗ
+    duy nhất ở server là đủ, không cần sửa gì thêm ở frontend ngoài việc đổi hardcode cũ
+    `chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'` (trong `chonNgay`) thành `🚏 ${info.ten}`.
 - **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — ***owner PHẢI
   điền đúng giờ chạy thật trước khi cho khách dùng thật, hiện đang fallback tạm `"19:30"` (Claude
   Code tự đặt để không crash lúc chưa set, KHÔNG phải giờ chính thức) ở CẢ 2 nơi đọc biến này

@@ -211,10 +211,13 @@ export default async function handler(req, res) {
         mapCoSan.set(`${ngayVNCuaChuyen(c.khoi_hanh)}|${c.chieu}`, c.id)
     }
 
+    // `ten` = ĐÚNG điểm đi → điểm đến, KHÔNG dùng chữ "Ra Bắc"/"Vào Nam" nữa (đổi 2026-09-19, theo
+    // yêu cầu — khách không cần biết/quan tâm khái niệm hướng Bắc/Nam của tuyến, chỉ cần thấy rõ
+    // đi từ đâu tới đâu).
     const lich = tatCaNgay.map(({ ngay, lunar_day, lunar_month, hop_le }) => hop_le ? {
         ngay, lunar_day, lunar_month, hop_le,
-        bac: { chuyen_id: mapCoSan.get(`${ngay}|bac`) || null, ten: 'Ra Bắc (Đắk Lắk → Hải Dương)' },
-        nam: { chuyen_id: mapCoSan.get(`${ngay}|nam`) || null, ten: 'Vào Nam (Hải Dương → Đắk Lắk)' },
+        bac: { chuyen_id: mapCoSan.get(`${ngay}|bac`) || null, ten: 'Đắk Lắk → Hải Dương' },
+        nam: { chuyen_id: mapCoSan.get(`${ngay}|nam`) || null, ten: 'Hải Dương → Đắk Lắk' },
     } : { ngay, lunar_day, lunar_month, hop_le })
 
     res.status(200).json({ lich })
