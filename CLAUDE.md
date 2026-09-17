@@ -229,14 +229,24 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   5 trang crew nội bộ), KHÔNG nối vào `sw.js` `STATIC_ASSETS`/menu `renderSideMenu`. Phần CSS/HTML
   sơ đồ 2 cột song song + `SEAT_SVG` **COPY từ `khach.html`** (không viết lại từ đầu). Có nạp
   `shared.js` nhưng CHỈ dùng `formatMoney`/`formatDate` — KHÔNG gọi `createSb()`/`requireSession()`
-  (mọi dữ liệu qua `fetch()` tới 4 API route trên). Luồng: tải chuyến → tải sơ đồ + điểm đón → bấm
-  giường trống mở form ngay dưới sơ đồ (không cần modal riêng, đơn giản hơn `khach.html`) → điền
-  Tên*/SĐT*/Điểm lên*/Điểm xuống*/Phương thức thanh toán (radio) → bấm "Đặt vé". Chọn "Chuyển khoản
-  trước" hiện thêm khối thông tin chuyển khoản TĨNH (số tài khoản/tên/nội dung gõ tay, KHÔNG có
-  cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối chiếu tay qua app ngân
-  hàng sau, không có xác nhận tự động). Đặt thành công → màn xác nhận đơn giản tại chỗ (không có
-  trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại phải gọi
-  crew.
+  (mọi dữ liệu qua `fetch()` tới 4 API route trên). Đặt thành công → màn xác nhận đơn giản tại chỗ
+  (không có trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại
+  phải gọi crew.
+  - **Luồng 3 bước theo THỨ TỰ, đảo lại từ bản đầu (2026-09-17, theo yêu cầu owner: khách xác định
+    trọn hành trình trước, chọn giường sau — trước đó ngược lại, chọn giường xong mới hỏi điểm)**:
+    (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`,
+    hiện ngay sau khi tải được chuyến, KHÔNG cần chọn giường trước); (2) `#so-do-wrap` (sơ đồ
+    giường) — CHỈ hiện khi CẢ 2 điểm đã chọn (`capNhatHienThiSoDo`, gọi từ listener `change` của cả
+    2 select) — trống thì hiện `#cho-chon-diem-hint` thay chỗ; (3) `#dat-ve-form` — CHỈ còn
+    Tên*/SĐT*/Phương thức thanh toán (2 field điểm đã dời sang bước 1, KHÔNG còn trong form này
+    nữa) — hiện khi có ít nhất 1 giường đã chọn (như cũ, `capNhatFormChonGiuong`). Sơ đồ giường vẫn
+    được TẢI SẴN ngay từ `initPage()` (không đợi chọn điểm) — bước 1↔2 chỉ đổi ẨN/HIỆN, không
+    fetch lại `api/cong-khai-so-do` mỗi lần đổi điểm. **Đổi lại điểm sau khi đã chọn giường KHÔNG
+    xoá giường đã chọn** — `selectedGiuongMap` độc lập với việc điểm đang hiện hay ẩn, chỉ ẩn/hiện
+    lại đúng khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó.
+  - Chọn "Chuyển khoản trước" hiện thêm khối thông tin chuyển khoản TĨNH (số tài khoản/tên/nội
+    dung gõ tay, KHÔNG có cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối
+    chiếu tay qua app ngân hàng sau, không có xác nhận tự động).
   - **Chọn NHIỀU giường cùng lúc (2026-09-16, theo yêu cầu)** — `selectedGiuongMap`
     (`Map<giuong.id, giuong>`) thay cho biến đơn `selectedGiuong` ban đầu. Bấm giường trống → TOGGLE
     (`toggleChonGiuong`): chưa chọn thì thêm vào map, ĐÃ CHỌN (đang tô xanh dương "Đang chọn") thì

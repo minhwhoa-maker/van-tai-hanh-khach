@@ -29,6 +29,24 @@
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px; text-align: center;
         }
         .chuyen-info b { color: var(--primary); }
+        /* Bước 1 — chọn điểm lên/xuống TRƯỚC sơ đồ giường (2026-09-17, theo yêu cầu owner: khách
+           xác định trọn hành trình rồi mới chọn giường, thay vì chọn giường xong mới hỏi điểm như
+           bản đầu). Dùng chung style khung trắng với .dat-ve-form cho đồng bộ hình thức. */
+        .diem-chon-wrap {
+            display: none; margin: 16px; padding: 16px; background: var(--white);
+            border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+        }
+        .diem-chon-wrap h3 { margin: 0 0 12px; font-size: 16px; }
+        .diem-chon-wrap label { display: block; font-size: 13px; color: var(--text-muted); margin: 0 0 4px; }
+        .diem-chon-wrap label:not(:first-of-type) { margin-top: 12px; }
+        .diem-chon-wrap select {
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
+        }
+        .cho-chon-diem-hint {
+            display: none; margin: 16px; padding: 16px; text-align: center; color: var(--text-muted);
+            font-size: 13px; background: var(--white); border-radius: var(--radius-sm); border: 1.5px dashed var(--border);
+        }
         .khong-co-chuyen {
             margin: 24px 16px; padding: 20px 16px; text-align: center; color: var(--text-muted);
             background: var(--white); border-radius: var(--radius-sm); border: 1.5px solid var(--border);
@@ -110,7 +128,18 @@
 
     <div id="chuyen-info-wrap"></div>
 
+    <div class="diem-chon-wrap" id="diem-chon-wrap">
+        <h3>1. Chọn điểm lên & điểm xuống</h3>
+        <label>Điểm lên *</label>
+        <select id="diem-len-select"><option value="">— Chọn điểm lên —</option></select>
+        <label>Điểm xuống *</label>
+        <select id="diem-xuong-select"><option value="">— Chọn điểm xuống —</option></select>
+    </div>
+
+    <div class="cho-chon-diem-hint" id="cho-chon-diem-hint">Chọn xong điểm lên & điểm xuống ở trên để xem sơ đồ giường.</div>
+
     <div id="so-do-wrap" style="display:none;">
+        <h3 style="margin:16px 16px 4px; font-size:16px;">2. Chọn giường</h3>
         <div class="chu-thich-giuong">
             <div class="chu-thich-item">
                 <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
@@ -169,16 +198,12 @@
     </div>
 
     <div class="dat-ve-form" id="dat-ve-form">
-        <h3>Thông tin đặt vé</h3>
+        <h3>3. Thông tin liên hệ & thanh toán</h3>
         <div class="giuong-da-chon" id="giuong-da-chon"></div>
         <label>Họ tên *</label>
         <input type="text" id="f-ten" placeholder="Nhập họ tên">
         <label>Số điện thoại *</label>
         <input type="tel" id="f-sdt" placeholder="vd 0912345678">
-        <label>Điểm lên *</label>
-        <select id="f-diem-len"><option value="">— Chọn điểm lên —</option></select>
-        <label>Điểm xuống *</label>
-        <select id="f-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
         <label>Phương thức thanh toán *</label>
         <div class="thanh-toan-radio">
             <label><input type="radio" name="thanh-toan" value="tien_mat_len_xe" checked> Tiền mặt lúc lên xe</label>
@@ -286,6 +311,20 @@
             renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
         }
 
+        // Bước 1 (điểm lên/xuống) phải chọn xong CẢ 2 mới hiện Bước 2 (sơ đồ giường) — sơ đồ vẫn
+        // được tải sẵn ở initPage (không chờ tới lúc này), chỉ ẨN/HIỆN theo điều kiện, tránh phải
+        // fetch lại mỗi lần đổi điểm. Đổi điểm sau khi đã chọn giường KHÔNG xoá giường đã chọn —
+        // chỉ ẩn/hiện lại khối, giường vẫn giữ nguyên trong selectedGiuongMap.
+        function capNhatHienThiSoDo() {
+            const coDuDiem = document.getElementById('diem-len-select').value && document.getElementById('diem-xuong-select').value
+            document.getElementById('so-do-wrap').style.display = coDuDiem ? 'block' : 'none'
+            document.getElementById('cho-chon-diem-hint').style.display = coDuDiem ? 'none' : 'block'
+            if (!coDuDiem) document.getElementById('dat-ve-form').style.display = 'none'
+            else capNhatFormChonGiuong()
+        }
+        document.getElementById('diem-len-select').addEventListener('change', capNhatHienThiSoDo)
+        document.getElementById('diem-xuong-select').addEventListener('change', capNhatHienThiSoDo)
+
         function toggleChonGiuong(g) {
             if (selectedGiuongMap.has(g.id)) selectedGiuongMap.delete(g.id)
             else selectedGiuongMap.set(g.id, g)
@@ -326,8 +365,8 @@
             if (!currentChuyen || !dsGiuong.length) return
             const ten = document.getElementById('f-ten').value.trim()
             const sdt = document.getElementById('f-sdt').value.trim()
-            const diemLenId = document.getElementById('f-diem-len').value
-            const diemXuongId = document.getElementById('f-diem-xuong').value
+            const diemLenId = document.getElementById('diem-len-select').value
+            const diemXuongId = document.getElementById('diem-xuong-select').value
             const hinhThuc = document.querySelector('input[name="thanh-toan"]:checked').value
             if (!ten) { showToast('Vui lòng nhập họ tên', 'error'); return }
             if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
@@ -407,7 +446,8 @@
             const chieuLabel = currentChuyen.chieu === 'bac' ? 'Ra Bắc (Đắk Lắk → Hải Dương)' : 'Vào Nam (Hải Dương → Đắk Lắk)'
             document.getElementById('chuyen-info-wrap').innerHTML =
                 `<div class="chuyen-info">Chuyến gần nhất: <b>${chieuLabel}</b><br>${formatDate(currentChuyen.khoi_hanh)}</div>`
-            document.getElementById('so-do-wrap').style.display = 'block'
+            document.getElementById('diem-chon-wrap').style.display = 'block'
+            document.getElementById('cho-chon-diem-hint').style.display = 'block'
 
             const [soDoRes, diemRes] = await Promise.all([
                 fetch(`/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.id)}`),
@@ -421,8 +461,8 @@
             diemKhachList = diemJson.diemKhach || []
             tinhList = diemJson.tinh || []
             renderSoDo()
-            renderDiemKhachOptions(document.getElementById('f-diem-len'), currentChuyen.chieu, '')
-            renderDiemKhachOptions(document.getElementById('f-diem-xuong'), currentChuyen.chieu, '')
+            renderDiemKhachOptions(document.getElementById('diem-len-select'), currentChuyen.chieu, '')
+            renderDiemKhachOptions(document.getElementById('diem-xuong-select'), currentChuyen.chieu, '')
         }
 
         initPage()
