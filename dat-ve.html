@@ -104,6 +104,15 @@
             display: flex; align-items: center; justify-content: center; font-family: inherit;
         }
         .route-da-co-khach { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+        /* Nút xác nhận tường minh (đợt 11) — trước đó chỉ xác nhận ngầm qua bấm vào nhãn/nền của
+           .route-select-wrap (đợt 6), không hiện rõ "bấm gì để đi tiếp" nên khách không biết cách
+           qua bước kế. Đặt NGOÀI .route-select-wrap (không lồng trong khối có user-select:none để
+           tránh phải nghĩ lại vùng bắt click) nhưng cùng gọi 1 hàm xác nhận (`xacNhanChonChieu`). */
+        .btn-chon-vi-tri-giuong {
+            display: block; width: calc(100% - 32px); margin: 0 16px 14px; padding: 14px;
+            border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff;
+            font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
         /* Modal chọn địa danh — cùng pattern bottom-sheet với .ve-modal/.diemkhach-modal ở
            khach.html (không phải search page tự do kiểu Vexere — list cố định từ `tinh_tuyen`,
            không gõ được). Đợt 9: list 17 tỉnh dọc tuyến (trước đó chỉ 2 dòng cố định) nên thêm
@@ -682,16 +691,32 @@
                     <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
                 </div>
                 ${info.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
+                <button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong">🪑 Chọn vị trí giường</button>
             `
-            // 3 vùng bắt click riêng trong .route-select-wrap (đợt 8, thêm modal chọn địa danh —
-            // trước đó đợt 6 chỉ có 2 vùng):
+            // 4 vùng bắt click/hành động trong khối (đợt 11, thêm nút xác nhận riêng — trước đó đợt
+            // 6-8 chỉ có 3 vùng, xác nhận hoàn toàn ngầm định qua bấm vào nhãn/nền .route-select-wrap,
+            // không có gì hiện rõ ràng là "bấm để đi tiếp" nên khách không biết cách qua bước kế —
+            // theo phản ánh thật, thêm hẳn 1 nút xác nhận tường minh):
             // (1) #route-swap-btn — stopPropagation, chỉ đổi chiều hiển thị, không mở/không confirm.
             // (2) .route-place-value (tên địa danh) — stopPropagation, mở #dia-diem-picker đúng vai
             //     trò (xuất phát/đến) của dòng vừa bấm — KHÔNG confirm, chỉ đổi hiển thị.
-            // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — giữ nguyên hành vi
-            //     confirm của đợt 6: bấm là CHỌN XONG NGAY, gọi thẳng `chonChuyen`.
+            // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — GIỮ NGUYÊN hành vi
+            //     confirm ngầm của đợt 6 (bấm là chọn xong ngay) — không tháo bỏ, chỉ THÊM (4).
+            // (4) #btn-chon-vi-tri-giuong — nút xác nhận TƯỜNG MINH, cùng logic xác nhận với (3)
+            //     (dùng chung `xacNhanChonChieu`), đặt hẳn bên dưới khối để dễ thấy hơn.
             // `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên toàn khối — vẫn cần chặn Android
             // Chrome hiểu nhầm bấm chữ thành chọn text/bật popup "Tìm kiếm trên Google".
+            function xacNhanChonChieu() {
+                // Tính lại `chieu` trực tiếp từ so sánh thu_tu ngay lúc confirm (không đọc biến
+                // `chieu` đóng gói ở trên qua closure) — phòng lệch nếu sau này có chỗ khác đổi
+                // `noiXuatPhatTinh`/`diemDenTinh` mà quên gọi lại renderChieuSelector.
+                const chieuXacNhan = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
+                const infoXacNhan = entry[chieuXacNhan]
+                chonChuyen({
+                    ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
+                    chieu: chieuXacNhan, chuyen_id: infoXacNhan.chuyen_id
+                })
+            }
             document.getElementById('route-swap-btn').addEventListener('click', (e) => {
                 e.stopPropagation()
                 const tam = noiXuatPhatTinh
@@ -705,16 +730,10 @@
                     moDiaDiemPicker(el.dataset.vaiTro)
                 })
             })
-            document.querySelector('.route-select-wrap').addEventListener('click', () => {
-                // Tính lại `chieu` trực tiếp từ so sánh thu_tu ngay lúc confirm (không đọc biến
-                // `chieu` đóng gói ở trên qua closure) — phòng lệch nếu sau này có chỗ khác đổi
-                // `noiXuatPhatTinh`/`diemDenTinh` mà quên gọi lại renderChieuSelector.
-                const chieuXacNhan = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
-                const infoXacNhan = entry[chieuXacNhan]
-                chonChuyen({
-                    ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
-                    chieu: chieuXacNhan, chuyen_id: infoXacNhan.chuyen_id
-                })
+            document.querySelector('.route-select-wrap').addEventListener('click', xacNhanChonChieu)
+            document.getElementById('btn-chon-vi-tri-giuong').addEventListener('click', (e) => {
+                e.stopPropagation()
+                xacNhanChonChieu()
             })
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
