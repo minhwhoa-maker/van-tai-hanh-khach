@@ -31,38 +31,36 @@
            "Lịch chạy cố định" CLAUDE.md. */
         .chuyen-chon-wrap { margin: 16px; }
         .chuyen-chon-wrap h3 { margin: 0 0 10px; font-size: 16px; }
-        /* 2 khối tháng LUÔN CẠNH NHAU (không flex-wrap — đúng mẫu Vexere), kể cả trên màn hình
-           điện thoại hẹp (`body` khoá max-width 480px, xem trên) — bù lại bằng kích thước ô/chữ
-           nhỏ hơn hẳn so với bản đầu (2026-09-19, phát hiện qua ảnh chụp thật: min-width 220px cũ
-           không đủ chỗ cho 2 khối/dòng trong 480px nên bị wrap xuống dòng, hiện như "chỉ 1 tháng"
-           mỗi màn hình dù cuộn xuống vẫn thấy tháng sau — không đúng ý "cạnh nhau" của spec). */
-        .lich-thang-wrap { display: flex; gap: 8px; }
+        /* CHỈ 1 khối tháng/màn hình (đổi 2026-09-19, đợt 2 — bản đầu "2 khối cạnh nhau" theo spec
+           gốc phải thu nhỏ chữ/ô quá mức để vừa màn hình điện thoại 480px, owner xem ảnh chụp thật
+           thấy khó đọc, yêu cầu quay lại 1 tháng/màn hình, dùng ‹ › để lùi/tới tháng khác). */
+        .lich-thang-wrap { display: flex; }
         .lich-thang-block {
-            flex: 1 1 0; min-width: 0; background: var(--white); border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm); padding: 6px 4px;
+            flex: 1 1 auto; width: 100%; background: var(--white); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); padding: 10px 8px;
         }
         .lich-thang-header {
             display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 4px; font-weight: 700; font-size: 11px;
+            margin-bottom: 8px; font-weight: 700; font-size: 14px;
         }
         .lich-thang-header button {
-            background: none; border: none; font-size: 14px; line-height: 1; cursor: pointer;
-            color: var(--primary); padding: 2px 3px; font-family: inherit;
+            background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer;
+            color: var(--primary); padding: 4px 10px; font-family: inherit;
         }
         .lich-thang-header button:disabled { color: #ccc; cursor: not-allowed; }
         .lich-tuan-header {
-            display: grid; grid-template-columns: repeat(7, 1fr); font-size: 7.5px;
-            color: var(--text-muted); text-align: center; margin-bottom: 2px;
+            display: grid; grid-template-columns: repeat(7, 1fr); font-size: 11px;
+            color: var(--text-muted); text-align: center; margin-bottom: 4px;
         }
-        .lich-ngay-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1.5px; }
+        .lich-ngay-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .lich-ngay-o {
             aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            border-radius: 4px; border: 1px solid transparent; background: none; cursor: pointer;
+            border-radius: 6px; border: 1.5px solid transparent; background: none; cursor: pointer;
             font-family: inherit; padding: 0;
         }
         .lich-ngay-o.trong { visibility: hidden; cursor: default; }
-        .lich-ngay-o .duong { font-size: 10px; font-weight: 700; color: var(--text); }
-        .lich-ngay-o .am { font-size: 6.5px; color: var(--text-muted); margin-top: 0; }
+        .lich-ngay-o .duong { font-size: 15px; font-weight: 700; color: var(--text); }
+        .lich-ngay-o .am { font-size: 9.5px; color: var(--text-muted); margin-top: 1px; }
         .lich-ngay-o.hop-le { border-color: var(--border); }
         .lich-ngay-o.hop-le:hover { background: var(--bg); }
         .lich-ngay-o.khong-hop-le { opacity: 0.35; pointer-events: none; }
@@ -550,16 +548,16 @@
             renderLichThang()
         }
 
-        // Vẽ lại 2 khối tháng theo baseMonthOffset hiện tại — gọi lại mỗi khi đổi tháng HOẶC khi
-        // tô/bỏ tô cam 1 ngày (ngày đang chọn có thể nằm ở khối trái hoặc phải).
+        // Vẽ lại lịch theo baseMonthOffset hiện tại — gọi lại mỗi khi đổi tháng HOẶC khi tô/bỏ tô
+        // cam 1 ngày. CHỈ 1 KHỐI THÁNG (đổi 2026-09-19, đợt 2 — bản 2 khối cạnh nhau theo spec gốc
+        // trên thực tế phải thu nhỏ chữ/ô tới mức khó đọc trên điện thoại để vừa 480px, owner xem
+        // ảnh chụp thật xong yêu cầu quay lại 1 tháng/màn hình cho dễ nhìn, đổi ‹›  để lùi/tới).
         function renderLichThang() {
             const wrapEl = document.getElementById('lich-thang-wrap')
             wrapEl.textContent = ''
             const goc = thangCuaNgay(homNayStr)
-            const thang1 = themThang(goc, baseMonthOffset)
-            const thang2 = themThang(goc, baseMonthOffset + 1)
-            wrapEl.appendChild(renderThangBlock(thang1, baseMonthOffset <= 0))
-            wrapEl.appendChild(renderThangBlock(thang2, false))
+            const thang = themThang(goc, baseMonthOffset)
+            wrapEl.appendChild(renderThangBlock(thang, baseMonthOffset <= 0))
         }
 
         function renderThangBlock({ y, m }, khoaLui) {

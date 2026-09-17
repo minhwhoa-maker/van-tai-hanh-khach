@@ -252,10 +252,10 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
     tay"; lần 2 (2026-09-19, xem mục "Lịch chạy cố định" bên dưới) đổi UI từ **danh sách phẳng**
     sang **LỊCH DẠNG LƯỚI** (giống Vexere) — bản mới nhất mô tả ngay dưới đây:
-    (0) `renderChonChuyenStep` dựng khung `#lich-thang-wrap` (2 khối tháng) + `#lich-chieu-wrap`
-    (ẩn ban đầu), gọi `renderLichThang()` vẽ 2 khối tháng liên tiếp (`baseMonthOffset` + `+1`, xem
-    bullet lịch bên dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng
-    `api/cong-khai-lich-chay.js` trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`)
+    (0) `renderChonChuyenStep` dựng khung `#lich-thang-wrap` (1 khối tháng) + `#lich-chieu-wrap`
+    (ẩn ban đầu), gọi `renderLichThang()` vẽ tháng đang xem (`baseMonthOffset`, xem bullet lịch bên
+    dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng `api/cong-khai-lich-chay.js`
+    trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`)
     → tô cam (`ngayDangChonTam`), hiện 2 nút `.chuyen-chon-item` (Ra Bắc/Vào Nam) trong
     `#lich-chieu-wrap` NGAY BÊN DƯỚI lịch (lịch vẫn hiện nguyên, CHƯA coi là chọn xong) — bấm 1
     trong 2 nút đó mới thật sự chọn xong (`chonChuyen`, nhận
@@ -280,18 +280,21 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     → `.hop-le` (viền rõ, hover đổi nền), gắn click mở `chonNgay`. Ô đang tô cam →
     thêm `.dang-chon` (nền cam đặc `#fb8c00`, đè lên `.hop-le`/`.khong-hop-le` vì luôn hợp lệ mới
     chọn được).
-  - **Điều hướng tháng (`baseMonthOffset`, dùng CHUNG cho cả 2 khối)** — bấm `‹`/`›` ở BẤT KỲ khối
-    nào cũng dịch CẢ CẶP tháng cùng lúc (`baseMonthOffset--`/`++` rồi `renderLichThang()` lại từ
-    đầu) — cố ý làm 2 khối LUÔN LÀ 2 THÁNG LIÊN TIẾP (khối phải = khối trái + 1 tháng), không cho
-    lệch pha thành 2 tháng rời rạc, dù mỗi khối tự vẽ nút `‹`/`›` riêng (đúng mẫu Vexere về mặt thị
-    giác — mỗi khối có nút — nhưng hành vi là 1 trạng thái dùng chung, đơn giản hơn quản lý 2 tháng
-    độc lập mà không mất gì về UX vì app chỉ có 1 lịch chạy duy nhất, không phải 2 tuyến khác nhau).
-    `‹` khoá (`disabled`) khi khối trái đang đúng THÁNG HIỆN TẠI (`baseMonthOffset <= 0`) — không
-    cho lùi về trước hôm nay. `›` KHÔNG khoá cứng (spec không yêu cầu) — bấm vượt quá 45 ngày mở
-    bán vẫn cho xem, chỉ là mọi ô ngày trong vùng đó không có entry trong `lichMap` nên tự động
-    `hop_le=false` hết (khoá bấm), không cần thêm điều kiện khoá `›` riêng lẫn không cần fetch
-    thêm dữ liệu — khớp đúng "KHÔNG LÀM" của spec (không preload/fetch thêm ngoài 1 lần gọi API lúc
-    `initPage`, dữ liệu 46 ngày đã tải sẵn là đủ cho mọi thao tác điều hướng).
+  - **CHỈ 1 khối tháng/màn hình (đổi 2026-09-19, đợt 2 — sau khi owner xem ảnh chụp thật trên điện
+    thoại)** — spec gốc yêu cầu "2 khối tháng cạnh nhau" giống Vexere; bản đầu implement đúng vậy
+    (`renderLichThang` vẽ `thang1`/`thang2 = thang1+1` cạnh nhau), nhưng trong khung 480px của
+    `body` (khoá mobile-first, xem đầu file `<style>`), 2 khối 7-cột phải thu nhỏ chữ/ô tới mức khó
+    đọc mới đủ chỗ nằm cạnh nhau — ảnh chụp thật cho thấy rõ vấn đề này. Owner yêu cầu quay lại
+    **1 khối tháng/màn hình**, dùng `‹`/`›` để lùi/tới xem tháng khác — `renderLichThang()` giờ chỉ
+    tính 1 mốc `thang = themThang(goc, baseMonthOffset)` và vẽ đúng 1 `renderThangBlock`.
+  - **Điều hướng tháng (`baseMonthOffset`)** — bấm `‹`/`›` đổi `baseMonthOffset--`/`++` rồi
+    `renderLichThang()` lại từ đầu. `‹` khoá (`disabled`) khi đang đúng THÁNG HIỆN TẠI
+    (`baseMonthOffset <= 0`) — không cho lùi về trước hôm nay. `›` KHÔNG khoá cứng (spec không yêu
+    cầu) — bấm vượt quá 45 ngày mở bán vẫn cho xem, chỉ là mọi ô ngày trong vùng đó không có entry
+    trong `lichMap` nên tự động `hop_le=false` hết (khoá bấm), không cần thêm điều kiện khoá `›`
+    riêng lẫn không cần fetch thêm dữ liệu — khớp đúng "KHÔNG LÀM" của spec gốc (không preload/fetch
+    thêm ngoài 1 lần gọi API lúc `initPage`, dữ liệu 46 ngày đã tải sẵn là đủ cho mọi thao tác điều
+    hướng, kể cả khi chỉ còn 1 khối tháng thay vì 2).
   - **`currentChuyen.chuyen_id` CÓ THỂ `null`** (2026-09-17, đợt 2) — ngày/chiều khách vừa bấm chưa
     từng có ai đặt thì chưa tồn tại `chuyen` thật trong DB. `taiSoDo()` gọi
     `api/cong-khai-so-do` KHÔNG kèm `chuyen_id` trong trường hợp này (server trả toàn bộ giường
