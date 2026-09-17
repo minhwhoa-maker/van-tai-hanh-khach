@@ -305,8 +305,12 @@
         <input type="text" id="f-ten" placeholder="Nhập họ tên">
         <label>Số điện thoại *</label>
         <input type="tel" id="f-sdt" placeholder="vd 0912345678">
-        <label>Phương thức thanh toán *</label>
-        <div class="thanh-toan-radio">
+        <!-- Ẩn phần chọn phương thức thanh toán (2026-09-19, theo yêu cầu) — luôn mặc định
+             "tien_mat_len_xe" (radio vẫn giữ nguyên trong DOM, chỉ ẩn khối chứa, để nguyên logic
+             đọc giá trị qua input[name="thanh-toan"]:checked ở JS không phải sửa gì). Muốn bật lại
+             lựa chọn "Chuyển khoản trước" thì bỏ display:none ở đây. -->
+        <label style="display:none;">Phương thức thanh toán *</label>
+        <div class="thanh-toan-radio" style="display:none;">
             <label><input type="radio" name="thanh-toan" value="tien_mat_len_xe" checked> Tiền mặt lúc lên xe</label>
             <label><input type="radio" name="thanh-toan" value="chuyen_khoan_truoc"> Chuyển khoản trước</label>
         </div>
