@@ -302,6 +302,30 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       vẽ lại đúng khối sau khi đóng, không cần đóng/mở lại cả Bước 0. `user-select:none` (đợt 5) áp
       dụng thêm cho `.dia-diem-picker-card` — modal cũng hiện tên địa danh dạng text, cùng rủi ro
       Android Chrome hiểu nhầm thành chọn text nếu bỏ sót.
+    - **Chọn tỉnh TỰ DO trong 17 tỉnh dọc tuyến (2026-09-19, đợt 9, theo yêu cầu) — thay hẳn state
+      `chieuDangChonTrongLich: 'bac'|'nam'` bằng `noiXuatPhatTinh`/`diemDenTinh` (object
+      `{ma, ten, thu_tu}`, mặc định lấy từ `tinhList` theo `ma` — Đắk Lắk/Hải Dương)** — trước đó
+      Bước 0 chỉ có ĐÚNG 2 điểm cố định (2 đầu tuyến), đợt này cho khách chọn CẶP TỈNH bất kỳ dọc
+      tuyến (vd Đà Nẵng → Hà Nội), chỉ tổng quát hoá Bước 0 — **Bước 1 (chọn `diem_khach` cụ thể)
+      CHƯA lọc gì theo cặp tỉnh đã chọn, vẫn hiện toàn bộ điểm dọc tuyến như cũ**, để nguyên phạm vi
+      đợt này. `chieu` (giá trị BE cần, contract KHÔNG đổi — vẫn chỉ nhận `'bac'|'nam'`) không còn
+      lưu sẵn, LUÔN SUY RA bằng so `thu_tu`: `noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' :
+      'nam'` — tính lại NGAY TẠI ĐIỂM CONFIRM (`chonChuyen`, không đọc qua closure `chieu` đã tính ở
+      đầu `renderChieuSelector`) để phòng lệch nếu sau này có chỗ khác đổi 2 biến tỉnh mà quên gọi
+      lại `renderChieuSelector`. `tinhTuyenChoDatVe()` — TÁI DÙNG `tinhList` đã tải sẵn từ
+      `api/cong-khai-diem-khach.js` (đang phục vụ dropdown Bước 1), KHÔNG gọi thêm API riêng — chỉ
+      lọc `ma !== 'KHH'` (Khánh Hòa, xe không qua, cùng lý do filter `hang.html`'s `loadTinh()`),
+      giữ nguyên thứ tự `thu_tu` server đã trả. `moDiaDiemPicker(vaiTro)` list 17 tỉnh, LOẠI THÊM
+      tỉnh đang chọn Ở ĐẦU KIA khỏi danh sách (mở picker "Điểm đến" ẩn `ma` của
+      `noiXuatPhatTinh`, và ngược lại) — chặn chọn trùng 1 tỉnh cho cả 2 đầu. `#route-swap-btn` (⇅)
+      giờ swap 2 OBJECT TỈNH (`const tam = noiXuatPhatTinh; noiXuatPhatTinh = diemDenTinh;
+      diemDenTinh = tam`) thay vì toggle 1 string — behavior y hệt cũ, chỉ tổng quát hoá kiểu dữ
+      liệu. `renderChuyenDaChonBar` đổi nhãn "Chuyến đã chọn" từ đọc `c.ten` (chuỗi cố định server
+      trả, chỉ đúng cho 2 đầu tuyến) sang tự ghép client `` `${noiXuatPhatTinh.ten} → ${diemDenTinh.ten}`
+      `` — 2 biến này KHÔNG bị reset khi confirm, vẫn giữ đúng cặp tỉnh vừa chọn cho tới lần
+      `chonNgay` (chọn ngày mới) kế tiếp mới reset lại về mặc định 2 đầu tuyến. `.dia-diem-picker-card`
+      thêm `max-height:75vh; overflow-y:auto` (giống `.ve-modal-card` ở `khach.html`) — 17 dòng
+      không còn vừa màn hình nhỏ như bản 2 dòng cố định trước đó.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
