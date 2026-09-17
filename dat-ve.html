@@ -93,7 +93,10 @@
         /* .route-place-value = tên địa danh, tách riêng vùng bấm (đợt 8, mở modal 2 lựa chọn) khỏi
            phần còn lại của dòng (nhãn + đường kẻ + nền, vẫn xác nhận chọn chuyến như đợt 6). Gạch
            chân chấm mờ để gợi ý "bấm được" mà không cần đổi cả style .route-value. */
-        .route-place-value { border-bottom: 1.5px dotted var(--border); display: inline-block; }
+        .route-place-value {
+            border-bottom: 1.5px dotted var(--border); display: inline-block;
+            font-size: 28px; font-weight: 700;
+        }
         .route-swap-btn {
             position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
