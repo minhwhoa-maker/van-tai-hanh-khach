@@ -90,6 +90,10 @@
         .route-row.dest .dot { background: #e53935; }
         .route-row .route-label { font-size: 12px; color: var(--text-muted); }
         .route-row .route-value { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 1px; }
+        /* .route-place-value = tên địa danh, tách riêng vùng bấm (đợt 8, mở modal 2 lựa chọn) khỏi
+           phần còn lại của dòng (nhãn + đường kẻ + nền, vẫn xác nhận chọn chuyến như đợt 6). Gạch
+           chân chấm mờ để gợi ý "bấm được" mà không cần đổi cả style .route-value. */
+        .route-place-value { border-bottom: 1.5px dotted var(--border); display: inline-block; }
         .route-swap-btn {
             position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
@@ -97,6 +101,27 @@
             display: flex; align-items: center; justify-content: center; font-family: inherit;
         }
         .route-da-co-khach { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+        /* Modal chọn địa danh (2 lựa chọn cố định) — cùng pattern bottom-sheet với .ve-modal/
+           .diemkhach-modal ở khach.html (không phải search page tự do, app chỉ có đúng 2 hướng). */
+        .dia-diem-picker {
+            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+        }
+        .dia-diem-picker.open { display: flex; }
+        .dia-diem-picker-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+        .dia-diem-picker-card {
+            position: relative; width: 100%; max-width: 480px; background: var(--white);
+            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+            box-shadow: var(--shadow); user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        .dia-diem-picker-card h3 { margin: 0 0 6px; font-size: 17px; }
+        .dia-diem-picker-option {
+            display: flex; align-items: center; justify-content: space-between; padding: 14px 4px;
+            font-size: 16px; cursor: pointer; border-bottom: 1px solid var(--border);
+        }
+        .dia-diem-picker-option:last-of-type { border-bottom: none; }
+        .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
+        .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
+        .dia-diem-picker-option.dang-chon .check { visibility: visible; }
         .chuyen-da-chon-bar {
             margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
@@ -302,6 +327,14 @@
         <h3>Đặt vé thành công!</h3>
         <p id="xac-nhan-chi-tiet"></p>
         <p>Vui lòng lưu lại thông tin này — hệ thống chưa hỗ trợ tra cứu lại vé. Cần hỗ trợ, gọi cho nhà xe.</p>
+    </div>
+
+    <div class="dia-diem-picker" id="dia-diem-picker">
+        <div class="dia-diem-picker-backdrop"></div>
+        <div class="dia-diem-picker-card">
+            <h3 id="dia-diem-picker-title">Chọn nơi xuất phát</h3>
+            <div id="dia-diem-picker-options"></div>
+        </div>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -661,7 +694,13 @@
             bac: { di: 'Đắk Lắk', den: 'Hải Dương' },
             nam: { di: 'Hải Dương', den: 'Đắk Lắk' },
         }
+        // entry của lần renderChieuSelector gần nhất — picker địa danh (mở từ vùng bấm riêng trong
+        // .route-select-wrap) cần lại entry này để vẽ lại đúng khối sau khi khách đổi địa danh,
+        // không tự đóng/mở lại toàn bộ Bước 0.
+        let entryDangChonChieu = null
+
         function renderChieuSelector(entry) {
+            entryDangChonChieu = entry
             const chieu = chieuDangChonTrongLich
             const info = entry[chieu]
             const diem = DIEM_THEO_CHIEU[chieu]
@@ -670,25 +709,34 @@
             wrap.innerHTML = `
                 <div class="route-select-wrap">
                     <div class="route-row origin"><span class="dot"></span>
-                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value">${diem.di}</div></div>
+                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value"><span class="route-place-value" data-vai-tro="xuat_phat">${diem.di}</span></div></div>
                     </div>
                     <div class="route-row dest"><span class="dot"></span>
-                        <div><div class="route-label">Điểm đến</div><div class="route-value">${diem.den}</div></div>
+                        <div><div class="route-label">Điểm đến</div><div class="route-value"><span class="route-place-value" data-vai-tro="diem_den">${diem.den}</span></div></div>
                     </div>
                     <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
                 </div>
                 ${info.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
             `
-            // KHÔNG còn nút "Tiếp tục" riêng (bỏ 2026-09-19, đợt 6, theo yêu cầu) — bấm vào khối
-            // (2 dòng Nơi xuất phát/Điểm đến) CHỌN XONG NGAY với chiều đang hiển thị, gọi thẳng
-            // `chonChuyen`. Nút tròn "⇅" tách riêng, `stopPropagation()` để KHÔNG kích hoạt luôn
-            // click của khối cha — bấm "⇅" chỉ đổi chiều hiển thị (xem lại trước khi chọn), bấm
-            // VÀO 2 DÒNG THÔNG TIN mới thật sự xác nhận. `user-select:none` (CSS) vẫn giữ nguyên —
-            // vẫn cần chặn Android Chrome hiểu nhầm bấm chữ thành chọn text (xem đợt 5).
+            // 3 vùng bắt click riêng trong .route-select-wrap (đợt 8, thêm modal chọn địa danh —
+            // trước đó đợt 6 chỉ có 2 vùng):
+            // (1) #route-swap-btn — stopPropagation, chỉ đổi chiều hiển thị, không mở/không confirm.
+            // (2) .route-place-value (tên địa danh) — MỚI, stopPropagation, mở #dia-diem-picker
+            //     đúng vai trò (xuất phát/đến) của dòng vừa bấm — KHÔNG confirm, chỉ đổi hiển thị.
+            // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — giữ nguyên hành vi
+            //     confirm của đợt 6: bấm là CHỌN XONG NGAY, gọi thẳng `chonChuyen`.
+            // `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên toàn khối — vẫn cần chặn Android
+            // Chrome hiểu nhầm bấm chữ thành chọn text/bật popup "Tìm kiếm trên Google".
             document.getElementById('route-swap-btn').addEventListener('click', (e) => {
                 e.stopPropagation()
                 chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'
                 renderChieuSelector(entry)
+            })
+            wrap.querySelectorAll('.route-place-value').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation()
+                    moDiaDiemPicker(el.dataset.vaiTro)
+                })
             })
             document.querySelector('.route-select-wrap').addEventListener('click', () => {
                 chonChuyen({
@@ -698,6 +746,39 @@
             })
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
+
+        // Modal chọn địa danh (2 lựa chọn cố định "Đắk Lắk"/"Hải Dương") khi bấm vào tên tỉnh —
+        // KHÔNG phải ô tìm kiếm tự do kiểu Vexere vì app chỉ có đúng 2 hướng cố định. Chọn xong chỉ
+        // ĐỔI HIỂN THỊ (set `chieuDangChonTrongLich` rồi vẽ lại `renderChieuSelector`), KHÔNG gọi
+        // `chonChuyen` — giống hệt cách nút "⇅" hoạt động, chỉ khác cách chọn hướng.
+        function chieuTuLuaChonDiaDiem(vaiTro, diaDiem) {
+            if (vaiTro === 'xuat_phat') return diaDiem === 'Đắk Lắk' ? 'bac' : 'nam'
+            return diaDiem === 'Hải Dương' ? 'bac' : 'nam'
+        }
+        function moDiaDiemPicker(vaiTro) {
+            const diem = DIEM_THEO_CHIEU[chieuDangChonTrongLich]
+            const dangChon = vaiTro === 'xuat_phat' ? diem.di : diem.den
+            document.getElementById('dia-diem-picker-title').textContent =
+                vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
+            const optionsWrap = document.getElementById('dia-diem-picker-options')
+            optionsWrap.innerHTML = ['Đắk Lắk', 'Hải Dương'].map(ten => `
+                <div class="dia-diem-picker-option${ten === dangChon ? ' dang-chon' : ''}" data-ten="${ten}">
+                    <span>${ten}</span><span class="check">✓</span>
+                </div>
+            `).join('')
+            optionsWrap.querySelectorAll('.dia-diem-picker-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    chieuDangChonTrongLich = chieuTuLuaChonDiaDiem(vaiTro, el.dataset.ten)
+                    dongDiaDiemPicker()
+                    renderChieuSelector(entryDangChonChieu)
+                })
+            })
+            document.getElementById('dia-diem-picker').classList.add('open')
+        }
+        function dongDiaDiemPicker() {
+            document.getElementById('dia-diem-picker').classList.remove('open')
+        }
+        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPicker)
 
         // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho lịch ở Bước 0.
         function renderChuyenDaChonBar() {
