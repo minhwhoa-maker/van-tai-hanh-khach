@@ -756,6 +756,7 @@
             renderDiemKhachOptions(document.getElementById('diem-xuong-select'), c.chieu, '')
             capNhatHienThiSoDo()
             await taiSoDo()
+            document.getElementById('diem-chon-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
 
         function doiChuyenKhac() {
