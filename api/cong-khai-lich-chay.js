@@ -160,18 +160,34 @@ export default async function handler(req, res) {
     const now = new Date()
     const homNay = ngayVN(now)
     const homNayStr = `${homNay.yy}-${String(homNay.mm).padStart(2, '0')}-${String(homNay.dd).padStart(2, '0')}`
+    const nowMs = now.getTime()
 
-    const ngayHopLe = []
+    // Giờ khởi hành SỚM NHẤT trong 2 chiều — dùng làm mốc loại "hôm nay" ra khỏi lịch nếu đã
+    // qua giờ đó (2026-09-19, đổi từ loại RIÊNG TỪNG CHIỀU sang loại CẢ NGÀY theo mốc sớm nhất —
+    // đơn giản hoá cho giao diện lịch dạng lưới, 1 ô ngày chỉ có đúng 1 trạng thái hợp lệ/không,
+    // không còn khái niệm "ngày hợp lệ nhưng chỉ 1 trong 2 chiều bán được" như bản danh sách cũ).
+    const gioSomNhat = (gioBac.h * 60 + gioBac.m <= gioNam.h * 60 + gioNam.m) ? gioBac : gioNam
+
+    // TRẢ VỀ TOÀN BỘ ngày trong khoảng (kể cả ngày KHÔNG chạy) — frontend tự vẽ lịch dạng lưới,
+    // ngày lẻ âm vẫn phải hiện ô (mờ/khoá) để đúng vị trí trên lịch, không chỉ lọc sẵn ngày hợp lệ
+    // như bản danh sách phẳng trước đây.
+    const tatCaNgay = []
     for (let i = 0; i <= SO_NGAY_MO_BAN_TRUOC; i++) {
         const d = new Date(Date.UTC(homNay.yy, homNay.mm - 1, homNay.dd + i, 12, 0, 0)) // trưa UTC, tránh lệch ngày do DST/giờ biên
         const { dd, mm, yy } = ngayVN(d)
         const am = convertSolar2Lunar(dd, mm, yy, 7)
-        if (am.day % 2 !== 0) continue
         const ngayStr = `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
-        ngayHopLe.push({ ngay: ngayStr, lunar: `${am.day}/${am.month}${am.leap ? ' nhuận' : ''} ÂL`, isToday: ngayStr === homNayStr })
+        const isToday = ngayStr === homNayStr
+        let hopLe = am.day % 2 === 0
+        if (hopLe && isToday) {
+            const gioChayUTC = Date.UTC(yy, mm - 1, dd, gioSomNhat.h - 7, gioSomNhat.m) // giờ VN -> UTC (UTC+7)
+            hopLe = nowMs < gioChayUTC
+        }
+        tatCaNgay.push({ ngay: ngayStr, lunar_day: am.day, lunar_month: am.month, hop_le: hopLe })
     }
 
-    if (!ngayHopLe.length) { res.status(200).json({ lich: [] }); return }
+    const ngayHopLe = tatCaNgay.filter(x => x.hop_le)
+    if (!ngayHopLe.length) { res.status(200).json({ lich: tatCaNgay }); return }
 
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
     const tuNgay = ngayHopLe[0].ngay
@@ -195,21 +211,11 @@ export default async function handler(req, res) {
         mapCoSan.set(`${ngayVNCuaChuyen(c.khoi_hanh)}|${c.chieu}`, c.id)
     }
 
-    const nowMs = now.getTime()
-    function conMoBan(ngayStr, isToday, gio) {
-        if (!isToday) return true
-        // Hôm nay: chỉ loại riêng CHIỀU đã quá giờ khởi hành mặc định, không loại cả ngày —
-        // chiều còn lại (nếu giờ chưa qua) vẫn bán bình thường.
-        const [yy, mm, dd] = ngayStr.split('-').map(Number)
-        const gioChayUTC = Date.UTC(yy, mm - 1, dd, gio.h - 7, gio.m) // giờ VN -> UTC (UTC+7)
-        return nowMs < gioChayUTC
-    }
-
-    const lich = ngayHopLe.map(({ ngay, lunar, isToday }) => ({
-        ngay, lunar,
-        bac: conMoBan(ngay, isToday, gioBac) ? { chuyen_id: mapCoSan.get(`${ngay}|bac`) || null, ten: 'Ra Bắc (Đắk Lắk → Hải Dương)' } : null,
-        nam: conMoBan(ngay, isToday, gioNam) ? { chuyen_id: mapCoSan.get(`${ngay}|nam`) || null, ten: 'Vào Nam (Hải Dương → Đắk Lắk)' } : null,
-    })).filter(x => x.bac || x.nam)
+    const lich = tatCaNgay.map(({ ngay, lunar_day, lunar_month, hop_le }) => hop_le ? {
+        ngay, lunar_day, lunar_month, hop_le,
+        bac: { chuyen_id: mapCoSan.get(`${ngay}|bac`) || null, ten: 'Ra Bắc (Đắk Lắk → Hải Dương)' },
+        nam: { chuyen_id: mapCoSan.get(`${ngay}|nam`) || null, ten: 'Vào Nam (Hải Dương → Đắk Lắk)' },
+    } : { ngay, lunar_day, lunar_month, hop_le })
 
     res.status(200).json({ lich })
 }

@@ -248,18 +248,50 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   (không có trang vé điện tử/QR, ngoài phạm vi test) — khách KHÔNG lưu lại được, cần tra cứu lại
   phải gọi crew.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
-    tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. **Bước 0 ĐỔI LẠI lần 2
-    cùng ngày** — không còn chọn giữa các chuyến crew tự tạo tay, mà chọn NGÀY + CHIỀU theo lịch
-    chạy cố định (xem mục "Lịch chạy cố định theo ngày chẵn âm lịch" bên dưới):
-    (0) `renderChonChuyenStep`, đọc `lichList` từ `api/cong-khai-lich-chay.js` — mỗi ngày hợp lệ 1
-    nhóm `.ngay-chon-group` (header ngày + âm lịch), tối đa 2 nút con `.chuyen-chon-item` (Ra Bắc/
-    Vào Nam, ẩn nút nào server đã loại vì hôm nay quá giờ khởi hành mặc định) — bấm 1 nút mới sang
-    bước điểm (`chonChuyen`, nhận `{ngay, chieu, chuyen_id (có thể null), ten, lunar}`); (1)
-    `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`), CHỈ
-    hiện sau khi đã chọn ở Bước 0; (2) `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2 điểm đã chọn
-    (`capNhatHienThiSoDo`, gọi từ listener `change` của cả 2 select) — trống thì hiện
+    tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. Bước 0 sau đó đổi tiếp 2
+    lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
+    tay"; lần 2 (2026-09-19, xem mục "Lịch chạy cố định" bên dưới) đổi UI từ **danh sách phẳng**
+    sang **LỊCH DẠNG LƯỚI** (giống Vexere) — bản mới nhất mô tả ngay dưới đây:
+    (0) `renderChonChuyenStep` dựng khung `#lich-thang-wrap` (2 khối tháng) + `#lich-chieu-wrap`
+    (ẩn ban đầu), gọi `renderLichThang()` vẽ 2 khối tháng liên tiếp (`baseMonthOffset` + `+1`, xem
+    bullet lịch bên dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng
+    `api/cong-khai-lich-chay.js` trả về, kể cả ngày không hợp lệ). Bấm 1 Ô NGÀY hợp lệ (`chonNgay`)
+    → tô cam (`ngayDangChonTam`), hiện 2 nút `.chuyen-chon-item` (Ra Bắc/Vào Nam) trong
+    `#lich-chieu-wrap` NGAY BÊN DƯỚI lịch (lịch vẫn hiện nguyên, CHƯA coi là chọn xong) — bấm 1
+    trong 2 nút đó mới thật sự chọn xong (`chonChuyen`, nhận
+    `{ngay, lunarDay, lunarMonth, chieu, chuyen_id (có thể null), ten}`), lúc đó mới sang bước
+    điểm; (1) `#diem-chon-wrap` — chọn Điểm lên/Điểm xuống (`#diem-len-select`/`#diem-xuong-select`),
+    CHỈ hiện sau khi đã chọn xong ở Bước 0; (2) `#so-do-wrap` (sơ đồ giường) — CHỈ hiện khi CẢ 2
+    điểm đã chọn (`capNhatHienThiSoDo`, gọi từ listener `change` của cả 2 select) — trống thì hiện
     `#cho-chon-diem-hint` thay chỗ; (3) `#dat-ve-form` — CHỈ còn Tên*/SĐT*/Phương thức thanh toán (2
     field điểm đã dời sang Bước 1) — hiện khi có ít nhất 1 giường đã chọn (`capNhatFormChonGiuong`).
+  - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
+    (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
+    tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
+    1. Mỗi ô ngày (`renderNgayO`) hiện dương lịch to phía trên + âm lịch nhỏ phía dưới, **âm lịch
+    LUÔN TÍNH LẠI Ở CLIENT** (`convertSolar2Lunar`, hàm global có sẵn từ `shared.js` — KHÔNG phải
+    import chéo, chỉ tái dùng đúng như `formatDate` đã làm) cho MỌI ô kể cả ô ngoài khoảng server
+    trả (quá khứ, hoặc quá xa nếu khách bấm "›" vượt khoảng mở bán) — chỉ dùng để HIỂN THỊ đúng số
+    âm lịch, KHÔNG dùng để tự suy diễn "hợp lệ hay không": cờ `hop_le` LUÔN đọc từ `lichMap.get(ngay)`
+    (dữ liệu server), ô không có entry trong map mặc định `hop_le=false`. Định dạng âm lịch: mùng 1
+    hiện `"d/M"` (vd `"1/8"`), các ngày sau trong CÙNG tháng âm chỉ hiện số lẻ (`"2"`, `"3"`...) —
+    đỡ lặp lại "/8" mỗi ô. Ô `hop_le=false` (ngày lẻ âm, ngày quá khứ, hoặc ngoài khoảng server trả)
+    → `.khong-hop-le` (`opacity:0.35`, `pointer-events:none`, không gắn click listener); `hop_le=true`
+    → `.hop-le` (viền rõ, hover đổi nền), gắn click mở `chonNgay`. Ô đang tô cam →
+    thêm `.dang-chon` (nền cam đặc `#fb8c00`, đè lên `.hop-le`/`.khong-hop-le` vì luôn hợp lệ mới
+    chọn được).
+  - **Điều hướng tháng (`baseMonthOffset`, dùng CHUNG cho cả 2 khối)** — bấm `‹`/`›` ở BẤT KỲ khối
+    nào cũng dịch CẢ CẶP tháng cùng lúc (`baseMonthOffset--`/`++` rồi `renderLichThang()` lại từ
+    đầu) — cố ý làm 2 khối LUÔN LÀ 2 THÁNG LIÊN TIẾP (khối phải = khối trái + 1 tháng), không cho
+    lệch pha thành 2 tháng rời rạc, dù mỗi khối tự vẽ nút `‹`/`›` riêng (đúng mẫu Vexere về mặt thị
+    giác — mỗi khối có nút — nhưng hành vi là 1 trạng thái dùng chung, đơn giản hơn quản lý 2 tháng
+    độc lập mà không mất gì về UX vì app chỉ có 1 lịch chạy duy nhất, không phải 2 tuyến khác nhau).
+    `‹` khoá (`disabled`) khi khối trái đang đúng THÁNG HIỆN TẠI (`baseMonthOffset <= 0`) — không
+    cho lùi về trước hôm nay. `›` KHÔNG khoá cứng (spec không yêu cầu) — bấm vượt quá 45 ngày mở
+    bán vẫn cho xem, chỉ là mọi ô ngày trong vùng đó không có entry trong `lichMap` nên tự động
+    `hop_le=false` hết (khoá bấm), không cần thêm điều kiện khoá `›` riêng lẫn không cần fetch
+    thêm dữ liệu — khớp đúng "KHÔNG LÀM" của spec (không preload/fetch thêm ngoài 1 lần gọi API lúc
+    `initPage`, dữ liệu 46 ngày đã tải sẵn là đủ cho mọi thao tác điều hướng).
   - **`currentChuyen.chuyen_id` CÓ THỂ `null`** (2026-09-17, đợt 2) — ngày/chiều khách vừa bấm chưa
     từng có ai đặt thì chưa tồn tại `chuyen` thật trong DB. `taiSoDo()` gọi
     `api/cong-khai-so-do` KHÔNG kèm `chuyen_id` trong trường hợp này (server trả toàn bộ giường
@@ -268,10 +300,12 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     trả lại `chuyen_id` thật trong response, frontend gán ngay vào `currentChuyen.chuyen_id` để các
     lượt đặt tiếp theo (nhiều giường trong cùng lượt, hoặc `taiSoDo()` sau đó) dùng thẳng, không tạo
     lại/tra lại mỗi lần.
-  - **Bấm "Đổi chuyến khác" (`doiChuyenKhac`) XOÁ SẠCH lựa chọn điểm + giường** (`selectedGiuongMap.
-    clear()`, reset 2 select điểm về rỗng, ẩn hết Bước 1-3) — KHÁC hành vi "đổi điểm lên/xuống"
-    (không xoá giường đã chọn, xem bullet dưới) vì đổi SANG NGÀY/CHIỀU KHÁC nghĩa là sơ đồ giường/
-    tập điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ tham chiếu tới giường/context không còn đúng.
+  - **Bấm "Đổi chuyến khác" (`doiChuyenKhac`) XOÁ SẠCH lựa chọn điểm + giường, RESET LỊCH** (`ngayDangChonTam
+    = null`, `baseMonthOffset = 0`, `selectedGiuongMap.clear()`, reset 2 select điểm về rỗng, ẩn hết
+    Bước 1-3) — KHÁC hành vi "đổi điểm lên/xuống" (không xoá giường đã chọn, xem bullet dưới) vì đổi
+    SANG NGÀY/CHIỀU KHÁC nghĩa là sơ đồ giường/tập điểm hợp lệ đã đổi hẳn, giữ lại lựa chọn cũ sẽ
+    tham chiếu tới giường/context không còn đúng. Reset về đúng tháng hiện tại (không giữ tháng đang
+    xem trước đó) — chọn lại luôn bắt đầu từ hôm nay, đơn giản hơn nhớ lại vị trí cũ.
   - **Đổi lại điểm lên/xuống (trong CÙNG 1 chuyến) sau khi đã chọn giường KHÔNG xoá giường đã
     chọn** — `selectedGiuongMap` độc lập với việc Bước 2 đang hiện hay ẩn, chỉ ẩn/hiện lại đúng
     khối tương ứng, quay lại chọn điểm khác vẫn thấy nguyên giường đã chọn trước đó (khác hẳn việc
@@ -324,16 +358,29 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
   SELECT lại lấy đúng bản ghi vừa được request kia tạo, xem `api/cong-khai-dat-ve.js`).
 - **`api/cong-khai-lich-chay.js`** (GET, thay hoàn toàn `api/cong-khai-chuyen.js` đã xoá) — tính
   trước `SO_NGAY_MO_BAN_TRUOC = 45` ngày tới (**GIÁ TRỊ TẠM**, owner cần xác nhận thực tế mở bán
-  trước bao lâu rồi sửa hằng số này nếu khác), lọc giữ lại ngày có `lunarDay % 2 === 0`. Thuật toán
-  âm lịch (`convertSolar2Lunar` + các hàm phụ trợ `_jdFromDate`/`_newMoon`/...) **COPY NGUYÊN VĂN từ
-  `shared.js`** — file đó là script trình duyệt thuần (hàm ở global scope, không `module.exports`)
-  nên không `import` thẳng được vào route serverless Node ESM, cùng convention "không import chéo"
-  đã dùng cho `chuanHoaSdt`/`laSdtHopLe`. Với mỗi ngày hợp lệ, trả về CẢ 2 chiều `bac`/`nam` riêng
-  (`{chuyen_id, ten}` nếu đã có `chuyen` tồn tại — `dat_truoc` hoặc `dang_chay`, else `chuyen_id:
-  null`) — **hôm nay CHỈ loại riêng CHIỀU đã quá giờ khởi hành mặc định** (`conMoBan`, so theo giờ
-  hiện tại UTC quy đổi từ giờ VN), không loại cả ngày như spec gốc phác thảo — chiều còn lại (nếu
-  giờ chưa qua) vẫn bán bình thường, hợp lý hơn vì `GIO_KHOI_HANH_BAC`/`GIO_KHOI_HANH_NAM` có thể
-  khác nhau. Response: `{lich: [{ngay, lunar, bac: {...}|null, nam: {...}|null}]}`.
+  trước bao lâu rồi sửa hằng số này nếu khác). Thuật toán âm lịch (`convertSolar2Lunar` + các hàm
+  phụ trợ `_jdFromDate`/`_newMoon`/...) **COPY NGUYÊN VĂN từ `shared.js`** — file đó là script
+  trình duyệt thuần (hàm ở global scope, không `module.exports`) nên không `import` thẳng được vào
+  route serverless Node ESM, cùng convention "không import chéo" đã dùng cho `chuanHoaSdt`/
+  `laSdtHopLe`.
+  - **Response shape đổi hẳn (2026-09-19, phục vụ giao diện LỊCH DẠNG LƯỚI)** — trước đó API tự
+    LỌC SẴN chỉ trả ngày hợp lệ (danh sách phẳng không cần biết ngày không chạy). Giờ trả về
+    **TOÀN BỘ ngày trong khoảng** `[hôm nay, hôm nay+45]` kể cả ngày KHÔNG chạy, để frontend tự vẽ
+    đủ ô lịch đúng vị trí (ngày lẻ âm vẫn cần có ô, chỉ mờ/khoá — không thể bỏ qua như bản danh
+    sách phẳng cũ, xem `renderThangBlock` ở `dat-ve.html`): `{lich: [{ngay, lunar_day, lunar_month,
+    hop_le}, ...]}` — ngày `hop_le: false` KHÔNG có field `bac`/`nam` (frontend không cần); ngày
+    `hop_le: true` có thêm `bac: {chuyen_id, ten}` + `nam: {chuyen_id, ten}` (chuyen_id `null` nếu
+    `chuyen` chưa tồn tại trong DB). **Phần tử ĐẦU TIÊN của mảng LUÔN LÀ HÔM NAY** (`i=0` trong
+    vòng lặp) bất kể `hop_le` — `dat-ve.html` dựa vào bất biến này để lấy `homNayStr` làm mốc tính
+    tháng gốc cho lịch, không cần tính lại "hôm nay" ở client.
+  - **`hop_le` giờ là 1 cờ DUY NHẤT CHO CẢ NGÀY** (đổi từ loại RIÊNG TỪNG CHIỀU trước đó, đơn giản
+    hoá cho giao diện lịch — 1 ô ngày chỉ có đúng 1 trạng thái hợp lệ/không, không còn khái niệm
+    "ngày hợp lệ nhưng chỉ 1 trong 2 chiều bán được") — `hop_le = (lunar_day chẵn) && (ngày >= hôm
+    nay) && (nếu là hôm nay: chưa qua GIỜ KHỞI HÀNH SỚM NHẤT trong 2 chiều)` (`gioSomNhat`, so
+    `gioBac`/`gioNam` theo phút-trong-ngày, lấy giá trị nhỏ hơn). Hệ quả: nếu hôm nay đã qua giờ
+    chiều SỚM nhưng chưa qua giờ chiều MUỘN, cả 2 chiều đều bị coi là hết hạn cùng lúc (thà chặn
+    nhầm 1 chiều còn kịp giờ, còn hơn giữ logic phức tạp "1 ngày 2 trạng thái" cho 1 giao diện vốn
+    chỉ có 1 ô/ngày) — chấp nhận được vì đây là bản TEST, khác biệt rất nhỏ (vài giờ trong ngày).
 - **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — ***owner PHẢI
   điền đúng giờ chạy thật trước khi cho khách dùng thật, hiện đang fallback tạm `"19:30"` (Claude
   Code tự đặt để không crash lúc chưa set, KHÔNG phải giờ chính thức) ở CẢ 2 nơi đọc biến này

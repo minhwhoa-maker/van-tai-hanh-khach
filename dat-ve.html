@@ -24,14 +24,47 @@
         }
         .public-header h1 { margin: 0 0 4px; font-size: 19px; }
         .public-header .sub { font-size: 13px; opacity: 0.9; }
-        /* Bước 0 — chọn NGÀY ĐI trước tất cả. Đổi 2026-09-17 (đợt 2): thay vì chọn giữa các chuyến
-           crew đã tự tạo tay, giờ hiện LỊCH CHẠY CỐ ĐỊNH theo ngày chẵn âm lịch (api/cong-khai-
-           lich-chay.js) — mỗi ngày hợp lệ có tới 2 nút chiều (Ra Bắc/Vào Nam), bấm 1 trong 2 mới
-           sang bước chọn giường. Chuyến có thể CHƯA tồn tại trong DB (hệ thống tự tạo lúc khách
-           thật sự đặt vé, xem api/cong-khai-dat-ve.js) — xem SPEC "Lịch chạy cố định" CLAUDE.md. */
-        .ngay-chon-group { margin-bottom: 14px; }
-        .ngay-chon-header { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
-        .ngay-chon-header .hom-nay { color: var(--primary); }
+        /* Bước 0 — chọn NGÀY ĐI trước tất cả, dùng lịch chạy cố định theo ngày chẵn âm lịch
+           (api/cong-khai-lich-chay.js). Đổi 2026-09-19 sang GIAO DIỆN LỊCH DẠNG LƯỚI (giống
+           Vexere) — trước đó là danh sách phẳng từng nhóm ngày. Chuyến có thể CHƯA tồn tại trong
+           DB (hệ thống tự tạo lúc khách thật sự đặt vé, xem api/cong-khai-dat-ve.js) — xem SPEC
+           "Lịch chạy cố định" CLAUDE.md. */
+        .chuyen-chon-wrap { margin: 16px; }
+        .chuyen-chon-wrap h3 { margin: 0 0 10px; font-size: 16px; }
+        .lich-thang-wrap { display: flex; flex-wrap: wrap; gap: 12px; }
+        .lich-thang-block {
+            flex: 1 1 220px; min-width: 220px; background: var(--white); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); padding: 10px 8px;
+        }
+        .lich-thang-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 8px; font-weight: 700; font-size: 13px;
+        }
+        .lich-thang-header button {
+            background: none; border: none; font-size: 18px; line-height: 1; cursor: pointer;
+            color: var(--primary); padding: 2px 8px; font-family: inherit;
+        }
+        .lich-thang-header button:disabled { color: #ccc; cursor: not-allowed; }
+        .lich-tuan-header {
+            display: grid; grid-template-columns: repeat(7, 1fr); font-size: 10px;
+            color: var(--text-muted); text-align: center; margin-bottom: 4px;
+        }
+        .lich-ngay-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+        .lich-ngay-o {
+            aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 6px; border: 1.5px solid transparent; background: none; cursor: pointer;
+            font-family: inherit; padding: 0;
+        }
+        .lich-ngay-o.trong { visibility: hidden; cursor: default; }
+        .lich-ngay-o .duong { font-size: 13px; font-weight: 700; color: var(--text); }
+        .lich-ngay-o .am { font-size: 8.5px; color: var(--text-muted); margin-top: 1px; }
+        .lich-ngay-o.hop-le { border-color: var(--border); }
+        .lich-ngay-o.hop-le:hover { background: var(--bg); }
+        .lich-ngay-o.khong-hop-le { opacity: 0.35; pointer-events: none; }
+        .lich-ngay-o.dang-chon { background: #fb8c00; border-color: #fb8c00; }
+        .lich-ngay-o.dang-chon .duong, .lich-ngay-o.dang-chon .am { color: #fff; }
+        .lich-chieu-wrap { margin: 14px 16px 0; }
+        .lich-chieu-wrap .goi-y { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
         .chieu-btns { display: flex; gap: 8px; }
         .chuyen-chon-item {
             flex: 1; padding: 12px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
@@ -40,8 +73,6 @@
         }
         .chuyen-chon-item b { color: var(--primary); display: block; font-size: 13px; }
         .chuyen-chon-item .da-co-khach { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
-        .chuyen-chon-wrap { margin: 16px; }
-        .chuyen-chon-wrap h3 { margin: 0 0 10px; font-size: 16px; }
         .chuyen-da-chon-bar {
             margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
@@ -255,10 +286,21 @@
     <script>
         // KHÔNG dùng sb/Supabase client trực tiếp — mọi thao tác qua API route riêng (service key
         // ở server), xem SPEC "dat-ve.html" trong CLAUDE.md để biết lý do không mở RLS anon.
-        let lichList = []          // [{ngay, lunar, bac:{chuyen_id,ten}|null, nam:{...}|null}] — từ api/cong-khai-lich-chay.js
-        // currentChuyen: {ngay, chieu, ten, lunar, chuyen_id} — chuyen_id CÓ THỂ null (ngày/chiều
-        // chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có lượt đặt vé đầu
-        // tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id, xem btn-dat-ve).
+        //
+        // lichList: TOÀN BỘ ngày trong khoảng mở bán (kể cả ngày KHÔNG chạy — hop_le:false), từ
+        // api/cong-khai-lich-chay.js — [{ngay, lunar_day, lunar_month, hop_le, bac?, nam?}].
+        // Đổi 2026-09-19 sang giao diện LỊCH DẠNG LƯỚI (giống Vexere): trước đó API chỉ trả sẵn
+        // ngày hợp lệ để vẽ danh sách phẳng, giờ trả ĐỦ NGÀY để frontend tự vẽ lưới đúng vị trí ô
+        // (ngày lẻ âm vẫn cần có ô, chỉ mờ/khoá — không thể bỏ qua như danh sách phẳng cũ).
+        let lichList = []
+        let lichMap = new Map()    // ngay (YYYY-MM-DD) -> entry, tra nhanh khi vẽ từng ô lịch
+        let homNayStr = ''         // = lichList[0].ngay (server LUÔN trả hôm nay là phần tử đầu)
+        let baseMonthOffset = 0    // 0 = khối lịch trái đang hiện đúng THÁNG HIỆN TẠI, khối phải = +1 tháng
+        let ngayDangChonTam = null // ngày đang tô cam trên lịch (đã chọn ngày, CHƯA bấm chiều)
+        // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, ten, chuyen_id} — chuyen_id CÓ THỂ
+        // null (ngày/chiều chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có
+        // lượt đặt vé đầu tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id,
+        // xem btn-dat-ve).
         let currentChuyen = null   // null cho tới khi khách chọn xong ở Bước 0
         let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}] — của ĐÚNG currentChuyen
         let diemKhachList = []
@@ -475,64 +517,144 @@
         }
 
         const THU_LABEL = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
-        function nhanNgayLabel(ngayStr, lunar, isToday) {
+        function nhanNgayLabel(ngayStr, lunarDay, lunarMonth) {
             const d = new Date(ngayStr + 'T12:00:00Z') // trưa UTC — tránh lệch ngày khi đổi sang giờ VN
             const [yy, mm, dd] = ngayStr.split('-')
-            const thu = isToday ? 'Hôm nay' : THU_LABEL[d.getUTCDay()]
-            return `${thu}, ${dd}/${mm} · ${lunar}`
+            return `${THU_LABEL[d.getUTCDay()]}, ${dd}/${mm} · ${lunarDay}/${lunarMonth} ÂL`
         }
 
-        // Bước 0 — lịch chạy cố định (mỗi ngày chẵn âm lịch, 2 chiều độc lập) để khách chọn ngày +
-        // chiều trước khi làm gì khác. Nút nào chieu:null (server đã loại — hôm nay quá giờ khởi
-        // hành mặc định) thì không render.
+        function thangCuaNgay(ngayStr) {
+            const [y, m] = ngayStr.split('-').map(Number)
+            return { y, m }
+        }
+        function themThang({ y, m }, delta) {
+            let mm = m - 1 + delta
+            const yy = y + Math.floor(mm / 12)
+            mm = ((mm % 12) + 12) % 12
+            return { y: yy, m: mm + 1 }
+        }
+
+        // Bước 0 — LỊCH DẠNG LƯỚI (giống Vexere, 2026-09-19), thay cho danh sách phẳng trước đó —
+        // 2 khối tháng cạnh nhau (tháng hiện tại + tháng sau), khách bấm 1 ô ngày hợp lệ để tô cam,
+        // rồi bấm 1 trong 2 nút chiều hiện ra bên dưới lịch mới thật sự "chọn xong".
         function renderChonChuyenStep() {
             const wrap = document.getElementById('chuyen-info-wrap')
-            wrap.innerHTML = '<div class="chuyen-chon-wrap"><h3>0. Chọn ngày đi</h3><div id="chuyen-chon-list"></div></div>'
-            const list = document.getElementById('chuyen-chon-list')
-            const homNayStr = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
-            lichList.forEach(item => {
-                const isToday = item.ngay === homNayStr
-                const group = document.createElement('div')
-                group.className = 'ngay-chon-group'
-                const header = document.createElement('div')
-                header.className = 'ngay-chon-header'
-                header.innerHTML = isToday
-                    ? `<span class="hom-nay">Hôm nay</span>, ${item.ngay.slice(8, 10)}/${item.ngay.slice(5, 7)} · ${item.lunar}`
-                    : nhanNgayLabel(item.ngay, item.lunar, false)
-                group.appendChild(header)
-                const btns = document.createElement('div')
-                btns.className = 'chieu-btns'
-                ;['bac', 'nam'].forEach(chieu => {
-                    const info = item[chieu]
-                    if (!info) return
-                    const btn = document.createElement('button')
-                    btn.type = 'button'
-                    btn.className = 'chuyen-chon-item'
-                    btn.innerHTML = `<b>${chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'}</b>` +
-                        (info.chuyen_id ? '<div class="da-co-khach">Đã có khách đặt</div>' : '')
-                    btn.addEventListener('click', () => chonChuyen({ ngay: item.ngay, lunar: item.lunar, chieu, ten: info.ten, chuyen_id: info.chuyen_id }))
-                    btns.appendChild(btn)
-                })
-                group.appendChild(btns)
-                list.appendChild(group)
-            })
+            wrap.innerHTML = '<div class="chuyen-chon-wrap"><h3>0. Chọn ngày đi</h3>' +
+                '<div class="lich-thang-wrap" id="lich-thang-wrap"></div>' +
+                '<div class="lich-chieu-wrap" id="lich-chieu-wrap" style="display:none;"></div></div>'
+            renderLichThang()
         }
 
-        // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho danh sách Bước 0.
+        // Vẽ lại 2 khối tháng theo baseMonthOffset hiện tại — gọi lại mỗi khi đổi tháng HOẶC khi
+        // tô/bỏ tô cam 1 ngày (ngày đang chọn có thể nằm ở khối trái hoặc phải).
+        function renderLichThang() {
+            const wrapEl = document.getElementById('lich-thang-wrap')
+            wrapEl.textContent = ''
+            const goc = thangCuaNgay(homNayStr)
+            const thang1 = themThang(goc, baseMonthOffset)
+            const thang2 = themThang(goc, baseMonthOffset + 1)
+            wrapEl.appendChild(renderThangBlock(thang1, baseMonthOffset <= 0))
+            wrapEl.appendChild(renderThangBlock(thang2, false))
+        }
+
+        function renderThangBlock({ y, m }, khoaLui) {
+            const block = document.createElement('div')
+            block.className = 'lich-thang-block'
+            const header = document.createElement('div')
+            header.className = 'lich-thang-header'
+            header.innerHTML = `<button type="button" class="btn-lui"${khoaLui ? ' disabled' : ''}>‹</button>` +
+                `<span>Tháng ${m}/${y}</span><button type="button" class="btn-toi">›</button>`
+            header.querySelector('.btn-lui').addEventListener('click', () => { baseMonthOffset--; renderLichThang() })
+            header.querySelector('.btn-toi').addEventListener('click', () => { baseMonthOffset++; renderLichThang() })
+            block.appendChild(header)
+
+            const tuanHeader = document.createElement('div')
+            tuanHeader.className = 'lich-tuan-header'
+            // Tuần bắt đầu Thứ Hai (KHÔNG phải Chủ Nhật) — đúng theo mẫu Vexere.
+            ;['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].forEach(t => {
+                const s = document.createElement('span')
+                s.textContent = t
+                tuanHeader.appendChild(s)
+            })
+            block.appendChild(tuanHeader)
+
+            const grid = document.createElement('div')
+            grid.className = 'lich-ngay-grid'
+            const soNgayTrongThang = new Date(Date.UTC(y, m, 0)).getUTCDate()
+            const colDauTien = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7 // 0=T2..6=CN
+            for (let i = 0; i < colDauTien; i++) {
+                const o = document.createElement('div')
+                o.className = 'lich-ngay-o trong'
+                grid.appendChild(o)
+            }
+            for (let dd = 1; dd <= soNgayTrongThang; dd++) {
+                grid.appendChild(renderNgayO(`${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`, dd))
+            }
+            block.appendChild(grid)
+            return block
+        }
+
+        // Âm lịch tính LẠI Ở CLIENT (convertSolar2Lunar, dùng chung hàm global từ shared.js) cho
+        // MỌI ô — kể cả ngày ngoài khoảng server trả về (quá khứ, hoặc quá xa tương lai nếu khách
+        // bấm "›" vượt khoảng mở bán) — chỉ để HIỂN THỊ số âm lịch đúng vị trí, KHÔNG dùng để tự
+        // quyết định "hợp lệ hay không": hop_le LUÔN đọc từ lichMap (server), ô không có entry
+        // (ngoài khoảng server trả) mặc định coi là KHÔNG hợp lệ, không suy diễn ở client.
+        function renderNgayO(ngayStr, dd) {
+            const entry = lichMap.get(ngayStr)
+            const hopLe = !!(entry && entry.hop_le)
+            const [yy, mm] = ngayStr.split('-').map(Number)
+            const am = convertSolar2Lunar(dd, mm, yy, 7)
+            const amLabel = am.day === 1 ? `${am.day}/${am.month}` : `${am.day}`
+            const btn = document.createElement('button')
+            btn.type = 'button'
+            btn.className = 'lich-ngay-o ' + (hopLe ? 'hop-le' : 'khong-hop-le') + (ngayStr === ngayDangChonTam ? ' dang-chon' : '')
+            btn.innerHTML = `<div class="duong">${dd}</div><div class="am">${amLabel}</div>`
+            if (hopLe) btn.addEventListener('click', () => chonNgay(entry))
+            return btn
+        }
+
+        // Bấm 1 ô ngày hợp lệ → tô cam (bỏ tô ô cũ nếu có, chỉ chọn 1 ngày/lúc), hiện 2 nút chiều
+        // NGAY BÊN DƯỚI lịch — lịch vẫn hiện nguyên, chưa coi là "đã chọn xong" cho tới khi bấm 1
+        // trong 2 nút chiều (chonChuyen). Đổi sang ngày khác thì gọi lại đúng hàm này, 2 nút chiều
+        // cũ tự bị thay bằng 2 nút của ngày mới — không cần xoá tay.
+        function chonNgay(entry) {
+            ngayDangChonTam = entry.ngay
+            renderLichThang()
+            const wrap = document.getElementById('lich-chieu-wrap')
+            wrap.style.display = 'block'
+            wrap.innerHTML = '<div class="chieu-btns" id="lich-chieu-btns"></div>'
+            const btns = document.getElementById('lich-chieu-btns')
+            ;['bac', 'nam'].forEach(chieu => {
+                const info = entry[chieu]
+                const btn = document.createElement('button')
+                btn.type = 'button'
+                btn.className = 'chuyen-chon-item'
+                btn.innerHTML = `<b>${chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'}</b>` +
+                    (info.chuyen_id ? '<div class="da-co-khach">Đã có khách đặt</div>' : '')
+                btn.addEventListener('click', () => chonChuyen({
+                    ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
+                    chieu, ten: info.ten, chuyen_id: info.chuyen_id
+                }))
+                btns.appendChild(btn)
+            })
+            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        }
+
+        // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho lịch ở Bước 0.
         function renderChuyenDaChonBar() {
             const c = currentChuyen
             document.getElementById('chuyen-info-wrap').innerHTML = `
                 <div class="chuyen-da-chon-bar">
-                    <div>Chuyến đã chọn: <b>${c.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunar, false)}</div>
+                    <div>Chuyến đã chọn: <b>${c.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunarDay, c.lunarMonth)}</div>
                     <button type="button" class="btn-doi-chuyen" id="btn-doi-chuyen">Đổi chuyến khác</button>
                 </div>
             `
             document.getElementById('btn-doi-chuyen').addEventListener('click', doiChuyenKhac)
         }
 
-        // Chọn 1 ngày+chiều ở Bước 0 → tải sơ đồ giường CỦA ĐÚNG ngày/chiều đó (chuyen_id có thể
-        // null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn điểm + giường vì đều gắn với lựa
-        // chọn cũ (đổi ngày đi thì giường/điểm của chuyến trước không còn ý nghĩa).
+        // Chọn 1 ngày+chiều (bấm nút ở chonNgay) → tải sơ đồ giường CỦA ĐÚNG ngày/chiều đó
+        // (chuyen_id có thể null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn điểm + giường vì
+        // đều gắn với lựa chọn cũ (đổi ngày đi thì giường/điểm của chuyến trước không còn ý nghĩa).
         async function chonChuyen(c) {
             currentChuyen = c
             selectedGiuongMap.clear()
@@ -548,6 +670,8 @@
 
         function doiChuyenKhac() {
             currentChuyen = null
+            ngayDangChonTam = null
+            baseMonthOffset = 0
             selectedGiuongMap.clear()
             soDoData = []
             document.getElementById('diem-chon-wrap').style.display = 'none'
@@ -574,6 +698,10 @@
                 document.getElementById('chuyen-info-wrap').innerHTML = '<div class="khong-co-chuyen">🚫 Hiện chưa có ngày nào mở bán. Vui lòng quay lại sau.</div>'
                 return
             }
+            // Server LUÔN trả phần tử ĐẦU là hôm nay (kể cả hop_le:false) — dùng làm mốc tính
+            // tháng gốc cho lịch (renderLichThang) mà không cần tính lại ngày "hôm nay" ở client.
+            homNayStr = lichList[0].ngay
+            lichMap = new Map(lichList.map(item => [item.ngay, item]))
             renderChonChuyenStep()
         }
 
