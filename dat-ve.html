@@ -101,8 +101,10 @@
             display: flex; align-items: center; justify-content: center; font-family: inherit;
         }
         .route-da-co-khach { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
-        /* Modal chọn địa danh (2 lựa chọn cố định) — cùng pattern bottom-sheet với .ve-modal/
-           .diemkhach-modal ở khach.html (không phải search page tự do, app chỉ có đúng 2 hướng). */
+        /* Modal chọn địa danh — cùng pattern bottom-sheet với .ve-modal/.diemkhach-modal ở
+           khach.html (không phải search page tự do kiểu Vexere — list cố định từ `tinh_tuyen`,
+           không gõ được). Đợt 9: list 17 tỉnh dọc tuyến (trước đó chỉ 2 dòng cố định) nên thêm
+           max-height/overflow-y để cuộn được trong màn hình nhỏ, giống `.ve-modal-card`. */
         .dia-diem-picker {
             display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
         }
@@ -111,7 +113,8 @@
         .dia-diem-picker-card {
             position: relative; width: 100%; max-width: 480px; background: var(--white);
             border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
-            box-shadow: var(--shadow); user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+            max-height: 75vh; overflow-y: auto; box-shadow: var(--shadow);
+            user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
         }
         .dia-diem-picker-card h3 { margin: 0 0 6px; font-size: 17px; }
         .dia-diem-picker-option {
@@ -354,11 +357,15 @@
         let homNayStr = ''         // = lichList[0].ngay (server LUÔN trả hôm nay là phần tử đầu)
         let baseMonthOffset = 0    // 0 = khối lịch trái đang hiện đúng THÁNG HIỆN TẠI, khối phải = +1 tháng
         let ngayDangChonTam = null // ngày đang tô cam trên lịch (đã chọn ngày, CHƯA bấm chiều)
-        // Chiều đang xem trong khối "Nơi xuất phát/Điểm đến" (2026-09-19, đợt 4) — mặc định 'bac'
-        // mỗi lần chọn ngày mới, nút ⇅ toggle giữa 'bac'/'nam', KHÔNG phải lựa chọn cuối cùng cho
-        // tới khi bấm "Tiếp tục" (xem `chonNgay`/`renderChieuSelector`).
-        let chieuDangChonTrongLich = 'bac'
-        // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, ten, chuyen_id} — chuyen_id CÓ THỂ
+        // Khối "Nơi xuất phát/Điểm đến" (2026-09-19, đợt 4) — đợt 9 tổng quát hoá từ 2 hướng cố
+        // định (`chieuDangChonTrongLich: 'bac'|'nam'`) sang CHỌN TỰ DO trong 17 tỉnh dọc tuyến.
+        // `chieu` (giá trị BE cần, 'bac'|'nam') giờ LUÔN SUY RA từ so `thu_tu` của 2 tỉnh, không
+        // còn lưu sẵn — tránh lệch nếu đâu đó quên cập nhật khi đổi tỉnh (xem `chonChuyen`/
+        // `renderChieuSelector`). Mặc định mỗi lần chọn ngày mới (xem `chonNgay`) là đúng 2 đầu
+        // tuyến, KHÔNG phải lựa chọn cuối cùng cho tới khi bấm vào phần xác nhận của khối.
+        let noiXuatPhatTinh = { ma: 'DLK', ten: 'Đắk Lắk', thu_tu: 1 }
+        let diemDenTinh = { ma: 'HDG', ten: 'Hải Dương', thu_tu: 18 }
+        // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, chuyen_id} — chuyen_id CÓ THỂ
         // null (ngày/chiều chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có
         // lượt đặt vé đầu tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id,
         // xem btn-dat-ve).
@@ -676,24 +683,30 @@
 
         // Bấm 1 ô ngày hợp lệ → tô cam (bỏ tô ô cũ nếu có, chỉ chọn 1 ngày/lúc), hiện khối
         // "Nơi xuất phát / Điểm đến" NGAY BÊN DƯỚI lịch (giống Vexere) — lịch vẫn hiện nguyên, CHƯA
-        // coi là "đã chọn xong" cho tới khi bấm "Tiếp tục" (`chonChuyen`). Đổi sang ngày khác thì
-        // gọi lại đúng hàm này, khối cũ tự bị thay bằng khối của ngày mới, `chieuDangChonTrongLich`
-        // reset về mặc định 'bac' — không giữ hướng đã chọn tạm của ngày trước.
+        // coi là "đã chọn xong" cho tới khi bấm vào phần xác nhận (`chonChuyen`). Đổi sang ngày khác
+        // thì gọi lại đúng hàm này, khối cũ tự bị thay bằng khối của ngày mới, 2 tỉnh reset về mặc
+        // định 2 đầu tuyến (Đắk Lắk/Hải Dương) — không giữ cặp tỉnh đã chọn tạm của ngày trước. Lấy
+        // lại object thật từ `tinhList` (đã tải xong từ trước khi có thể bấm ngày) thay vì dùng
+        // thẳng hằng số mặc định — đảm bảo `ten`/`thu_tu` luôn khớp đúng dữ liệu server.
         function chonNgay(entry) {
             ngayDangChonTam = entry.ngay
-            chieuDangChonTrongLich = 'bac'
+            noiXuatPhatTinh = tinhList.find(t => t.ma === 'DLK') || noiXuatPhatTinh
+            diemDenTinh = tinhList.find(t => t.ma === 'HDG') || diemDenTinh
             renderLichThang()
             renderChieuSelector(entry)
         }
 
-        // Khối chọn chiều kiểu "Nơi xuất phát / Điểm đến" — app chỉ có ĐÚNG 2 hướng cố định (không
-        // phải ô tìm kiếm tự do như Vexere), nút "⇅" chỉ TOGGLE `chieuDangChonTrongLich` giữa
-        // 'bac'/'nam' rồi vẽ lại đúng khối này, KHÔNG tự chọn xong — bấm "Tiếp tục" mới gọi
-        // `chonChuyen` (tương đương bấm 1 trong 2 nút rời rạc ở bản trước).
-        const DIEM_THEO_CHIEU = {
-            bac: { di: 'Đắk Lắk', den: 'Hải Dương' },
-            nam: { di: 'Hải Dương', den: 'Đắk Lắk' },
+        // 17 tỉnh dọc tuyến cho picker địa danh — loại Khánh Hòa (xe không qua, cùng lý do filter
+        // đã có ở hang.html's loadTinh()). Tái dùng `tinhList` đã tải sẵn từ api/cong-khai-diem-khach.js
+        // (đang phục vụ dropdown điểm lên/xuống Bước 1), KHÔNG gọi thêm API riêng. Đã sắp `thu_tu`
+        // tăng dần từ server, không cần sort lại.
+        function tinhTuyenChoDatVe() {
+            return tinhList.filter(t => t.ma !== 'KHH')
         }
+
+        // Khối chọn "Nơi xuất phát / Điểm đến" — đợt 9 tổng quát hoá từ 2 hướng cố định sang CHỌN
+        // TỰ DO trong 17 tỉnh (xem picker `moDiaDiemPicker` bên dưới). Nút "⇅" vẫn chỉ TOGGLE hiển
+        // thị (swap 2 biến tỉnh) rồi vẽ lại đúng khối này, KHÔNG tự chọn xong.
         // entry của lần renderChieuSelector gần nhất — picker địa danh (mở từ vùng bấm riêng trong
         // .route-select-wrap) cần lại entry này để vẽ lại đúng khối sau khi khách đổi địa danh,
         // không tự đóng/mở lại toàn bộ Bước 0.
@@ -701,18 +714,17 @@
 
         function renderChieuSelector(entry) {
             entryDangChonChieu = entry
-            const chieu = chieuDangChonTrongLich
+            const chieu = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
             const info = entry[chieu]
-            const diem = DIEM_THEO_CHIEU[chieu]
             const wrap = document.getElementById('lich-chieu-wrap')
             wrap.style.display = 'block'
             wrap.innerHTML = `
                 <div class="route-select-wrap">
                     <div class="route-row origin"><span class="dot"></span>
-                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value"><span class="route-place-value" data-vai-tro="xuat_phat">${diem.di}</span></div></div>
+                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value"><span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span></div></div>
                     </div>
                     <div class="route-row dest"><span class="dot"></span>
-                        <div><div class="route-label">Điểm đến</div><div class="route-value"><span class="route-place-value" data-vai-tro="diem_den">${diem.den}</span></div></div>
+                        <div><div class="route-label">Điểm đến</div><div class="route-value"><span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span></div></div>
                     </div>
                     <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
                 </div>
@@ -721,15 +733,17 @@
             // 3 vùng bắt click riêng trong .route-select-wrap (đợt 8, thêm modal chọn địa danh —
             // trước đó đợt 6 chỉ có 2 vùng):
             // (1) #route-swap-btn — stopPropagation, chỉ đổi chiều hiển thị, không mở/không confirm.
-            // (2) .route-place-value (tên địa danh) — MỚI, stopPropagation, mở #dia-diem-picker
-            //     đúng vai trò (xuất phát/đến) của dòng vừa bấm — KHÔNG confirm, chỉ đổi hiển thị.
+            // (2) .route-place-value (tên địa danh) — stopPropagation, mở #dia-diem-picker đúng vai
+            //     trò (xuất phát/đến) của dòng vừa bấm — KHÔNG confirm, chỉ đổi hiển thị.
             // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — giữ nguyên hành vi
             //     confirm của đợt 6: bấm là CHỌN XONG NGAY, gọi thẳng `chonChuyen`.
             // `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên toàn khối — vẫn cần chặn Android
             // Chrome hiểu nhầm bấm chữ thành chọn text/bật popup "Tìm kiếm trên Google".
             document.getElementById('route-swap-btn').addEventListener('click', (e) => {
                 e.stopPropagation()
-                chieuDangChonTrongLich = chieuDangChonTrongLich === 'bac' ? 'nam' : 'bac'
+                const tam = noiXuatPhatTinh
+                noiXuatPhatTinh = diemDenTinh
+                diemDenTinh = tam
                 renderChieuSelector(entry)
             })
             wrap.querySelectorAll('.route-place-value').forEach(el => {
@@ -739,36 +753,41 @@
                 })
             })
             document.querySelector('.route-select-wrap').addEventListener('click', () => {
+                // Tính lại `chieu` trực tiếp từ so sánh thu_tu ngay lúc confirm (không đọc biến
+                // `chieu` đóng gói ở trên qua closure) — phòng lệch nếu sau này có chỗ khác đổi
+                // `noiXuatPhatTinh`/`diemDenTinh` mà quên gọi lại renderChieuSelector.
+                const chieuXacNhan = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
+                const infoXacNhan = entry[chieuXacNhan]
                 chonChuyen({
                     ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
-                    chieu, ten: info.ten, chuyen_id: info.chuyen_id
+                    chieu: chieuXacNhan, chuyen_id: infoXacNhan.chuyen_id
                 })
             })
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
 
-        // Modal chọn địa danh (2 lựa chọn cố định "Đắk Lắk"/"Hải Dương") khi bấm vào tên tỉnh —
-        // KHÔNG phải ô tìm kiếm tự do kiểu Vexere vì app chỉ có đúng 2 hướng cố định. Chọn xong chỉ
-        // ĐỔI HIỂN THỊ (set `chieuDangChonTrongLich` rồi vẽ lại `renderChieuSelector`), KHÔNG gọi
-        // `chonChuyen` — giống hệt cách nút "⇅" hoạt động, chỉ khác cách chọn hướng.
-        function chieuTuLuaChonDiaDiem(vaiTro, diaDiem) {
-            if (vaiTro === 'xuat_phat') return diaDiem === 'Đắk Lắk' ? 'bac' : 'nam'
-            return diaDiem === 'Hải Dương' ? 'bac' : 'nam'
-        }
+        // Modal chọn địa danh (đợt 9: 17 tỉnh dọc tuyến thay cho 2 lựa chọn cố định) khi bấm vào
+        // tên tỉnh — KHÔNG phải ô tìm kiếm tự do kiểu Vexere (list cố định từ `tinh_tuyen`, không
+        // gõ được). Loại thêm tỉnh đang chọn ở BÊN KIA khỏi list — không cho chọn trùng 1 tỉnh cho
+        // cả xuất phát lẫn điểm đến. Chọn xong chỉ ĐỔI HIỂN THỊ (set lại biến tỉnh tương ứng rồi vẽ
+        // lại `renderChieuSelector`), KHÔNG gọi `chonChuyen` — giống hệt cách nút "⇅" hoạt động.
         function moDiaDiemPicker(vaiTro) {
-            const diem = DIEM_THEO_CHIEU[chieuDangChonTrongLich]
-            const dangChon = vaiTro === 'xuat_phat' ? diem.di : diem.den
+            const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
+            const dangChonMa = vaiTro === 'xuat_phat' ? noiXuatPhatTinh.ma : diemDenTinh.ma
+            const list = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia.ma)
             document.getElementById('dia-diem-picker-title').textContent =
                 vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
             const optionsWrap = document.getElementById('dia-diem-picker-options')
-            optionsWrap.innerHTML = ['Đắk Lắk', 'Hải Dương'].map(ten => `
-                <div class="dia-diem-picker-option${ten === dangChon ? ' dang-chon' : ''}" data-ten="${ten}">
-                    <span>${ten}</span><span class="check">✓</span>
+            optionsWrap.innerHTML = list.map(t => `
+                <div class="dia-diem-picker-option${t.ma === dangChonMa ? ' dang-chon' : ''}" data-ma="${t.ma}">
+                    <span>${t.ten}</span><span class="check">✓</span>
                 </div>
             `).join('')
             optionsWrap.querySelectorAll('.dia-diem-picker-option').forEach(el => {
                 el.addEventListener('click', () => {
-                    chieuDangChonTrongLich = chieuTuLuaChonDiaDiem(vaiTro, el.dataset.ten)
+                    const tinh = list.find(t => t.ma === el.dataset.ma)
+                    if (vaiTro === 'xuat_phat') noiXuatPhatTinh = tinh
+                    else diemDenTinh = tinh
                     dongDiaDiemPicker()
                     renderChieuSelector(entryDangChonChieu)
                 })
@@ -780,12 +799,15 @@
         }
         document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPicker)
 
-        // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho lịch ở Bước 0.
+        // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho lịch ở Bước 0. Nhãn tuyến ghép
+        // từ `noiXuatPhatTinh`/`diemDenTinh` (biến vẫn giữ đúng cặp tỉnh vừa xác nhận — không bị
+        // reset cho tới lần `chonNgay` kế tiếp) thay vì đọc `c.ten` cố định từ server — server chỉ
+        // biết mô tả 2 đầu tuyến cố định, không khớp khi khách chọn cặp tỉnh giữa đường (đợt 9).
         function renderChuyenDaChonBar() {
             const c = currentChuyen
             document.getElementById('chuyen-info-wrap').innerHTML = `
                 <div class="chuyen-da-chon-bar">
-                    <div>Chuyến đã chọn: <b>${c.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunarDay, c.lunarMonth)}</div>
+                    <div>Chuyến đã chọn: <b>${noiXuatPhatTinh.ten} → ${diemDenTinh.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunarDay, c.lunarMonth)}</div>
                     <button type="button" class="btn-doi-chuyen" id="btn-doi-chuyen">Đổi chuyến khác</button>
                 </div>
             `
