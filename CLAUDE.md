@@ -288,6 +288,20 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       thẳng `chonChuyen` với chiều đang hiển thị tại thời điểm bấm — không còn bước xác nhận riêng
       biệt nào nữa. `user-select:none` của đợt 5 vẫn cần giữ nguyên (lý do không đổi: bấm vào 2
       dòng text giờ là hành động CHỌN XONG, càng cần chặn chọn text hơn cả trước).
+    - **Modal chọn địa danh khi bấm TÊN TỈNH (2026-09-19, đợt 8, theo yêu cầu) — tách thành 3 vùng
+      bắt click, KHÔNG còn 2 như đợt 6**: `.route-place-value` (span mới bọc riêng "Đắk Lắk"/"Hải
+      Dương") giờ `stopPropagation()` + mở `#dia-diem-picker` (bottom-sheet nhỏ, cùng pattern
+      `.ve-modal`/`.diemkhach-modal` ở `khach.html`, KHÔNG phải search page tự do kiểu Vexere vì
+      app chỉ có đúng 2 địa danh cố định) thay vì lọt xuống vùng confirm của đợt 6 — phần CÒN LẠI
+      của dòng (nhãn "Nơi xuất phát"/"Điểm đến", đường kẻ đứt nét, nền row) mới giữ đúng hành vi
+      confirm cũ (`chonChuyen` ngay). Chọn 1 trong 2 dòng trong modal chỉ set lại
+      `chieuDangChonTrongLich` theo bảng mapping (xuất phát→Đắk Lắk hoặc đến→Hải Dương ⇒ `'bac'`;
+      xuất phát→Hải Dương hoặc đến→Đắk Lắk ⇒ `'nam'`) rồi vẽ lại `renderChieuSelector` — KHÔNG gọi
+      `chonChuyen`, y hệt cách nút "⇅" hoạt động (chỉ đổi hiển thị, chưa xác nhận). `entryDangChonChieu`
+      (biến module-level, gán lại mỗi lần `renderChieuSelector` chạy) giữ tham chiếu `entry` để modal
+      vẽ lại đúng khối sau khi đóng, không cần đóng/mở lại cả Bước 0. `user-select:none` (đợt 5) áp
+      dụng thêm cho `.dia-diem-picker-card` — modal cũng hiện tên địa danh dạng text, cùng rủi ro
+      Android Chrome hiểu nhầm thành chọn text nếu bỏ sót.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
