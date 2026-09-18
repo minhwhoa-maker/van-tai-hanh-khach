@@ -655,6 +655,39 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
   "Hủy đơn"). `loadTinhList()` (đã có sẵn, dùng cho dropdown chọn tỉnh khi thêm `diem_khach`) thêm
   cột `gia_moc` vào `.select(...)`.
 
+### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
+
+Chống đặt ảo/spam ở `dat-ve.html` — khách phải xác thực SĐT bằng mã 6 số (qua Zalo ZNS hoặc SMS
+Brandname, tự chọn) trước khi bấm "Đặt vé" được. **TÁCH BIỆT HOÀN TOÀN với auth crew** (`auth.users`/
+Zalo Login OAuth ở `login.html`) — mục đích khác nhau, không liên quan gì tới đăng nhập.
+
+- **`dat_ve_otp`** (bảng mới, `id, sdt, ma_otp, kenh 'zalo'|'sms', het_han, da_dung, xac_thuc_luc,
+  so_lan_sai, created_at`, index theo `sdt`) — chỉ server (`SUPABASE_SERVICE_KEY`) đụng vào, không
+  RLS riêng, cùng pattern các bảng `api/cong-khai-*` khác.
+- **`api/cong-khai-gui-otp.js`** (POST `{sdt, kenh}`) — validate SĐT, rate-limit chống lạm dụng chi
+  phí (≥3 lần/10 phút hoặc ≥10 lần/24h cho cùng SĐT → 429), sinh mã 6 số random, hết hạn sau 5 phút,
+  gọi `guiOtpZalo`/`guiOtpSms` theo kênh khách chọn. **KHÔNG BAO GIỜ trả mã OTP trong response.**
+  - `guiOtpZalo` — gọi Zalo ZNS (Notification Service, **KHÁC HẲN** Zalo Login OAuth đã có), cần
+    `ZALO_OA_ACCESS_TOKEN` + `ZALO_ZNS_TEMPLATE_ID` (mẫu tin phải được Zalo duyệt nội dung trước) —
+    ***CHƯA CÓ 2 ENV NÀY***, throw lỗi rõ ràng "Kênh Zalo chưa cấu hình" thay vì fail âm thầm.
+  - `guiOtpSms` — placeholder, chưa gắn nhà cung cấp cụ thể (owner chưa chốt eSMS/SpeedSMS/nhà
+    mạng, cần tài khoản Brandname + giấy tờ HKD, duyệt vài ngày) — luôn throw lỗi "chưa tích hợp
+    xong" cho tới khi có credential thật và code phần gọi API nhà cung cấp.
+- **`api/cong-khai-xac-thuc-otp.js`** (POST `{sdt, ma_otp}`) — lấy dòng `dat_ve_otp` MỚI NHẤT của
+  SĐT chưa dùng/chưa hết hạn (mã cũ hơn tự động mất hiệu lực dù chưa hết 5 phút, phòng khách bấm gửi
+  lại nhiều lần), sai mã → `so_lan_sai += 1`, ≥5 lần sai → khoá phải gửi mã mới. Đúng mã →
+  `da_dung=true, xac_thuc_luc=now()`.
+- **`api/cong-khai-dat-ve.js`** — thêm bước SERVER TỰ KIỂM TRA đã xác thực chưa (cùng nguyên tắc
+  "không tin client" đã áp dụng cho giá vé) — trước khi insert `ve`, query `dat_ve_otp` có dòng
+  `sdt` khớp, `da_dung=true`, `xac_thuc_luc` trong 30 phút gần nhất không; không có → 403. Đây là
+  chốt chặn THẬT, UI chỉ là lớp UX.
+- **`dat-ve.html`** — trong `#dat-ve-form`, sau ô SĐT: radio chọn kênh Zalo/SMS → nút "Gửi mã xác
+  thực" (tự disable 60s sau khi bấm, đếm ngược trên chính nút, chỉ là UX vì server đã rate-limit
+  thật) → hiện ô nhập 6 số + nút "Xác nhận". Đúng mã → `sdtDaXacThucOtp` (biến module-level) ghi lại
+  đúng số vừa xác thực, hiện dấu "✓ Đã xác thực". Nút "Đặt vé" so `sdt` đang gõ với
+  `sdtDaXacThucOtp` — lệch (kể cả đổi số sau khi đã xác thực số khác) → chặn, báo toast yêu cầu xác
+  thực lại; listener `input` trên `#f-sdt` tự ẩn dấu ✓/khối nhập mã khi số không khớp nữa.
+
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 
 Mục đích: trong `manifest-hang.html`, sắp xếp thứ tự kiện *bên trong 1 tỉnh* theo đúng thứ tự đi trên đường (tránh xe chạy ngược xuôi khi giao nhiều điểm cùng tỉnh) — dùng `diem.km_moc` (km tích lũy từ Đắk Lắk).

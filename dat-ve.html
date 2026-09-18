@@ -263,6 +263,34 @@
             background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
         }
         .btn-dat-ve:disabled { background: #90a4ae; cursor: not-allowed; }
+        /* OTP bắt buộc (2026-09-19) — xem SPEC trong CLAUDE.md. */
+        .otp-kenh-radio { display: flex; gap: 10px; margin-top: 4px; }
+        .otp-kenh-radio label {
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 10px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 14px; color: var(--text); cursor: pointer;
+        }
+        .otp-kenh-radio input { width: auto; }
+        .btn-gui-otp {
+            width: 100%; margin-top: 8px; padding: 11px; border: 1.5px solid var(--primary);
+            border-radius: var(--radius-sm); background: #fff; color: var(--primary); font-size: 14px;
+            font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .btn-gui-otp:disabled { border-color: #b0bec5; color: #b0bec5; cursor: not-allowed; }
+        .otp-nhap-wrap { display: none; margin-top: 10px; }
+        .otp-nhap-row { display: flex; gap: 8px; }
+        .otp-nhap-row input {
+            flex: 1; letter-spacing: 4px; text-align: center; font-size: 18px !important;
+        }
+        .btn-xac-thuc-otp {
+            padding: 0 16px; border: none; border-radius: var(--radius-sm); background: var(--primary);
+            color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .btn-xac-thuc-otp:disabled { background: #90a4ae; cursor: not-allowed; }
+        .otp-xac-thuc-ok {
+            display: none; margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm);
+            background: var(--success-light); color: var(--success); font-size: 13px; font-weight: 700;
+        }
         .xac-nhan-box {
             display: none; margin: 24px 16px; padding: 24px 16px; text-align: center;
             background: var(--success-light); border: 1.5px solid var(--success); border-radius: var(--radius-sm);
@@ -347,6 +375,24 @@
         <input type="text" id="f-ten" placeholder="Nhập họ tên">
         <label>Số điện thoại *</label>
         <input type="tel" id="f-sdt" placeholder="vd 0912345678">
+
+        <!-- OTP bắt buộc trước khi đặt vé (2026-09-19) — xem SPEC trong CLAUDE.md. Server ở
+             api/cong-khai-dat-ve.js mới là chốt chặn thật, khối này chỉ là UX ở client. -->
+        <label>Nhận mã xác thực qua *</label>
+        <div class="otp-kenh-radio">
+            <label><input type="radio" name="otp-kenh" value="zalo"> Zalo</label>
+            <label><input type="radio" name="otp-kenh" value="sms"> SMS</label>
+        </div>
+        <button type="button" class="btn-gui-otp" id="btn-gui-otp">Gửi mã xác thực</button>
+        <div class="otp-nhap-wrap" id="otp-nhap-wrap">
+            <label>Nhập mã 6 số</label>
+            <div class="otp-nhap-row">
+                <input type="tel" id="f-ma-otp" maxlength="6" placeholder="------">
+                <button type="button" class="btn-xac-thuc-otp" id="btn-xac-thuc-otp">Xác nhận</button>
+            </div>
+        </div>
+        <div class="otp-xac-thuc-ok" id="otp-xac-thuc-ok">✓ Đã xác thực số điện thoại</div>
+
         <!-- Ẩn phần chọn phương thức thanh toán (2026-09-19, theo yêu cầu) — luôn mặc định
              "tien_mat_len_xe" (radio vẫn giữ nguyên trong DOM, chỉ ẩn khối chứa, để nguyên logic
              đọc giá trị qua input[name="thanh-toan"]:checked ở JS không phải sửa gì). Muốn bật lại
@@ -561,6 +607,77 @@
             })
         })
 
+        // OTP bắt buộc (2026-09-19) — UX ở client, chốt chặn THẬT nằm ở server
+        // (api/cong-khai-dat-ve.js tự kiểm tra dat_ve_otp, không tin cờ này). Xem SPEC trong
+        // CLAUDE.md. `sdtDaXacThucOtp` giữ đúng số vừa xác thực thành công — đổi SĐT trong ô nhập
+        // khác số này thì coi như CHƯA xác thực, phải xác thực lại từ đầu.
+        let sdtDaXacThucOtp = null
+
+        function capNhatTrangThaiXacThucOtp() {
+            const sdtHienTai = document.getElementById('f-sdt').value.trim()
+            const daXacThuc = sdtHienTai && sdtHienTai === sdtDaXacThucOtp
+            document.getElementById('otp-xac-thuc-ok').style.display = daXacThuc ? 'block' : 'none'
+            if (!daXacThuc) document.getElementById('otp-nhap-wrap').style.display = 'none'
+        }
+
+        document.getElementById('f-sdt').addEventListener('input', capNhatTrangThaiXacThucOtp)
+
+        document.getElementById('btn-gui-otp').addEventListener('click', async () => {
+            const sdt = document.getElementById('f-sdt').value.trim()
+            const kenhEl = document.querySelector('input[name="otp-kenh"]:checked')
+            if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
+            if (!kenhEl) { showToast('Vui lòng chọn kênh nhận mã (Zalo hoặc SMS)', 'error'); return }
+
+            const btn = document.getElementById('btn-gui-otp')
+            btn.disabled = true
+            try {
+                const res = await fetch('/api/cong-khai-gui-otp', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdt, kenh: kenhEl.value })
+                })
+                const data = await res.json()
+                if (!res.ok) { showToast(data.error || 'Lỗi gửi mã', 'error'); btn.disabled = false; return }
+                showToast('Đã gửi mã xác thực', 'success')
+                document.getElementById('otp-nhap-wrap').style.display = 'block'
+                document.getElementById('f-ma-otp').value = ''
+                // Khoá nút 60s tránh spam gửi lại (server có rate-limit riêng, đây chỉ là UX).
+                let giay = 60
+                btn.textContent = `Gửi lại sau ${giay}s`
+                const dem = setInterval(() => {
+                    giay--
+                    if (giay <= 0) { clearInterval(dem); btn.disabled = false; btn.textContent = 'Gửi mã xác thực' }
+                    else btn.textContent = `Gửi lại sau ${giay}s`
+                }, 1000)
+            } catch (err) {
+                showToast('Lỗi mạng: ' + err.message, 'error')
+                btn.disabled = false
+            }
+        })
+
+        document.getElementById('btn-xac-thuc-otp').addEventListener('click', async () => {
+            const sdt = document.getElementById('f-sdt').value.trim()
+            const maOtp = document.getElementById('f-ma-otp').value.trim()
+            if (!/^\d{6}$/.test(maOtp)) { showToast('Mã xác thực phải gồm 6 số', 'error'); return }
+
+            const btn = document.getElementById('btn-xac-thuc-otp')
+            btn.disabled = true
+            try {
+                const res = await fetch('/api/cong-khai-xac-thuc-otp', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sdt, ma_otp: maOtp })
+                })
+                const data = await res.json()
+                if (!res.ok) { showToast(data.error || 'Mã không đúng', 'error'); btn.disabled = false; return }
+                sdtDaXacThucOtp = sdt
+                capNhatTrangThaiXacThucOtp()
+                showToast('Xác thực thành công', 'success')
+            } catch (err) {
+                showToast('Lỗi mạng: ' + err.message, 'error')
+            } finally {
+                btn.disabled = false
+            }
+        })
+
         document.getElementById('btn-dat-ve').addEventListener('click', async () => {
             const dsGiuong = [...selectedGiuongMap.values()]
             if (!currentChuyen || !dsGiuong.length) return
@@ -575,6 +692,7 @@
             const hinhThuc = document.querySelector('input[name="thanh-toan"]:checked').value
             if (!ten) { showToast('Vui lòng nhập họ tên', 'error'); return }
             if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
+            if (sdt !== sdtDaXacThucOtp) { showToast('Vui lòng xác thực số điện thoại trước khi đặt vé', 'error'); return }
 
             const btn = document.getElementById('btn-dat-ve')
             btn.disabled = true

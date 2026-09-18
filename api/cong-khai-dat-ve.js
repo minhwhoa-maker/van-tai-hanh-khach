@@ -74,6 +74,18 @@ export default async function handler(req, res) {
 
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
 
+    // OTP bắt buộc (2026-09-19) — SERVER TỰ KIỂM TRA đã xác thực qua api/cong-khai-xac-thuc-otp.js
+    // chưa, KHÔNG tin cờ "đã verify" từ client (cùng nguyên tắc "không tin client" đã áp dụng cho
+    // giá vé) — dòng dat_ve_otp phải da_dung=true VÀ xac_thuc_luc trong 30 phút gần nhất (khách xác
+    // thực xong rồi lằng nhằng chọn giường lâu quá thì bắt xác thực lại, tránh mã cũ dùng mãi).
+    const { data: otpRow, error: otpErr } = await sbAdmin
+        .from('dat_ve_otp').select('id')
+        .eq('sdt', sdtChuan).eq('da_dung', true)
+        .gte('xac_thuc_luc', new Date(Date.now() - 30 * 60 * 1000).toISOString())
+        .order('xac_thuc_luc', { ascending: false }).limit(1).maybeSingle()
+    if (otpErr) { res.status(500).json({ error: otpErr.message }); return }
+    if (!otpRow) { res.status(403).json({ error: 'Vui lòng xác thực số điện thoại trước khi đặt vé' }); return }
+
     // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)|,
     // tính LẠI HOÀN TOÀN Ở SERVER từ `tinh_len_ma`/`tinh_xuong_ma` client gửi kèm (không phải từ
     // `diem_len_id`/`diem_xuong_id` — 2 field đó chỉ là điểm CỤ THỂ, có thể null, không đủ để suy
