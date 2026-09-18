@@ -655,6 +655,50 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
   "Hủy đơn"). `loadTinhList()` (đã có sẵn, dùng cho dropdown chọn tỉnh khi thêm `diem_khach`) thêm
   cột `gia_moc` vào `.select(...)`.
 
+### Multi-tenant — nhiều nhà xe dùng chung 1 hệ thống (2026-09-19, đang triển khai theo giai đoạn)
+
+**Spec B, làm TUẦN TỰ theo yêu cầu owner — KHÔNG đổ hết 1 lần.** Trạng thái hiện tại: **CHỈ MỚI
+xong Giai đoạn 1 (schema nền tảng)** — Giai đoạn 2 (thêm `nha_xe_id` vào `diem`/`chuyen`/`kien`/
+`giuong`/`diem_khach`/`ve` + backfill), 3 (RLS theo tenant), 4 (sửa 5 trang crew đọc theo
+`currentNhaXeId`), 5 (`api/cong-khai-*.js` nhận `?nx=slug`), 6 (checklist onboard nhà xe mới) **CHƯA
+LÀM** — toàn bộ app hiện vẫn hoạt động y hệt trước (đơn-tenant), các bảng mới chỉ mới tồn tại song
+song, chưa có gì đọc/ghi vào chúng.
+
+**Quyết định kiến trúc đã chốt** (không tự đổi khi làm các giai đoạn sau):
+1. Tách `tinh_tuyen` (bảng cũ, đơn-tenant) → `tinh` (mã/tên tỉnh, dùng chung mọi nhà xe) +
+   `tuyen_tinh` (tuyến/thứ tự/giá, RIÊNG từng `nha_xe_id`). `tinh_tuyen` **GIỮ NGUYÊN, KHÔNG xoá**
+   cho tới khi xác nhận mọi query đã chuyển hết sang bảng mới — xoá sớm mà sót 1 chỗ là crash âm
+   thầm.
+2. `nha_xe_id` ghi TRỰC TIẾP (denormalize) vào `kien`/`ve` (không chỉ suy qua join `chuyen_id`) —
+   đơn giản hoá RLS, đổi lại tốn 1 cột trùng lặp mỗi dòng, chấp nhận được.
+3. `dat_ve_otp` GIỮ GLOBAL, không gắn `nha_xe_id` — xác thực SĐT là chuyện của số điện thoại, khách
+   xác thực xong đặt được vé nhà xe khác trong cùng 30 phút không cần OTP lại.
+4. Zalo OA dùng CHUNG 1 tài khoản mọi nhà xe (không phải mỗi nhà xe 1 OA riêng).
+5. Routing nhà xe qua query param `?nx=<slug>` (không phải path/subdomain riêng) — khớp kiểu
+   static-hosting hiện có.
+6. Có vai trò "superadmin" (chủ hệ thống) nhìn xuyên suốt mọi nhà xe để support.
+
+**Giai đoạn 1 (2026-09-19) — ĐÃ XONG**, migration `multitenant_giai_doan_1_schema_nen_tang`:
+- `tinh` (ma PK, ten, ten_moi) — copy từ `tinh_tuyen`.
+- `nha_xe` (id, ten, slug unique, trang_thai `'hoat_dong'|'tam_dung'`).
+- `tuyen_tinh` (id, nha_xe_id FK, tinh_ma FK → `tinh`, thu_tu, gia_moc — unique theo
+  `(nha_xe_id, tinh_ma)` và `(nha_xe_id, thu_tu)`).
+- `nguoi_dung_nha_xe` (user_id FK `auth.users`, nha_xe_id FK, vai_tro `'crew'|'admin'`, PK kép).
+- **`app_superadmin` (user_id PK, FK `auth.users`) — bảng phụ THAY VÌ `alter table auth.users add
+  column is_superadmin` như spec gốc đề xuất** — schema `auth` do Supabase quản lý, đụng trực tiếp
+  vào đó rủi ro hơn khi Supabase nâng cấp/migrate auth về sau (tra `supabase-postgres-best-practices`
+  skill trước khi quyết định, không tự đoán). Chưa có ai được thêm vào bảng này — chưa cần superadmin
+  thật cho tới khi có ≥2 nhà xe.
+- **Seed**: `nha_xe` đầu tiên `('EA KAR Logistics', 'eakar')`, copy 18 dòng `tinh_tuyen` sang
+  `tuyen_tinh` gắn `nha_xe_id` đó, gán TOÀN BỘ `auth.users` hiện có (lúc seed chỉ có 1 user — owner)
+  làm `admin` của nhà xe này qua `nguoi_dung_nha_xe`. Đã verify: `nha_xe` có đúng 18 dòng
+  `tuyen_tinh` + 1 dòng `nguoi_dung_nha_xe`.
+- **Chưa làm trong giai đoạn này** (đúng phạm vi đã chốt, để Giai đoạn 2 xử lý): chưa thêm cột
+  `nha_xe_id` vào `diem`/`chuyen`/`kien`/`giuong`/`diem_khach`/`ve`, chưa đổi FK `diem.tinh_ma` từ
+  `tinh_tuyen` sang `tinh`, chưa viết RLS theo tenant (RLS hiện tại của mọi bảng nghiệp vụ vẫn là
+  allow-all cho `authenticated`, xem mục Database — **CHƯA AN TOÀN cho nhiều nhà xe cho tới khi
+  xong Giai đoạn 3**, không tự ý mở app cho nhà xe thứ 2 dùng thật trước lúc đó).
+
 ### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
 
 Chống đặt ảo/spam ở `dat-ve.html` — khách phải xác thực SĐT bằng mã 6 số (qua Zalo ZNS hoặc SMS
