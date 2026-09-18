@@ -41,6 +41,7 @@
     <script src="shared.js"></script>
     <script>
         const sb = createSb()
+        let currentNhaXeId = null  // resolveNhaXeId(sb, user.id) — xem CLAUDE.md mục "Multi-tenant"
 
         function showToast(msg, type = '') {
             const toast = document.getElementById('toast')
@@ -69,6 +70,7 @@
             const { data: chuyenList, error: chuyenErr } = await sb
                 .from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .eq('nha_xe_id', currentNhaXeId)
                 .order('khoi_hanh', { ascending: false })
                 .limit(50)
             if (chuyenErr) { showToast('Lỗi tải lịch sử: ' + chuyenErr.message, 'error'); return }
@@ -170,6 +172,11 @@
         async function initPage() {
             const auth = await requireSession(sb)
             if (!auth) return
+            currentNhaXeId = await resolveNhaXeId(sb, auth.user.id)
+            if (!currentNhaXeId) {
+                showToast('Tài khoản chưa được gán vào nhà xe nào — liên hệ quản trị viên', 'error')
+                return
+            }
             await loadLichSu()
         }
 

@@ -326,6 +326,7 @@
     <script src="shared.js"></script>
     <script>
         const sb = createSb()
+        let currentNhaXeId = null  // resolveNhaXeId(sb, user.id) — xem CLAUDE.md mục "Multi-tenant"
         let chuyenList = []
         let giuongList = []
         let giuongMap = new Map()      // giuong.id -> giuong {tang,hang,vi_tri,ma} — tra cứu O(1) cho Danh sách
@@ -351,23 +352,25 @@
         }
 
         async function loadGiuongList() {
-            const { data, error } = await sb.from('giuong').select('id, tang, hang, vi_tri, ma, hoat_dong').order('tang').order('hang').order('vi_tri')
+            const { data, error } = await sb.from('giuong').select('id, tang, hang, vi_tri, ma, hoat_dong').eq('nha_xe_id', currentNhaXeId).order('tang').order('hang').order('vi_tri')
             if (error) { showToast('Lỗi tải sơ đồ giường: ' + error.message, 'error'); return }
             giuongList = data || []
             giuongMap = new Map(giuongList.map(g => [g.id, g]))
         }
 
         async function loadTinhList() {
-            // gia_moc — mốc giá theo tỉnh (đồng, nullable), dùng tính giá vé = |mốc đến − mốc đi|
-            // ở dat-ve.html — xem SPEC "Bảng giá theo tỉnh" trong CLAUDE.md. Sửa qua modal
-            // #gia-tinh-modal bên dưới, KHÔNG có UI riêng ở hang.html/manifest-hang.html.
-            const { data, error } = await sb.from('tinh_tuyen').select('ma, ten, thu_tu, gia_moc').order('thu_tu')
+            // tuyen_tinh(nha_xe_id, tinh_ma FK -> tinh, thu_tu, gia_moc) join tinh(ma, ten) — thay
+            // tinh_tuyen (bảng cũ, đơn-tenant) từ Giai đoạn 4 multi-tenant. gia_moc — mốc giá theo
+            // tỉnh (đồng, nullable), dùng tính giá vé = |mốc đến − mốc đi| ở dat-ve.html — xem SPEC
+            // "Bảng giá theo tỉnh" trong CLAUDE.md. Sửa qua modal #gia-tinh-modal bên dưới, KHÔNG có
+            // UI riêng ở hang.html/manifest-hang.html.
+            const { data, error } = await sb.from('tuyen_tinh').select('tinh_ma, thu_tu, gia_moc, tinh:tinh_ma(ma, ten)').eq('nha_xe_id', currentNhaXeId).order('thu_tu')
             if (error) { showToast('Lỗi tải tỉnh: ' + error.message, 'error'); return }
-            tinhList = data || []
+            tinhList = (data || []).map(r => ({ ma: r.tinh_ma, ten: r.tinh.ten, thu_tu: r.thu_tu, gia_moc: r.gia_moc }))
         }
 
         async function loadDiemKhachList() {
-            const { data, error } = await sb.from('diem_khach').select('id, ten, tinh_ma, thu_tu')
+            const { data, error } = await sb.from('diem_khach').select('id, ten, tinh_ma, thu_tu').eq('nha_xe_id', currentNhaXeId)
             if (error) { showToast('Lỗi tải điểm đón: ' + error.message, 'error'); return }
             diemKhachList = data || []
         }
@@ -481,6 +484,7 @@
         async function loadChuyenOptions() {
             const { data, error } = await sb.from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .eq('nha_xe_id', currentNhaXeId)
                 .order('created_at', { ascending: false })
                 .limit(50)
             if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
@@ -724,7 +728,8 @@
                 const { error } = await sb.from('ve').insert({
                     chuyen_id: currentChuyen.id, giuong_id: selectedGiuongId,
                     ten_khach: tenKhach, sdt_khach: sdtKhach,
-                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
+                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia,
+                    nha_xe_id: currentNhaXeId
                 })
                 if (error) {
                     // Trùng giường active (race condition 2 crew cùng bấm 1 giường gần như đồng thời)
@@ -792,7 +797,7 @@
             const ten = document.getElementById('diemkhach-ten').value.trim()
             const tinhMa = document.getElementById('diemkhach-tinh').value
             if (!ten) { showToast('Nhập tên điểm', 'error'); return }
-            const { data, error } = await sb.from('diem_khach').insert({ ten, tinh_ma: tinhMa }).select('id, ten, tinh_ma, thu_tu').single()
+            const { data, error } = await sb.from('diem_khach').insert({ ten, tinh_ma: tinhMa, nha_xe_id: currentNhaXeId }).select('id, ten, tinh_ma, thu_tu').single()
             if (error) { showToast('Lỗi thêm điểm: ' + error.message, 'error'); return }
             diemKhachList.push(data)
             const target = diemKhachTarget === 'len' ? document.getElementById('ve-diem-len') : document.getElementById('ve-diem-xuong')
@@ -844,7 +849,8 @@
         document.querySelector('#gia-tinh-modal .gia-tinh-modal-backdrop').addEventListener('click', closeGiaTinhModal)
         document.getElementById('btn-gia-tinh-dong').addEventListener('click', closeGiaTinhModal)
 
-        // Chỉ đây là nơi DUY NHẤT ghi `tinh_tuyen.gia_moc` trong app — không phải hành động phá
+        // Chỉ đây là nơi DUY NHẤT ghi `tuyen_tinh.gia_moc` trong app (đổi từ `tinh_tuyen.gia_moc`
+        // ở Giai đoạn 4 multi-tenant — gia_moc giờ RIÊNG từng nhà xe) — không phải hành động phá
         // huỷ (chỉ chỉnh cấu hình giá) nên KHÔNG dùng confirmDialog(), khác quy ước "Kết thúc
         // chuyến"/"Hủy đơn". Chỉ UPDATE các dòng có giá trị THAY ĐỔI so với `giaTinhOriginal` —
         // tránh ghi lại 17 dòng mỗi lần bấm Lưu dù phần lớn không đổi gì.
@@ -862,7 +868,7 @@
             }
             if (!thayDoi.length) { closeGiaTinhModal(); return }
             for (const { ma, giaMoi } of thayDoi) {
-                const { error } = await sb.from('tinh_tuyen').update({ gia_moc: giaMoi }).eq('ma', ma)
+                const { error } = await sb.from('tuyen_tinh').update({ gia_moc: giaMoi }).eq('nha_xe_id', currentNhaXeId).eq('tinh_ma', ma)
                 if (error) { showToast(`Lỗi lưu giá ${ma}: ${error.message}`, 'error'); return }
                 const t = tinhList.find(x => x.ma === ma)
                 if (t) t.gia_moc = giaMoi
@@ -877,6 +883,11 @@
         async function initPage() {
             const auth = await requireSession(sb)
             if (!auth) return
+            currentNhaXeId = await resolveNhaXeId(sb, auth.user.id)
+            if (!currentNhaXeId) {
+                showToast('Tài khoản chưa được gán vào nhà xe nào — liên hệ quản trị viên', 'error')
+                return
+            }
             // ?view=danh_sach — cho phép trang khác (vd link "Xem trong Danh sách →" ở
             // manifest-hang.html) mở thẳng tab Danh sách thay vì luôn về Sơ đồ mặc định, cùng
             // quy ước ?chuyen_id= đã có sẵn.

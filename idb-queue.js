@@ -96,6 +96,7 @@ async function trySyncQueue(sb) {
                 id: rec.id,
                 chuyen_id: rec.chuyen_id,
                 diem_id: rec.diem_id,
+                nha_xe_id: rec.nha_xe_id,
                 anh_path,
                 anh_url,
                 nguoi_nhan_sdt: rec.nguoi_nhan_sdt || null,

@@ -88,6 +88,22 @@ async function requireSession(sb) {
     return null
 }
 
+// === Multi-tenant (2026-09-19, Giai đoạn 4) ===
+// Tra `nguoi_dung_nha_xe` để biết user hiện tại thuộc (những) nhà xe nào — RLS ở tầng DB đã tự
+// chặn xem chéo dữ liệu nhà xe khác (xem CLAUDE.md mục "Multi-tenant"), nhưng code tầng app vẫn
+// LỌC TƯỜNG MINH mọi query theo `nha_xe_id` (defense in depth + tránh query thừa dữ liệu nhà xe
+// khác dù RLS không cho đọc). Trả về `null` nếu user KHÔNG thuộc nhà xe nào (chưa được owner gán
+// qua `nguoi_dung_nha_xe` — lỗi cấu hình, không phải luồng bình thường) — caller phải tự xử lý
+// (thường là chặn hẳn trang, báo lỗi rõ ràng thay vì để crash mù mờ ở các query sau).
+async function resolveNhaXeId(sb, userId) {
+    const { data, error } = await sb.from('nguoi_dung_nha_xe').select('nha_xe_id, vai_tro').eq('user_id', userId)
+    if (error || !data || !data.length) return null
+    // TODO (chưa làm, hiếm gặp): user thuộc NHIỀU nhà xe cùng lúc (vd support nhiều khách) — hiện
+    // tự lấy nhà xe ĐẦU TIÊN trả về, CHƯA có UI cho chọn giữa các nhà xe. Bổ sung khi thật sự có
+    // ca này (owner support ≥2 khách bằng cùng 1 tài khoản).
+    return data[0].nha_xe_id
+}
+
 // Tự động redirect về login khi user logout từ tab khác.
 function setupLogoutListener(sb) {
     sb.auth.onAuthStateChange((event, session) => {

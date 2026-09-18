@@ -658,11 +658,10 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
 ### Multi-tenant — nhiều nhà xe dùng chung 1 hệ thống (2026-09-19, đang triển khai theo giai đoạn)
 
 **Spec B, làm TUẦN TỰ theo yêu cầu owner — KHÔNG đổ hết 1 lần.** Trạng thái hiện tại: **xong Giai
-đoạn 1 + 2** — Giai đoạn 3 (RLS theo tenant), 4 (sửa 5 trang crew đọc theo `currentNhaXeId` + DROP
-DEFAULT các cột `nha_xe_id`), 5 (`api/cong-khai-*.js` nhận `?nx=slug`), 6 (checklist onboard nhà xe
-mới) **CHƯA LÀM** — toàn bộ app hiện vẫn hoạt động y hệt trước (đơn-tenant, RLS vẫn allow-all cho
-`authenticated`), code 5 trang crew/API công khai CHƯA biết cột `nha_xe_id` tồn tại — mọi insert
-hiện tại tự rơi vào `DEFAULT` (nhà xe "eakar") nhờ Giai đoạn 2, không lỗi gì.
+đoạn 1-4** (4 trang crew nội bộ đã đọc/ghi `nha_xe_id` tường minh, RLS theo tenant đã verify bằng
+SQL simulation) — CHƯA `DROP DEFAULT` (chờ owner xác nhận dùng thử ổn sau khi deploy, xem cuối Giai
+đoạn 4), Giai đoạn 5 (`api/cong-khai-*.js` nhận `?nx=slug` — booking công khai vẫn CHỈ phục vụ đúng
+1 nhà xe "eakar" cứng, chưa đọc slug từ URL), 6 (checklist onboard nhà xe mới) **CHƯA LÀM**.
 
 **Quyết định kiến trúc đã chốt** (không tự đổi khi làm các giai đoạn sau):
 1. Tách `tinh_tuyen` (bảng cũ, đơn-tenant) → `tinh` (mã/tên tỉnh, dùng chung mọi nhà xe) +
@@ -768,12 +767,61 @@ hiện tại tự rơi vào `DEFAULT` (nhà xe "eakar") nhờ Giai đoạn 2, kh
   không có policy") + 2 `WARN` không liên quan (search_path của 2 function có từ trước
   `bump_diem_count`/`chuyen_ngay_vn`, và cài đặt "Leaked Password Protection" chưa bật ở tầng Auth
   — ngoài phạm vi việc đang làm, chưa sửa).
-- **Chưa làm** (để Giai đoạn 4/5 xử lý): 5 trang crew + `api/cong-khai-*.js` vẫn CHƯA đọc/ghi
-  `nha_xe_id` tường minh (đang sống nhờ `DEFAULT` tạm thời từ Giai đoạn 2 — RLS mới không chặn gì
-  vì mọi thứ hiện tại vẫn thuộc đúng nhà xe "eakar" duy nhất). **AN TOÀN để mở nhà xe thứ 2 dùng
-  thật ở tầng DB rồi** (RLS đã chặn đúng, đã verify) — nhưng UI 5 trang crew CHƯA có cách chọn/hiển
-  thị đang thao tác cho nhà xe nào, nên thực tế vẫn chưa dùng được cho ≥2 nhà xe cho tới khi xong
-  Giai đoạn 4.
+- **Chưa làm ở lúc đó** — đã xong ở Giai đoạn 4 bên dưới.
+
+**Giai đoạn 4, phần A (2026-09-19) — 4 lỗ hổng schema THẬT phát hiện lúc review trước khi sửa
+code, migration `multitenant_giai_doan_4a_fix_unique_constraint_global`** — Giai đoạn 1-3 chỉ thêm
+`nha_xe_id`/RLS nhưng CHƯA soát lại các UNIQUE constraint có sẵn, trong khi 1 số constraint đó vẫn
+ở PHẠM VI TOÀN HỆ THỐNG (global) — sẽ va chạm SAI ngay khi có nhà xe thứ 2 thật:
+1. `diem`: `UNIQUE(tinh_ma, ten_norm)` → `UNIQUE(nha_xe_id, tinh_ma, ten_norm)` — trước đó 2 nhà xe
+   KHÔNG tạo được điểm cùng tên trong cùng 1 tỉnh (vd cả 2 đều muốn có "Bến xe trung tâm" ở Hà Nội)
+   dù chẳng liên quan gì tới nhau, DB sẽ báo trùng oan.
+2. `chuyen`: `uq_chuyen_ngay_chieu (chuyen_ngay_vn(khoi_hanh), chieu)` → thêm `nha_xe_id` vào đầu
+   index — trước đó 2 nhà xe KHÔNG chạy được cùng ngày/cùng chiều, nhà xe B sẽ bị chặn tạo chuyến vì
+   tưởng nhầm là "trùng" chuyến của nhà xe A. Đây là lỗi NGHIÊM TRỌNG NHẤT trong 4 lỗi — vỡ hẳn tính
+   năng lịch chạy cố định (`api/cong-khai-lich-chay.js`) cho bất kỳ nhà xe thứ 2 nào.
+3. `giuong`: `UNIQUE(ma)` → `UNIQUE(nha_xe_id, ma)` — mỗi nhà xe tự đánh `T1-01..T1-22`/`T2-01..
+   T2-22` riêng cho sơ đồ giường của mình, không được đụng độ mã giữa các nhà xe.
+4. `diem_khach.tinh_ma` — SÓT lại từ Giai đoạn 2 (lúc đó chỉ đổi FK của `diem` sang `tinh(ma)`, quên
+   đổi `diem_khach`) — vẫn tham chiếu `tinh_tuyen(ma)`. Đổi sang `tinh(ma)` cho nhất quán.
+- `uq_ve_giuong_active (chuyen_id, giuong_id)` trên `ve` **KHÔNG cần sửa** — `chuyen_id` tự thân đã
+  tenant-scoped (1 chuyến chỉ thuộc đúng 1 nhà xe), không có rủi ro đụng độ chéo.
+
+**Giai đoạn 4, phần B (2026-09-19) — sửa 5 trang crew đọc/ghi `nha_xe_id` tường minh:**
+- **`shared.js`**: thêm `resolveNhaXeId(sb, userId)` — tra `nguoi_dung_nha_xe`, trả `nha_xe_id` ĐẦU
+  TIÊN nếu user thuộc nhiều nhà xe (TODO chưa làm, hiếm gặp: chưa có UI chọn giữa các nhà xe), `null`
+  nếu user chưa được gán nhà xe nào (lỗi cấu hình).
+- **4 trang** `hang.html`/`manifest-hang.html`/`khach.html`/`lich-su-chuyen.html` (KHÔNG phải
+  `login.html`/`auth-callback.html` — 2 trang đó chưa có session để tra `nha_xe_id`): mỗi trang có
+  biến module-level `currentNhaXeId`, gán ngay sau `requireSession()` trong `initPage()`; `null` →
+  `showToast(...)` báo lỗi cấu hình rồi DỪNG (không load tiếp gì khác) — CHẶN HẲN trang thay vì để
+  crash mù mờ ở các query sau. Mọi query SELECT tới `chuyen`/`giuong`/`diem_khach` (bảng KHÔNG có
+  điều kiện lọc nào khác sẵn có) thêm `.eq('nha_xe_id', currentNhaXeId)`. Query tới `kien`/`ve` (đã
+  lọc theo `chuyen_id`/`diem_id`) và mọi `UPDATE ... WHERE id = ...` **KHÔNG cần sửa thêm** — đã
+  tenant-scoped gián tiếp qua FK, RLS tự chặn phần còn lại (defense in depth đã đủ ở tầng DB).
+- **`loadTinh()`/`loadTinhList()`** (`hang.html`/`khach.html`/`manifest-hang.html`'s `loadManifest`)
+  — đổi từ đọc `tinh_tuyen` (bảng cũ, đơn-tenant) sang `tuyen_tinh.select('tinh_ma, thu_tu, gia_moc,
+  tinh:tinh_ma(ma, ten)').eq('nha_xe_id', currentNhaXeId)` rồi `.map()` lại thành shape cũ
+  `{ma, ten, thu_tu, gia_moc}` — giữ nguyên hết logic phía sau (filter Đắk Lắk/Khánh Hòa, sort theo
+  chiều...), chỉ đổi nguồn dữ liệu.
+- **Mọi `.insert()` vào 6 bảng nghiệp vụ đã rà lại đủ, thêm `nha_xe_id: currentNhaXeId`** (hoặc
+  `rec.nha_xe_id` ở `idb-queue.js`'s `trySyncQueue` — liệt kê tên tay, không spread nguyên `rec`,
+  cùng "1 loại lỗi lặp lại nhiều lần" đã ghi chú ở mục AI/OCR, dễ quên field mới): `chuyen`/`diem`
+  (`hang.html`), `kien` (offline queue `hang.html`→`idb-queue.js`, và kiện tách trong `traHang` ở
+  `manifest-hang.html`), `ve`/`diem_khach` (`khach.html`). `giuong` KHÔNG có đường insert từ client
+  (seed tay qua SQL, giữ nguyên).
+- **Modal "💰 Giá vé theo tỉnh"** (`khach.html`) — `UPDATE` đổi từ `tinh_tuyen.gia_moc WHERE ma=...`
+  sang `tuyen_tinh.gia_moc WHERE nha_xe_id=... AND tinh_ma=...` (`gia_moc` giờ RIÊNG từng nhà xe,
+  không còn 1 bảng giá chung).
+- **Đã verify**: syntax check qua toàn bộ script inline của 4 trang + `idb-queue.js`/`shared.js`,
+  rà lại `grep` toàn bộ `.insert(` vào 6 bảng nghiệp vụ xác nhận đủ `nha_xe_id` ở cả 5 điểm insert
+  trong code (không tính `giuong`).
+- **CHƯA làm** (để dành, KHÔNG tự ý làm): `ALTER COLUMN ... DROP DEFAULT` cho 6 cột `nha_xe_id` (đặt
+  tạm ở Giai đoạn 2) — **CHỈ chạy SAU KHI đã deploy code này lên production VÀ owner tự xác nhận
+  dùng thử ổn** (tạo kiện/chuyến/vé/điểm mới bình thường không lỗi) — dropping quá sớm mà code còn
+  sót 1 chỗ chưa phát hiện sẽ biến lỗi "âm thầm rơi vào default" thành lỗi "insert fail giữa chừng"
+  ngay lập tức, cũng tệ không kém nếu chưa kịp verify. Giai đoạn 5 (`api/cong-khai-*.js` nhận
+  `?nx=slug`) và Giai đoạn 6 (checklist onboard) **CHƯA LÀM**.
 
 ### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
 

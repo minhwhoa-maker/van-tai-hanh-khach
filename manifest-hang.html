@@ -172,6 +172,7 @@
     <script src="km-moc.js"></script>
     <script>
         const sb = createSb()
+        let currentNhaXeId = null  // resolveNhaXeId(sb, user.id) — xem CLAUDE.md mục "Multi-tenant"
         let chuyenList = []
         let currentKienList = []   // kiện của chuyến đang chọn — dùng để bật/ẩn nút "Kết thúc chuyến" khi trạng thái giao đổi tại chỗ
         let chuyenDaXong = false   // chuyến đang chọn đã trang_thai = 'xong' — khoá mọi thao tác sửa kiện, xem renderKienRowView
@@ -196,6 +197,7 @@
             const { data, error } = await sb
                 .from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .eq('nha_xe_id', currentNhaXeId)
                 .order('created_at', { ascending: false })
                 .limit(50)
             if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
@@ -319,7 +321,7 @@
             showToast('Đã kết thúc chuyến', 'success')
         })
 
-        // tinh_tuyen(ma PK, ten, thu_tu). diem(id, ten, tinh_ma). kien(id, chuyen_id, diem_id,
+        // tuyen_tinh(nha_xe_id, tinh_ma FK, thu_tu) join tinh(ma, ten). diem(id, ten, tinh_ma). kien(id, chuyen_id, diem_id,
         // anh_url, nguoi_nhan_sdt, trang_thai, ghi_chu, created_at).
         // Chiều bac = ASC thu_tu, nam = DESC thu_tu.
         async function loadManifest(chuyen) {
@@ -334,11 +336,13 @@
             document.getElementById('btn-doi-chieu-sdt').style.display = chuyenDaXong ? 'none' : 'block'
             document.getElementById('doichieu-summary').style.display = 'none'
 
-            const { data: tinhList, error: tinhErr } = await sb
-                .from('tinh_tuyen')
-                .select('ma, ten, thu_tu')
+            const { data: tuyenTinhRaw, error: tinhErr } = await sb
+                .from('tuyen_tinh')
+                .select('tinh_ma, thu_tu, tinh:tinh_ma(ma, ten)')
+                .eq('nha_xe_id', currentNhaXeId)
                 .order('thu_tu', { ascending: chuyen.chieu === 'bac' })
             if (tinhErr) { showToast('Lỗi tải tỉnh: ' + tinhErr.message, 'error'); return }
+            const tinhList = tuyenTinhRaw.map(r => ({ ma: r.tinh_ma, ten: r.tinh.ten, thu_tu: r.thu_tu }))
 
             const { data: kienList, error: kienErr } = await sb
                 .from('kien')
@@ -894,6 +898,7 @@
                     id: crypto.randomUUID(),
                     chuyen_id: chuyen.id,
                     diem_id: k.diem_id,
+                    nha_xe_id: currentNhaXeId,
                     anh_url: k.anh_url,
                     nguoi_nhan_sdt: k.nguoi_nhan_sdt,
                     nguoi_gui_sdt: k.nguoi_gui_sdt,
@@ -1182,6 +1187,11 @@
         async function initPage() {
             const auth = await requireSession(sb)
             if (!auth) return
+            currentNhaXeId = await resolveNhaXeId(sb, auth.user.id)
+            if (!currentNhaXeId) {
+                showToast('Tài khoản chưa được gán vào nhà xe nào — liên hệ quản trị viên', 'error')
+                return
+            }
             await loadChuyenOptions()
         }
 

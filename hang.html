@@ -244,6 +244,7 @@
     <script>
         const sb = createSb()
         let currentUser = null
+        let currentNhaXeId = null  // resolveNhaXeId(sb, user.id) — xem CLAUDE.md mục "Multi-tenant"
         let currentChuyen = null  // { id, chieu, khoi_hanh, ghi_chu }
         let selectedTinh = null   // { ma, ten, thu_tu }
         let selectedDiem = null   // { id, ten, tinh_ma }
@@ -371,6 +372,7 @@
             const { data, error } = await sb
                 .from('chuyen')
                 .select('id, chieu, khoi_hanh, trang_thai, ghi_chu, created_at')
+                .eq('nha_xe_id', currentNhaXeId)
                 .eq('trang_thai', 'dang_chay')
                 .order('khoi_hanh', { ascending: true })
             if (error) { showToast('Lỗi tải chuyến: ' + error.message, 'error'); return }
@@ -427,18 +429,22 @@
             const { data, error } = await sb.from('chuyen').insert({
                 chieu,
                 khoi_hanh: khoiHanh.toISOString(),
-                trang_thai: 'dang_chay'
+                trang_thai: 'dang_chay',
+                nha_xe_id: currentNhaXeId
             }).select().single()
             if (error) { showToast('Lỗi tạo chuyến: ' + error.message, 'error'); return }
             showToast('Đã tạo chuyến mới', 'success')
             selectChuyen(data, null)
         })
 
-        // tinh_tuyen(ma PK, ten, ten_moi, thu_tu). Chiều bac = ASC thu_tu, nam = DESC thu_tu.
+        // tuyen_tinh(nha_xe_id, tinh_ma FK -> tinh, thu_tu, gia_moc) join tinh(ma, ten) — thay
+        // tinh_tuyen (bảng cũ, đơn-tenant) từ Giai đoạn 4 multi-tenant. Chiều bac = ASC thu_tu,
+        // nam = DESC thu_tu.
         async function loadTinh() {
             const { data, error } = await sb
-                .from('tinh_tuyen')
-                .select('ma, ten, thu_tu')
+                .from('tuyen_tinh')
+                .select('tinh_ma, thu_tu, tinh:tinh_ma(ma, ten)')
+                .eq('nha_xe_id', currentNhaXeId)
                 .order('thu_tu', { ascending: currentChuyen.chieu === 'bac' })
             if (error) { showToast('Lỗi tải danh sách tỉnh: ' + error.message, 'error'); return }
             const wrap = document.getElementById('tinh-chips')
@@ -446,7 +452,8 @@
             // Chiều bắc: Đắk Lắk là điểm bốc hàng (không phải điểm giao) — loại khỏi danh sách chọn.
             // Chiều nam: Đắk Lắk lại là điểm đến cuối cùng — giữ lại để chọn giao hàng.
             // Khánh Hòa không chạy tuyến này ở cả 2 chiều — luôn loại khỏi danh sách.
-            data.filter(t => (currentChuyen.chieu === 'nam' || t.ma !== 'DLK') && t.ten !== 'Khánh Hòa').forEach(t => {
+            data.map(r => ({ ma: r.tinh_ma, ten: r.tinh.ten, thu_tu: r.thu_tu }))
+                .filter(t => (currentChuyen.chieu === 'nam' || t.ma !== 'DLK') && t.ten !== 'Khánh Hòa').forEach(t => {
                 const chip = document.createElement('div')
                 chip.className = 'chip'
                 chip.textContent = t.ten
@@ -473,7 +480,7 @@
         // diem(id, ten, ten_norm, tinh_ma FK, huyen_cu, lat, lng, km_moc, so_lan_giao, created_at)
         // UNIQUE(tinh_ma, ten_norm) — DB tự chặn trùng khi insert.
         async function loadDiem(tinhMa) {
-            const { data, error } = await sb.from('diem').select('id, ten, ten_norm, tinh_ma').eq('tinh_ma', tinhMa).order('ten')
+            const { data, error } = await sb.from('diem').select('id, ten, ten_norm, tinh_ma').eq('nha_xe_id', currentNhaXeId).eq('tinh_ma', tinhMa).order('ten')
             // Bấm đổi tỉnh liên tiếp nhanh có thể khiến request TRƯỚC trả về SAU request MỚI
             // (race condition) — chỉ áp dụng kết quả nếu vẫn đang chọn đúng tỉnh đã gọi, tránh
             // ghi đè danh sách của tỉnh đang chọn bằng dữ liệu của tỉnh đã rời khỏi.
@@ -516,7 +523,8 @@
             const { data, error } = await sb.from('diem').insert({
                 tinh_ma: selectedTinh.ma,
                 ten,
-                ten_norm: boDau(ten)
+                ten_norm: boDau(ten),
+                nha_xe_id: currentNhaXeId
             }).select().single()
             if (error) {
                 if (error.code === '23505') {
@@ -867,6 +875,7 @@
                 id: crypto.randomUUID(),
                 chuyen_id: currentChuyen.id,
                 diem_id: selectedDiem.id,
+                nha_xe_id: currentNhaXeId,
                 nguoi_nhan_sdt: document.getElementById('kien-sdt').value.trim() || null,
                 nguoi_gui_sdt: document.getElementById('kien-nguoi-gui-sdt').value.trim() || null,
                 ghi_chu: document.getElementById('kien-ghichu').value.trim() || null,
@@ -1031,6 +1040,15 @@
             const auth = await requireSession(sb)
             if (!auth) return
             currentUser = auth.user
+            // Multi-tenant (2026-09-19, Giai đoạn 4) — resolveNhaXeId (shared.js) tra
+            // nguoi_dung_nha_xe, RLS tầng DB đã chặn xem chéo nhà xe khác nhưng vẫn lọc TƯỜNG MINH
+            // ở mọi query bên dưới (defense in depth). null = user chưa được owner gán vào nhà xe
+            // nào — lỗi cấu hình, chặn hẳn trang thay vì để crash mù mờ ở các query sau.
+            currentNhaXeId = await resolveNhaXeId(sb, currentUser.id)
+            if (!currentNhaXeId) {
+                showToast('Tài khoản chưa được gán vào nhà xe nào — liên hệ quản trị viên', 'error')
+                return
+            }
             await loadChuyenList()
             setupQueueAutoSync(sb)
             updateQueueStatus()
