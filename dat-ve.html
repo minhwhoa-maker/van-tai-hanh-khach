@@ -752,15 +752,17 @@
         // định 2 đầu tuyến (Đắk Lắk/Hải Dương) — không giữ cặp tỉnh đã chọn tạm của ngày trước. Lấy
         // lại object thật từ `tinhList` (đã tải xong từ trước khi có thể bấm ngày) thay vì dùng
         // thẳng hằng số mặc định — đảm bảo `ten`/`thu_tu` luôn khớp đúng dữ liệu server.
-        // Bỏ hẳn mặc định Đắk Lắk/Hải Dương (2026-09-18, theo yêu cầu — trước đó luôn preset 2 đầu
-        // tuyến mỗi lần chọn ngày mới, dù khách vừa đổi sang cặp tỉnh khác trước đó). Bấm ngày mới
-        // giờ reset về `null`/`null`, BẮT khách tự chọn cả 2 đầu qua `moDiaDiemPicker` mỗi lần —
-        // xem `renderChieuSelector` (hiện placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" khi
-        // null, khoá nút xác nhận cho tới khi chọn đủ cả 2).
+        // KHÔNG còn reset noiXuatPhatTinh/diemDenTinh mỗi lần bấm ngày (đổi 2026-09-19, đợt 16,
+        // theo yêu cầu — trước đó chonNgay LUÔN đưa 2 biến này về null, bắt khách chọn lại từ đầu
+        // mỗi lần bấm ngày MỚI, kể cả khi quay lại đúng luồng cũ qua nút Back/"Đổi chuyến khác":
+        // doiChuyenKhac() không đụng 2 biến này, nhưng bấm lại 1 ngày bất kỳ để tiếp tục thì
+        // chonNgay xoá sạch lựa chọn tỉnh khách vừa chọn trước đó — cảm giác "bấm Back là mất hết
+        // điểm đi/điểm đến"). Giờ 2 biến này GIỮ NGUYÊN giá trị hiện có qua mọi lần chọn ngày —
+        // chỉ `null` ở lần ĐẦU TIÊN (giá trị khởi tạo ban đầu) cho tới khi khách chọn qua
+        // `moDiaDiemPicker`, sau đó giữ nguyên xuyên suốt cả phiên (đổi ngày khác, bấm Back, "Đổi
+        // chuyến khác"...) — khách chỉ cần chọn lại nếu THẬT SỰ muốn đổi qua `moDiaDiemPicker`/"⇅".
         function chonNgay(entry) {
             ngayDangChonTam = entry.ngay
-            noiXuatPhatTinh = null
-            diemDenTinh = null
             renderLichThang()
             renderChieuSelector(entry)
         }

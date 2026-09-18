@@ -404,6 +404,16 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       `noiXuatPhatTinh.gia_moc`) chỉ được gọi từ `capNhatGiaVeBar()` khi `selectedGiuongMap.size >
       0`, tức LUÔN sau khi đã confirm (2 tỉnh chắc chắn không `null` ở thời điểm đó) — không cần
       thêm guard riêng.
+  - **`chonNgay` KHÔNG còn reset `noiXuatPhatTinh`/`diemDenTinh` về `null` mỗi lần bấm ngày
+    (2026-09-19, đợt 16, theo phản ánh thật — đảo ngược đúng 1 phần của đợt 14 ở trên)** — đợt 14
+    cố ý reset để tránh mất lựa chọn cũ khi TỰ ĐỘNG preset lại 2 đầu tuyến, nhưng lại tạo ra 1 bug
+    thật khác: bấm Back Android (hoặc "Đổi chuyến khác") quay về Bước 0 rồi bấm lại 1 ngày để tiếp
+    tục — `doiChuyenKhac()` không đụng 2 biến tỉnh, nhưng `chonNgay` chạy lại NGAY SAU ĐÓ (do khách
+    bấm ngày) lại xoá sạch tỉnh xuất phát/điểm đến khách vừa chọn trước khi bấm Back, cảm giác
+    "bấm quay lại là mất hết điểm đi/điểm đến". Giờ 2 biến này **GIỮ NGUYÊN xuyên suốt cả phiên**
+    (đổi ngày khác, bấm Back, "Đổi chuyến khác"...) — chỉ `null` ở lần ĐẦU TIÊN (giá trị khởi tạo)
+    cho tới khi khách chọn qua `moDiaDiemPicker` lần đầu; sau đó khách chỉ cần đổi lại nếu THẬT SỰ
+    muốn (qua `moDiaDiemPicker`/nút "⇅"), không còn bị ép chọn lại mỗi lần bấm ngày.
   - **Lịch dạng lưới (2026-09-19)** — `renderThangBlock({y,m})` vẽ 1 tháng: tuần bắt đầu **Thứ Hai**
     (không phải Chủ Nhật — đúng mẫu Vexere, cột tính bằng `(getUTCDay()+6)%7`), ô trống lấp đầu
     tháng (`.lich-ngay-o.trong`, `visibility:hidden`, chỉ để giữ đúng vị trí cột) render trước ngày
