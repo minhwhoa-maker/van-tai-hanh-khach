@@ -561,12 +561,14 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
     Nam" (chỉ in thẳng `info.ten`/`c.ten` ra 2 nút chiều + thanh "Chuyến đã chọn") nên đổi 1 chỗ
     duy nhất ở server là đủ, không cần sửa gì thêm ở frontend ngoài việc đổi hardcode cũ
     `chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'` (trong `chonNgay`) thành `🚏 ${info.ten}`.
-- **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — ***owner PHẢI
-  điền đúng giờ chạy thật trước khi cho khách dùng thật, hiện đang fallback tạm `"19:30"` (Claude
-  Code tự đặt để không crash lúc chưa set, KHÔNG phải giờ chính thức) ở CẢ 2 nơi đọc biến này
-  (`api/cong-khai-lich-chay.js`'s `docGioEnv`, `api/cong-khai-dat-ve.js`'s `docGioEnv`/
-  `tinhKhoiHanhMacDinh` — 2 bản copy độc lập, sửa giờ thật thì set env Vercel là đủ, không cần sửa
-  code)***.
+- **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — **đã set giờ
+  thật (2026-09-19)**: `GIO_KHOI_HANH_BAC = "07:00"` (Đắk Lắk → Hải Dương), `GIO_KHOI_HANH_NAM =
+  "02:00"` (Hải Dương → Đắk Lắk), theo owner xác nhận trực tiếp — thay cho giá trị fallback tạm
+  `"19:30"` trước đó (Claude Code tự đặt để không crash lúc chưa set, không phải giờ chính thức).
+  Đọc ở CẢ 2 nơi (`api/cong-khai-lich-chay.js`'s `docGioEnv`, `api/cong-khai-dat-ve.js`'s
+  `docGioEnv`/`tinhKhoiHanhMacDinh` — 2 bản copy độc lập), sửa giờ sau này chỉ cần set lại env
+  Vercel + deploy lại (Vercel không tự áp env mới cho function đang chạy, cần deploy mới để đọc lại
+  `process.env`), không cần sửa code.
 - **`api/cong-khai-dat-ve.js` tự tạo `chuyen` nếu chưa có** — nhận `chuyen_id` (chuyến đã tồn tại)
   HOẶC `{ngay, chieu}` (chưa chắc tồn tại). Xem bullet chi tiết ở mục "Đặt vé công khai" phía trên
   (phần `api/cong-khai-dat-ve.js`) — không lặp lại ở đây.
