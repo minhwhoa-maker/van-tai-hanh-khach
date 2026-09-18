@@ -145,6 +145,14 @@
             display: flex; align-items: center; justify-content: center; font-family: inherit;
         }
         .route-da-co-khach { font-size: 12px; color: var(--text-muted); margin: 0 0 10px; }
+        /* Nhắc nhở nhường ghế tầng 1 (2026-09-19, theo yêu cầu) — banner TĨNH ngay dưới tiêu đề
+           "1. Chọn giường", không phải toast (`showToast`, tự biến mất sau vài giây) vì nội dung
+           dài, khách cần đọc đủ thời gian trong lúc đang chọn giường chứ không phải liếc qua rồi
+           mất. Đứng NGOÀI mọi điều kiện hop_le/currentChuyen — luôn hiện cùng lúc `#so-do-wrap`. */
+        .nhuong-ghe-notice {
+            margin: 0 16px 12px; padding: 10px 14px; background: #fff8e1; border: 1px solid #ffe082;
+            border-radius: 10px; font-size: 13px; line-height: 1.5; color: #6d4c00;
+        }
         /* Nút xác nhận tường minh (đợt 11) — trước đó chỉ xác nhận ngầm qua bấm vào nhãn/nền của
            .route-select-wrap (đợt 6), không hiện rõ "bấm gì để đi tiếp" nên khách không biết cách
            qua bước kế. Đặt NGOÀI .route-select-wrap (không lồng trong khối có user-select:none để
@@ -274,6 +282,7 @@
 
     <div id="so-do-wrap" style="display:none;">
         <h3 style="margin:16px 16px 4px; font-size:16px;">1. Chọn giường</h3>
+        <div class="nhuong-ghe-notice">🙏 Nhà xe trân trọng cảm ơn quý khách đã lựa chọn dịch vụ, xin quý khách vui lòng nhường lại ghế tầng một cho phụ nữ, người lớn tuổi. Xin cảm ơn quý khách.</div>
         <div class="chu-thich-giuong">
             <div class="chu-thich-item">
                 <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>

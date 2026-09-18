@@ -482,6 +482,10 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   - Chọn "Chuyển khoản trước" hiện thêm khối thông tin chuyển khoản TĨNH (số tài khoản/tên/nội
     dung gõ tay, KHÔNG có cổng thanh toán thật/QR động — khách tự chuyển rồi bấm "Đặt vé", crew đối
     chiếu tay qua app ngân hàng sau, không có xác nhận tự động).
+  - **Banner nhắc nhường ghế tầng 1 (2026-09-19, theo yêu cầu)** — `.nhuong-ghe-notice`, TĨNH
+    (không phải `showToast` tự biến mất sau vài giây — nội dung dài, khách cần đủ thời gian đọc
+    trong lúc đang chọn giường), nằm ngay dưới tiêu đề "1. Chọn giường", LUÔN hiện cùng lúc
+    `#so-do-wrap` (không có điều kiện riêng, không cần JS set nội dung).
   - **Chọn NHIỀU giường cùng lúc (2026-09-16, theo yêu cầu)** — `selectedGiuongMap`
     (`Map<giuong.id, giuong>`) thay cho biến đơn `selectedGiuong` ban đầu. Bấm giường trống → TOGGLE
     (`toggleChonGiuong`): chưa chọn thì thêm vào map, ĐÃ CHỌN (đang tô xanh dương "Đang chọn") thì
