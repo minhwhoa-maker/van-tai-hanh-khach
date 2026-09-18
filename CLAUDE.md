@@ -657,12 +657,12 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
 
 ### Multi-tenant — nhiều nhà xe dùng chung 1 hệ thống (2026-09-19, đang triển khai theo giai đoạn)
 
-**Spec B, làm TUẦN TỰ theo yêu cầu owner — KHÔNG đổ hết 1 lần.** Trạng thái hiện tại: **CHỈ MỚI
-xong Giai đoạn 1 (schema nền tảng)** — Giai đoạn 2 (thêm `nha_xe_id` vào `diem`/`chuyen`/`kien`/
-`giuong`/`diem_khach`/`ve` + backfill), 3 (RLS theo tenant), 4 (sửa 5 trang crew đọc theo
-`currentNhaXeId`), 5 (`api/cong-khai-*.js` nhận `?nx=slug`), 6 (checklist onboard nhà xe mới) **CHƯA
-LÀM** — toàn bộ app hiện vẫn hoạt động y hệt trước (đơn-tenant), các bảng mới chỉ mới tồn tại song
-song, chưa có gì đọc/ghi vào chúng.
+**Spec B, làm TUẦN TỰ theo yêu cầu owner — KHÔNG đổ hết 1 lần.** Trạng thái hiện tại: **xong Giai
+đoạn 1 + 2** — Giai đoạn 3 (RLS theo tenant), 4 (sửa 5 trang crew đọc theo `currentNhaXeId` + DROP
+DEFAULT các cột `nha_xe_id`), 5 (`api/cong-khai-*.js` nhận `?nx=slug`), 6 (checklist onboard nhà xe
+mới) **CHƯA LÀM** — toàn bộ app hiện vẫn hoạt động y hệt trước (đơn-tenant, RLS vẫn allow-all cho
+`authenticated`), code 5 trang crew/API công khai CHƯA biết cột `nha_xe_id` tồn tại — mọi insert
+hiện tại tự rơi vào `DEFAULT` (nhà xe "eakar") nhờ Giai đoạn 2, không lỗi gì.
 
 **Quyết định kiến trúc đã chốt** (không tự đổi khi làm các giai đoạn sau):
 1. Tách `tinh_tuyen` (bảng cũ, đơn-tenant) → `tinh` (mã/tên tỉnh, dùng chung mọi nhà xe) +
@@ -693,11 +693,30 @@ song, chưa có gì đọc/ghi vào chúng.
   `tuyen_tinh` gắn `nha_xe_id` đó, gán TOÀN BỘ `auth.users` hiện có (lúc seed chỉ có 1 user — owner)
   làm `admin` của nhà xe này qua `nguoi_dung_nha_xe`. Đã verify: `nha_xe` có đúng 18 dòng
   `tuyen_tinh` + 1 dòng `nguoi_dung_nha_xe`.
-- **Chưa làm trong giai đoạn này** (đúng phạm vi đã chốt, để Giai đoạn 2 xử lý): chưa thêm cột
-  `nha_xe_id` vào `diem`/`chuyen`/`kien`/`giuong`/`diem_khach`/`ve`, chưa đổi FK `diem.tinh_ma` từ
-  `tinh_tuyen` sang `tinh`, chưa viết RLS theo tenant (RLS hiện tại của mọi bảng nghiệp vụ vẫn là
-  allow-all cho `authenticated`, xem mục Database — **CHƯA AN TOÀN cho nhiều nhà xe cho tới khi
-  xong Giai đoạn 3**, không tự ý mở app cho nhà xe thứ 2 dùng thật trước lúc đó).
+**Giai đoạn 2 (2026-09-19) — ĐÃ XONG**, migration `multitenant_giai_doan_2_nha_xe_id_nghiep_vu`:
+- Thêm cột `nha_xe_id uuid references nha_xe(id)` vào `diem`/`chuyen`/`kien`/`giuong`/
+  `diem_khach`/`ve`, backfill toàn bộ dòng hiện có = nhà xe "eakar", index từng cột.
+- **Rủi ro thật phát hiện lúc review spec (owner chỉ ra, không phải Claude Code tự thấy)**: nếu set
+  `NOT NULL` ngay sau backfill mà CHƯA deploy code Giai đoạn 4 (5 trang crew tự truyền
+  `nha_xe_id`), mọi insert `kien`/`ve` MỚI từ app đang chạy thật (crew nhập kiện/đặt vé hàng ngày)
+  sẽ lỗi giữa chừng ngay lập tức — không phải lý thuyết, vì code hiện tại hoàn toàn không biết cột
+  này tồn tại. **Sửa bằng cách đặt `DEFAULT` = nhà xe "eakar" TRƯỚC khi set `NOT NULL`** cho cả 6
+  cột — code cũ insert thiếu `nha_xe_id` vẫn tự điền đúng, không vỡ.
+- **⚠️ VIỆC BẮT BUỘC Ở GIAI ĐOẠN 4, KHÔNG ĐƯỢC QUÊN**: sau khi 5 trang crew đã tự truyền
+  `nha_xe_id` tường minh và deploy xong, phải `ALTER COLUMN nha_xe_id DROP DEFAULT` cho cả 6 cột
+  (`diem`/`chuyen`/`kien`/`giuong`/`diem_khach`/`ve`). Để quên default này thì sau này có nhà xe
+  thứ 2, 1 chỗ code nào đó lỡ quên gắn `nha_xe_id` (bug thường, không cố ý) sẽ ÂM THẦM rơi vào
+  default = "eakar" thay vì báo lỗi rõ ràng — đúng dạng lỗi nguy hiểm nhất của multi-tenant (rò data
+  chéo giữa nhà xe, phát hiện muộn, có thể sau nhiều ngày).
+- `diem.tinh_ma` đổi FK từ `tinh_tuyen(ma)` sang `tinh(ma)` (constraint `diem_tinh_ma_fkey` drop +
+  tạo lại) — an toàn vì `tinh` đã copy đủ 18 mã từ `tinh_tuyen` ở Giai đoạn 1, không cần backfill
+  dữ liệu `diem` nào.
+- Đã verify: cả 6 bảng `nha_xe_id` NOT NULL + có DEFAULT đúng UUID nhà xe "eakar", 0 dòng null,
+  FK `diem.tinh_ma` đã trỏ `tinh` không phải `tinh_tuyen`.
+- **Chưa làm** (để Giai đoạn 3+ xử lý): RLS hiện tại của mọi bảng nghiệp vụ vẫn là allow-all cho
+  `authenticated` (xem mục Database) — **CHƯA AN TOÀN cho nhiều nhà xe cho tới khi xong Giai đoạn
+  3**, không tự ý mở app cho nhà xe thứ 2 dùng thật trước lúc đó. 5 trang crew + `api/cong-khai-*.js`
+  chưa đọc/ghi `nha_xe_id` tường minh (đang sống nhờ `DEFAULT` tạm thời ở trên).
 
 ### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
 
