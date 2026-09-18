@@ -135,6 +135,18 @@ function convertSolar2Lunar(dd, mm, yy, timeZone) {
 // GIÁ TRỊ TẠM — owner cần xác nhận thực tế mở bán trước bao lâu, sửa hằng số này nếu khác.
 const SO_NGAY_MO_BAN_TRUOC = 45
 
+// Multi-tenant (2026-09-19) — TẠM THỜI hardcode nhà xe "eakar" (xem cong-khai-diem-khach.js) vì
+// Giai đoạn 5 (routing `?nx=slug`) chưa làm. TRƯỚC đợt sửa này `chuyen` được query KHÔNG lọc
+// `nha_xe_id` chút nào — lỗ hổng thật phát hiện lúc audit (chuyến của nhà xe khác sẽ bị tính nhầm
+// là "ngày này đã có người đặt" của nhà xe hiện tại nếu có ≥2 nhà xe).
+const SLUG_NHA_XE_MAC_DINH = 'eakar'
+
+async function layNhaXeIdMacDinh(sbAdmin) {
+    const { data, error } = await sbAdmin.from('nha_xe').select('id').eq('slug', SLUG_NHA_XE_MAC_DINH).single()
+    if (error) throw error
+    return data.id
+}
+
 // *** owner PHẢI set 2 biến env này trên Vercel (Production) bằng giờ chạy THẬT ***, định dạng
 // "HH:mm". Giá trị fallback dưới đây CHỈ là placeholder tạm để không crash lúc chưa set —
 // TUYỆT ĐỐI không coi đây là giờ chạy chính thức.
@@ -190,11 +202,19 @@ export default async function handler(req, res) {
     if (!ngayHopLe.length) { res.status(200).json({ lich: tatCaNgay }); return }
 
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+    let nhaXeId
+    try {
+        nhaXeId = await layNhaXeIdMacDinh(sbAdmin)
+    } catch (err) {
+        res.status(500).json({ error: 'Lỗi xác định nhà xe: ' + err.message }); return
+    }
+
     const tuNgay = ngayHopLe[0].ngay
     const denNgay = ngayHopLe[ngayHopLe.length - 1].ngay
     const { data: chuyenCoSan, error } = await sbAdmin
         .from('chuyen')
         .select('id, chieu, khoi_hanh')
+        .eq('nha_xe_id', nhaXeId)
         .in('trang_thai', ['dat_truoc', 'dang_chay'])
         .gte('khoi_hanh', tuNgay)
         .lte('khoi_hanh', denNgay + 'T23:59:59')

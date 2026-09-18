@@ -10,10 +10,26 @@
 // api/cong-khai-lich-chay.js) để TỰ TẠO `chuyen` (trang_thai='dat_truoc') nếu ngày đó chưa có ai
 // đặt trước, xem SPEC "Lịch chạy cố định theo ngày chẵn âm lịch" trong CLAUDE.md.
 //
-// Giá vé (`ve.gia`) LUÔN do SERVER tự tính lại từ `tinh_tuyen.gia_moc` (2 mã tỉnh client gửi kèm
+// Giá vé (`ve.gia`) LUÔN do SERVER tự tính lại từ `tuyen_tinh.gia_moc` (2 mã tỉnh client gửi kèm
 // qua `tinh_len_ma`/`tinh_xuong_ma`), KHÔNG bao giờ tin `gia` client gửi lên (có thể bị sửa qua
 // DevTools trước khi gửi request) — xem SPEC "Bảng giá theo tỉnh" trong CLAUDE.md.
+//
+// Multi-tenant (2026-09-19) — TẠM THỜI hardcode nhà xe "eakar" (LAY_NHA_XE_ID_MAC_DINH) vì Giai
+// đoạn 5 (routing `?nx=slug`) CHƯA làm. Phát hiện lúc audit (không phải lý thuyết, đang chạy thật
+// trên production): (1) giá đọc từ `tinh_tuyen` — bảng CŨ, đã ngừng được ghi từ khi khach.html đổi
+// sang ghi `tuyen_tinh.gia_moc` ở Giai đoạn 4 — sửa giá qua modal crew KHÔNG còn ảnh hưởng gì tới
+// giá khách thấy nữa, đã sửa lại đọc đúng `tuyen_tinh`; (2) `chuyen`/`ve` insert KHÔNG có
+// `nha_xe_id` — hiện chạy được nhờ DEFAULT tạm thời ở Giai đoạn 2, nhưng sẽ VỠ NGAY khi Giai đoạn 4
+// (DROP DEFAULT) hoàn tất nếu không thêm — đã thêm tường minh, không còn phụ thuộc DEFAULT nữa.
 import { createClient } from '@supabase/supabase-js'
+
+const SLUG_NHA_XE_MAC_DINH = 'eakar'
+
+async function layNhaXeIdMacDinh(sbAdmin) {
+    const { data, error } = await sbAdmin.from('nha_xe').select('id').eq('slug', SLUG_NHA_XE_MAC_DINH).single()
+    if (error) throw error
+    return data.id
+}
 
 function docGioEnv(bien, fallback) {
     const raw = process.env[bien] || fallback
@@ -73,6 +89,12 @@ export default async function handler(req, res) {
     }
 
     const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+    let nhaXeId
+    try {
+        nhaXeId = await layNhaXeIdMacDinh(sbAdmin)
+    } catch (err) {
+        res.status(500).json({ error: 'Lỗi xác định nhà xe: ' + err.message }); return
+    }
 
     // OTP bắt buộc (2026-09-19) — SERVER TỰ KIỂM TRA đã xác thực qua api/cong-khai-xac-thuc-otp.js
     // chưa, KHÔNG tin cờ "đã verify" từ client (cùng nguyên tắc "không tin client" đã áp dụng cho
@@ -94,9 +116,9 @@ export default async function handler(req, res) {
     let giaSo = null
     if (tinh_len_ma && tinh_xuong_ma) {
         const { data: tinhRows, error: tinhErr } = await sbAdmin
-            .from('tinh_tuyen').select('ma, gia_moc').in('ma', [tinh_len_ma, tinh_xuong_ma])
+            .from('tuyen_tinh').select('tinh_ma, gia_moc').eq('nha_xe_id', nhaXeId).in('tinh_ma', [tinh_len_ma, tinh_xuong_ma])
         if (tinhErr) { res.status(500).json({ error: tinhErr.message }); return }
-        const mocMap = new Map(tinhRows.map(t => [t.ma, t.gia_moc]))
+        const mocMap = new Map(tinhRows.map(t => [t.tinh_ma, t.gia_moc]))
         const mocDi = mocMap.get(tinh_len_ma)
         const mocDen = mocMap.get(tinh_xuong_ma)
         if (mocDi != null && mocDen != null) giaSo = Math.abs(Number(mocDen) - Number(mocDi))
@@ -107,7 +129,7 @@ export default async function handler(req, res) {
     if (chuyenId) {
         // Chấp nhận đặt vào chuyến 'dat_truoc' (chưa tới ngày, khách đặt trước) hoặc 'dang_chay'
         // (crew đã bắt đầu) — chặn 'xong' (crew đã Kết thúc chuyến, hoặc khách giữ tab cũ mở lâu).
-        const { data: chuyen, error: chuyenErr } = await sbAdmin.from('chuyen').select('id, trang_thai').eq('id', chuyenId).maybeSingle()
+        const { data: chuyen, error: chuyenErr } = await sbAdmin.from('chuyen').select('id, trang_thai').eq('id', chuyenId).eq('nha_xe_id', nhaXeId).maybeSingle()
         if (chuyenErr) { res.status(500).json({ error: chuyenErr.message }); return }
         if (!chuyen || (chuyen.trang_thai !== 'dang_chay' && chuyen.trang_thai !== 'dat_truoc')) {
             res.status(400).json({ error: 'Chuyến này không còn mở bán, tải lại trang' }); return
@@ -118,6 +140,7 @@ export default async function handler(req, res) {
         const { data: coSan, error: timErr } = await sbAdmin
             .from('chuyen')
             .select('id, trang_thai')
+            .eq('nha_xe_id', nhaXeId)
             .in('trang_thai', ['dat_truoc', 'dang_chay'])
             .eq('chieu', chieu)
             .gte('khoi_hanh', start)
@@ -130,7 +153,7 @@ export default async function handler(req, res) {
         } else {
             const { data: created, error: insErr } = await sbAdmin
                 .from('chuyen')
-                .insert({ chieu, khoi_hanh: tinhKhoiHanhMacDinh(ngay, chieu).toISOString(), trang_thai: 'dat_truoc', tao_boi: null })
+                .insert({ chieu, khoi_hanh: tinhKhoiHanhMacDinh(ngay, chieu).toISOString(), trang_thai: 'dat_truoc', tao_boi: null, nha_xe_id: nhaXeId })
                 .select('id')
                 .single()
             if (insErr) {
@@ -139,7 +162,7 @@ export default async function handler(req, res) {
                     // (đụng unique index uq_chuyen_ngay_chieu) — lấy lại bản ghi vừa được tạo,
                     // KHÔNG báo lỗi cho khách (họ không cần biết chi tiết race condition này).
                     const { data: laiThu, error: laiErr } = await sbAdmin
-                        .from('chuyen').select('id').eq('chieu', chieu)
+                        .from('chuyen').select('id').eq('chieu', chieu).eq('nha_xe_id', nhaXeId)
                         .gte('khoi_hanh', start).lt('khoi_hanh', end)
                         .in('trang_thai', ['dat_truoc', 'dang_chay']).maybeSingle()
                     if (laiErr || !laiThu) { res.status(500).json({ error: laiErr?.message || 'Lỗi tạo chuyến' }); return }
@@ -162,7 +185,8 @@ export default async function handler(req, res) {
         gia: giaSo,
         trang_thai: 'da_dat',
         nguon: 'khach_tu_dat',
-        hinh_thuc_thanh_toan
+        hinh_thuc_thanh_toan,
+        nha_xe_id: nhaXeId
     })
 
     if (error) {

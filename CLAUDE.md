@@ -820,8 +820,84 @@ code, migration `multitenant_giai_doan_4a_fix_unique_constraint_global`** — Gi
   tạm ở Giai đoạn 2) — **CHỈ chạy SAU KHI đã deploy code này lên production VÀ owner tự xác nhận
   dùng thử ổn** (tạo kiện/chuyến/vé/điểm mới bình thường không lỗi) — dropping quá sớm mà code còn
   sót 1 chỗ chưa phát hiện sẽ biến lỗi "âm thầm rơi vào default" thành lỗi "insert fail giữa chừng"
-  ngay lập tức, cũng tệ không kém nếu chưa kịp verify. Giai đoạn 5 (`api/cong-khai-*.js` nhận
-  `?nx=slug`) và Giai đoạn 6 (checklist onboard) **CHƯA LÀM**.
+  ngay lập tức, cũng tệ không kém nếu chưa kịp verify.
+
+### Security audit sau Giai đoạn 4 (2026-09-19) — checklist 10 mục, chạy thật không chỉ đọc code
+
+Owner yêu cầu audit độc lập sau khi xong Giai đoạn 1-4, vì phiên chat ngoài (không có quyền
+`bash`/query DB thật) không tự verify được. Chạy đủ 10 mục, dùng công cụ thật (SQL simulation,
+`curl` với anon key thật, security advisor) — không chỉ đọc code rồi suy luận:
+
+1. **RLS coverage toàn bộ `public` schema** — liệt kê `pg_tables` × `pg_policies`: cả 13 bảng đều
+   `rowsecurity=true`, không bảng nào bị bỏ sót. `storage.objects` (bucket `kien`, Public) — CHỈ có
+   `bucket_id = 'kien'` trong policy, **KHÔNG scope theo nhà xe** (phát hiện thật, CHƯA sửa — xem
+   "Lỗ hổng chưa sửa" cuối mục này).
+2. **`nha_xe.ten`** — đã tự quyết ở Giai đoạn 3 rồi (chọn phương án chặt hơn spec gốc): chỉ
+   `SELECT` được nhà xe MÌNH thuộc về, không mở cho mọi `authenticated`. Verify lại policy còn
+   đúng: `nha_xe_tenant_read` dùng `private.co_quyen_nha_xe(id)`.
+3. **`api/cong-khai-*.js` HOÀN TOÀN CHƯA được sửa ở Giai đoạn 4** (Giai đoạn 4 chỉ đụng 4 trang
+   crew) — kiểm tra lộ ra ĐÚNG như lo ngại: mọi route công khai query `giuong`/`chuyen`/`diem_khach`
+   KHÔNG lọc `nha_xe_id` chút nào (đọc TOÀN BỘ mọi nhà xe). Vô hại lúc này (chỉ có 1 nhà xe thật)
+   nhưng là lỗ hổng rò dữ liệu chéo THẬT nếu có nhà xe thứ 2 trước khi Giai đoạn 5 xong — **đã vá
+   TẠM THỜI ngay trong lúc audit** (xem "Đã sửa" bên dưới), không đợi Giai đoạn 5 đầy đủ.
+4. **Trust boundary `api/cong-khai-*.js`** — rà lại đủ cả 6 route: `cong-khai-dat-ve.js` (giá tự
+   tính server, OTP tự verify server, KHÔNG tin `gia`/cờ verify từ client — đúng thiết kế), các
+   route còn lại chỉ đọc (GET), không có field nhạy cảm nhận từ client. Không phát hiện thêm lỗ
+   hổng trust boundary nào ngoài các lỗ `nha_xe_id` ở mục 3.
+5. **Secret key trong file client** — `grep` `SUPABASE_SERVICE_KEY`/`DASHSCOPE_API_KEY`/
+   `ZALO_APP_SECRET`/`ZALO_OA_ACCESS_TOKEN`/`SMS_PROVIDER_API_KEY`/`sb_secret_` trên mọi `.html`
+   ngoài thư mục `api/` — **sạch, không có kết quả nào**.
+6. **Cookie `zalo_pkce`** — vẫn đúng `HttpOnly; Secure; SameSite=Lax; Path=/api/zalo-callback;
+   Max-Age=300` như spec gốc, chưa bị đổi qua các đợt sửa sau này.
+7. **Test `ve` cross-tenant (CHƯA từng test trước đây, chỉ mới test `kien` ở Giai đoạn 3)** — tạo
+   nhà xe test + `chuyen`/`giuong`/`ve` test, simulate user thật (`set local role authenticated` +
+   `set_config('request.jwt.claims', ...)`): đọc chéo → 0 dòng; `UPDATE` chéo → 0 dòng bị đổi
+   (verify lại `trang_thai` không đổi); **regression**: 2 vé active cùng `(chuyen_id, giuong_id)`
+   trong CÙNG 1 nhà xe vẫn bị chặn đúng (`23505 uq_ve_giuong_active`) — không bị nới lỏng nhầm khi
+   thêm `nha_xe_id`. Đã xoá sạch data test.
+8. **Rà lại insert nào đang ngầm dựa vào `DEFAULT`** — `grep` lại TOÀN BỘ `.insert(` vào 6 bảng
+   nghiệp vụ trên CẢ REPO (không chỉ 4 trang crew đã sửa ở Giai đoạn 4 — lần trước chỉ rà trong
+   phạm vi đó) — phát hiện đúng 2 điểm insert SÓT trong `api/cong-khai-dat-ve.js` (`chuyen` và `ve`,
+   xem mục 3) đang ngầm dựa vào `DEFAULT` thay vì set tường minh. Đã sửa cùng lúc.
+9. **RLS `dat_ve_otp` — verify bằng anon key THẬT qua HTTP, không chỉ tin advisor** — insert 1 dòng
+   OTP thật qua SQL, gọi `GET /rest/v1/dat_ve_otp` bằng `SUPABASE_ANON_KEY` thật: trả `200 []` dù
+   bảng CÓ dữ liệu (không phải trả rỗng vì bảng vốn trống) — xác nhận RLS chặn đúng, không phải suy
+   luận từ advisor. Đã xoá dòng test.
+10. **Rate limit OTP — test thật qua `curl` vào endpoint production**, không chỉ tin code — gọi
+    `POST /api/cong-khai-gui-otp` 4 lần liên tiếp cùng SĐT: 3 lần đầu qua được bước rate-limit (fail
+    ở bước gửi SMS vì chưa có provider — đúng thiết kế), lần thứ 4 nhận `429 "Gửi quá nhiều lần"` —
+    đúng ngưỡng `≥3 lần/10 phút`. Đã xoá data test.
+
+**Đã sửa ngay trong lúc audit** (không đợi Giai đoạn 5 đầy đủ, vì đây là lỗ hổng/bug thật đang chạy
+trên production):
+- **Regression THẬT tự gây ra ở Giai đoạn 4** (mức độ nghiêm trọng: giá vé khách thấy bị đứng yên) —
+  `khach.html`'s modal "Giá vé theo tỉnh" đã đổi ghi sang `tuyen_tinh.gia_moc`, nhưng
+  `api/cong-khai-dat-ve.js` (tính giá lúc đặt) và `api/cong-khai-diem-khach.js` (hiển thị giá cho
+  khách xem trước khi đặt) VẪN đọc từ `tinh_tuyen` (bảng cũ, ngừng cập nhật từ lúc đó) — sửa crew
+  giá không còn ảnh hưởng gì tới khách nữa. Đã sửa cả 2 route đọc đúng `tuyen_tinh` join `tinh`.
+- **4 route công khai (`cong-khai-dat-ve.js`/`cong-khai-diem-khach.js`/`cong-khai-so-do.js`/
+  `cong-khai-lich-chay.js`) thêm `layNhaXeIdMacDinh(sbAdmin)`** — hàm nhỏ lặp lại ở từng file (cùng
+  convention "không import chéo" đã có), TẠM THỜI hardcode `SLUG_NHA_XE_MAC_DINH = 'eakar'` (tra
+  `nha_xe.id` theo slug) vì Giai đoạn 5 (`?nx=slug` từ URL thật) CHƯA làm — dùng để `.eq('nha_xe_id',
+  nhaXeId)` cho mọi query `giuong`/`chuyen`/`diem_khach`/`tuyen_tinh`, và gắn `nha_xe_id: nhaXeId`
+  vào 2 điểm insert (`chuyen`/`ve`) trong `cong-khai-dat-ve.js` — đóng lỗ hổng rò dữ liệu chéo NGAY,
+  không đợi routing `?nx=` đầy đủ. **Khi làm Giai đoạn 5 thật, xoá `layNhaXeIdMacDinh`/
+  `SLUG_NHA_XE_MAC_DINH` ở cả 4 file, thay bằng resolve từ `req.query.nx`/`req.body.nx`** — đánh dấu
+  rõ để không quên dọn code tạm này.
+
+**Lỗ hổng CHƯA sửa (ghi nhận, cần quyết định riêng, không tự ý làm vì đụng kiến trúc lớn hơn)**:
+- **`storage.objects` bucket `kien`** — policy INSERT/UPDATE/DELETE chỉ check `bucket_id = 'kien'`,
+  KHÔNG scope theo nhà xe — bất kỳ crew `authenticated` nào (của BẤT KỲ nhà xe nào) cũng
+  UPDATE/DELETE được file ảnh của nhà xe khác nếu biết đúng path (`{kien.id}.jpg`, UUID khó đoán
+  nhưng không phải bất khả thi nếu có leak danh sách `kien.id` từ đâu đó). Sửa đúng cách cần đổi
+  path scheme (vd `{nha_xe_id}/{kien.id}.jpg`) + viết lại policy theo path prefix + MIGRATE toàn bộ
+  ảnh cũ đã upload sang path mới — thay đổi kiến trúc lớn hơn phạm vi audit này, để Giai đoạn 5+
+  quyết định.
+- **Không có constraint đảm bảo `ve.nha_xe_id = chuyen.nha_xe_id` VÀ `= giuong.nha_xe_id`** (3 giá
+  trị đang độc lập, không ép buộc khớp nhau ở tầng DB) — hiện KHÔNG có đường khai thác qua code app
+  (UI/API đều tự suy `nha_xe_id` nhất quán từ 1 nguồn), nhưng về lý thuyết 1 bug tương lai có thể
+  tạo `ve` với `giuong_id` của nhà xe khác `chuyen_id`. Cần trigger hoặc check constraint riêng nếu
+  muốn ép cứng ở tầng DB — chưa làm, mức độ ưu tiên thấp (không phải lỗ hổng đang khai thác được).
 
 ### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
 
