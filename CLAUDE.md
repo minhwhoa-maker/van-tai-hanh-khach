@@ -713,10 +713,67 @@ hiện tại tự rơi vào `DEFAULT` (nhà xe "eakar") nhờ Giai đoạn 2, kh
   dữ liệu `diem` nào.
 - Đã verify: cả 6 bảng `nha_xe_id` NOT NULL + có DEFAULT đúng UUID nhà xe "eakar", 0 dòng null,
   FK `diem.tinh_ma` đã trỏ `tinh` không phải `tinh_tuyen`.
-- **Chưa làm** (để Giai đoạn 3+ xử lý): RLS hiện tại của mọi bảng nghiệp vụ vẫn là allow-all cho
-  `authenticated` (xem mục Database) — **CHƯA AN TOÀN cho nhiều nhà xe cho tới khi xong Giai đoạn
-  3**, không tự ý mở app cho nhà xe thứ 2 dùng thật trước lúc đó. 5 trang crew + `api/cong-khai-*.js`
-  chưa đọc/ghi `nha_xe_id` tường minh (đang sống nhờ `DEFAULT` tạm thời ở trên).
+- Đã có ở Giai đoạn 2, KHÔNG lặp lại ở Giai đoạn 3: 5 trang crew + `api/cong-khai-*.js` vẫn CHƯA
+  đọc/ghi `nha_xe_id` tường minh (đang sống nhờ `DEFAULT` tạm thời) — xem "Chưa làm" cuối Giai đoạn
+  3 bên dưới.
+
+**Giai đoạn 3 (2026-09-19) — ĐÃ XONG**, migration `multitenant_giai_doan_3_rls_theo_tenant`:
+- **`private.co_quyen_nha_xe(target_nha_xe_id uuid) returns boolean`** — hàm `SECURITY DEFINER`
+  DUY NHẤT trong schema mới `private`, dùng chung cho MỌI policy thay vì lặp lại
+  `exists(select ... where user_id = auth.uid())` ở từng bảng (khuyến nghị
+  `supabase-postgres-best-practices` skill — nhanh hơn + dễ bảo trì hơn). Trả `true` nếu user hiện
+  tại (`(select auth.uid())`, wrap trong `select` để Postgres cache thay vì gọi lại mỗi dòng) là
+  thành viên `nguoi_dung_nha_xe` của `target_nha_xe_id`, HOẶC có mặt trong `app_superadmin`.
+  **`revoke execute ... from public, anon` nhưng GIỮ `grant ... to authenticated`** — đã tra kỹ
+  trước khi áp dụng: hàm được GỌI BÊN TRONG policy lúc role `authenticated` đang chạy query, nên
+  role đó BẮT BUỘC cần quyền `EXECUTE` để Postgres evaluate được policy; revoke luôn cả
+  `authenticated` (như 1 ví dụ chung chung trong skill viết) sẽ khiến MỌI query của app lỗi
+  "permission denied" ngay lập tức — đã KHÔNG làm theo y nguyên ví dụ đó sau khi kiểm tra lại.
+- **6 bảng nghiệp vụ** (`diem`/`chuyen`/`kien`/`diem_khach`/`ve`: policy `for all`; `giuong`: chỉ
+  `for select`, giữ nguyên ý nghĩa cũ vì client chưa từng ghi bảng này) — xoá policy allow-all cũ
+  (`*_all`/`giuong_read`), thay bằng `using/with check ((select private.co_quyen_nha_xe(nha_xe_id)))`.
+- **`tuyen_tinh`** (bảng mới từ Giai đoạn 1, CHƯA có policy nào trước đó) — bật RLS + scope theo
+  tenant NGAY TỪ ĐẦU, dù code chưa đụng vào bảng này (Giai đoạn 4/5 mới chuyển sang dùng) — không
+  để hở khoảng trống nào dù tạm thời chưa ai query.
+- **`tinh`** — SELECT-only cho `authenticated`, `using(true)` — dữ liệu tỉnh dùng CHUNG mọi nhà xe
+  (mã/tên hành chính thật), không nhạy cảm theo tenant, giống `tinh_tuyen` cũ.
+- **`nha_xe`** — **QUYẾT ĐỊNH CHẶT HƠN spec gốc** (spec chỉ ghi "cân nhắc nếu sau này nhiều khách
+  thấy tên nhau", chưa chốt hẳn) — chọn ngay phương án an toàn: SELECT chỉ thấy nhà xe MÌNH thuộc
+  về (qua `private.co_quyen_nha_xe(id)`) hoặc superadmin thấy hết, KHÔNG mở toang cho mọi
+  `authenticated` thấy tên/slug mọi nhà xe khác — tránh phải vá lại sau. Không ảnh hưởng hành vi
+  hiện tại vì code app CHƯA query bảng này.
+- **`nguoi_dung_nha_xe`** — SELECT chỉ dòng CỦA CHÍNH MÌNH (`user_id = (select auth.uid())`) hoặc
+  superadmin. KHÔNG có policy ghi (INSERT/UPDATE/DELETE) — chỉ gán/đổi thành viên qua
+  `SUPABASE_SERVICE_KEY` (đúng luồng "onboard tay qua SQL" của Giai đoạn 6).
+- **`app_superadmin`** — bật RLS, **KHÔNG tạo policy nào** — khoá hoàn toàn với `authenticated`/
+  `anon`, chỉ `SUPABASE_SERVICE_KEY` (bypass RLS) đọc/ghi được. Bảng nhạy cảm nhất (ai xem xuyên
+  được mọi nhà xe), cố ý không expose dù chỉ để user tự-check qua client.
+- **Đã verify BẮT BUỘC theo spec** (không được bỏ qua) — simulate 2 "nhà xe" bằng SQL
+  (`set local role authenticated` + `set_config('request.jwt.claims', ...)` giả lập đúng user thật
+  đang có), tạo tạm 1 nhà xe test + 1 `kien` test trong đó:
+  1. User (thành viên "eakar") đọc `kien` của "eakar" → thấy đủ 71 dòng — đúng.
+  2. User đó đọc `kien` của nhà xe test khác → **0 dòng** — RLS chặn đúng.
+  3. User đó `UPDATE` thẳng vào `kien` của nhà xe test khác → **0 dòng bị đổi** (verify lại bằng
+     query khác, `trang_thai` vẫn nguyên `chua_giao`) — RLS chặn cả ghi, không chỉ đọc.
+  Đã xoá sạch data test (`nha_xe`/`chuyen`/`diem`/`kien` test) sau khi verify xong.
+- **Lỗ hổng bảo mật THẬT phát hiện tình cờ lúc chạy Supabase security advisor để soát lại (không
+  liên quan multi-tenant, sót lại từ session OTP trước)** — bảng `dat_ve_otp` (chứa mã OTP 6 số)
+  được tạo mà **QUÊN BẬT RLS** — advisor báo `ERROR` (`rls_disabled_in_public`), nghĩa là bất kỳ ai
+  cầm `SUPABASE_ANON_KEY` (public, nằm sẵn trong `shared.js`, không phải bí mật) đều có thể gọi
+  thẳng PostgREST đọc được mọi mã OTP đang hiệu lực, VÔ HIỆU HOÁ hoàn toàn tác dụng chống spam của
+  tính năng OTP. Sửa ngay (migration `fix_dat_ve_otp_rls_missing`): bật RLS, không tạo policy —
+  cùng pattern `app_superadmin`, chỉ `SUPABASE_SERVICE_KEY` (đang dùng trong
+  `api/cong-khai-gui-otp.js`/`api/cong-khai-xac-thuc-otp.js`) đọc/ghi được. Đã chạy lại advisor xác
+  nhận hết lỗi `ERROR`, chỉ còn 2 `INFO` có chủ đích (`app_superadmin`/`dat_ve_otp` "RLS bật nhưng
+  không có policy") + 2 `WARN` không liên quan (search_path của 2 function có từ trước
+  `bump_diem_count`/`chuyen_ngay_vn`, và cài đặt "Leaked Password Protection" chưa bật ở tầng Auth
+  — ngoài phạm vi việc đang làm, chưa sửa).
+- **Chưa làm** (để Giai đoạn 4/5 xử lý): 5 trang crew + `api/cong-khai-*.js` vẫn CHƯA đọc/ghi
+  `nha_xe_id` tường minh (đang sống nhờ `DEFAULT` tạm thời từ Giai đoạn 2 — RLS mới không chặn gì
+  vì mọi thứ hiện tại vẫn thuộc đúng nhà xe "eakar" duy nhất). **AN TOÀN để mở nhà xe thứ 2 dùng
+  thật ở tầng DB rồi** (RLS đã chặn đúng, đã verify) — nhưng UI 5 trang crew CHƯA có cách chọn/hiển
+  thị đang thao tác cho nhà xe nào, nên thực tế vẫn chưa dùng được cho ≥2 nhà xe cho tới khi xong
+  Giai đoạn 4.
 
 ### OTP bắt buộc mọi lượt đặt vé công khai (2026-09-19)
 
@@ -725,8 +782,12 @@ Brandname, tự chọn) trước khi bấm "Đặt vé" được. **TÁCH BIỆT
 Zalo Login OAuth ở `login.html`) — mục đích khác nhau, không liên quan gì tới đăng nhập.
 
 - **`dat_ve_otp`** (bảng mới, `id, sdt, ma_otp, kenh 'zalo'|'sms', het_han, da_dung, xac_thuc_luc,
-  so_lan_sai, created_at`, index theo `sdt`) — chỉ server (`SUPABASE_SERVICE_KEY`) đụng vào, không
-  RLS riêng, cùng pattern các bảng `api/cong-khai-*` khác.
+  so_lan_sai, created_at`, index theo `sdt`) — chỉ server (`SUPABASE_SERVICE_KEY`) đụng vào.
+  **RLS ĐÃ BẬT (không có policy nào)**, migration `fix_dat_ve_otp_rls_missing`, 2026-09-19 — lúc
+  tạo bảng ban đầu QUÊN bật RLS, bị Supabase security advisor báo `ERROR` (`rls_disabled_in_public`)
+  khi soát lại lúc làm multi-tenant Giai đoạn 3, nghĩa là ai cầm `SUPABASE_ANON_KEY` (public) đều
+  đọc được mọi mã OTP qua PostgREST trực tiếp — đã sửa ngay, xem mục "Multi-tenant" để biết chi
+  tiết phát hiện.
 - **`api/cong-khai-gui-otp.js`** (POST `{sdt, kenh}`) — validate SĐT, rate-limit chống lạm dụng chi
   phí (≥3 lần/10 phút hoặc ≥10 lần/24h cho cùng SĐT → 429), sinh mã 6 số random, hết hạn sau 5 phút,
   gọi `guiOtpZalo`/`guiOtpSms` theo kênh khách chọn. **KHÔNG BAO GIỜ trả mã OTP trong response.**
