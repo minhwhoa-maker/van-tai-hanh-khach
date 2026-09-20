@@ -1173,14 +1173,15 @@
 
         initPage()
     </script>
-    <!-- Service worker RIÊNG (sw-dat-ve.js, KHÔNG phải sw.js của 5 trang crew) — scope thu hẹp về
-         đúng '/dat-ve.html' để không tranh scope '/' với SW crew nếu cùng trình duyệt từng cài cả
-         2. Trước đó trang này CỐ Ý chưa phải PWA thật (không đăng ký gì) — đăng ký thêm 2026-09-18
-         theo yêu cầu, để khách bấm "Thêm vào màn hình chính" cài được app đặt vé riêng. -->
+    <!-- Service worker RIÊNG (sw-dat-ve.js, KHÔNG phải sw.js của 5 trang crew) — scope '/' (đổi
+         2026-09-20, tách origin riêng eakar-booking.vercel.app). Trước đó scope bị thu hẹp về
+         '/dat-ve.html' vì trang này CHUNG origin với app crew (sw.js crew chiếm scope '/'); giờ
+         origin này CHỈ phục vụ đặt vé (vercel.json rewrite "/" -> "/dat-ve.html" trên host booking),
+         không còn gì để tranh chấp scope '/' nữa — xem SPEC "Multi-tenant Giai đoạn 5" CLAUDE.md. -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw-dat-ve.js', { scope: '/dat-ve.html' })
+                navigator.serviceWorker.register('/sw-dat-ve.js', { scope: '/' })
                     .catch(err => console.error('SW register failed:', err))
             })
         }

@@ -8,6 +8,12 @@
 // dat-ve.html KHÔNG còn `<link rel="manifest">` tĩnh trong <head> — JS tự tạo <link> trỏ tới route
 // này SAU KHI đọc `nx` và resolve nhà xe thành công. Có `nx` mà sai/tạm_dừng → route trả lỗi
 // (KHÔNG trả manifest) — màn lỗi ở dat-ve.html không được phép cài thành app.
+//
+// `scope`/`start_url`/`id` đổi sang gốc "/" (2026-09-20, tách origin riêng eakar-booking.vercel.app)
+// — origin đó giờ CHỈ phục vụ dat-ve.html (vercel.json rewrite "/" -> "/dat-ve.html" trên host này),
+// nên scope "/" an toàn, không còn đụng độ với app crew (khác origin hoàn toàn, không còn chung
+// van-tai-hanh-khach.vercel.app nữa — lý do gốc của scope hẹp "/dat-ve.html" trước đây, xem CLAUDE.md
+// mục "PWA riêng cho dat-ve.html"). Đổi origin sau này (nếu có) bắt khách cài lại app.
 import { createClient } from '@supabase/supabase-js'
 import { docNx, layNhaXe, guiLoiNhaXe } from './_lib/nha-xe.js'
 
@@ -28,12 +34,12 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', 'application/manifest+json')
     res.status(200).json({
-        id: `/dat-ve.html?nx=${nx}`,
+        id: `/?nx=${nx}`,
         name: ten,
         short_name: ten,
         description: `Đặt vé xe khách — ${ten}`,
-        start_url: `/dat-ve.html?nx=${nx}`,
-        scope: '/dat-ve.html',
+        start_url: `/?nx=${nx}`,
+        scope: '/',
         display: 'standalone',
         orientation: 'portrait',
         background_color: '#f0f2f5',

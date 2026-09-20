@@ -4,6 +4,7 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
+    "@vercel/functions": "^3.9.8",
     "web-push": "^3.6.0"
   }
 }

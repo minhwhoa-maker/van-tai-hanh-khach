@@ -8,7 +8,10 @@
 // v3 (2026-09-20, Multi-tenant Giai đoạn 5): dat-ve.html đổi (đọc `nx`, gọi API kèm nx, <link
 // rel="manifest"> giờ chèn động bằng JS thay vì tĩnh) — bump để dọn cache cũ, tránh khách mở lại
 // app đã cài thấy bản dat-ve.html không đọc `nx` (sẽ luôn báo "Link không hợp lệ").
-const CACHE_NAME = 'eakar-dat-ve-v3';
+// v4 (2026-09-20, tách origin riêng eakar-booking.vercel.app): đăng ký lại với scope '/' (trước là
+// '/dat-ve.html', xem dat-ve.html) — bump để dọn cache/registration cũ, tránh SW đời trước (scope
+// hẹp) đứng chắn SW mới ở cùng origin.
+const CACHE_NAME = 'eakar-dat-ve-v4';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',

@@ -293,6 +293,59 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       hình chính" lại trên điện thoại thật để xác nhận Chrome không còn báo "already installed" và
       app cài mới hiện đúng tên "Booking" + icon vé cam, tách biệt hẳn khỏi app crew trên home
       screen.
+    - **Tách hẳn sang ORIGIN RIÊNG `eakar-booking.vercel.app` (2026-09-20)** — đợt 15 (trên) chỉ vá
+      được xung đột `scope`/`id`/icon TRONG CÙNG 1 origin (`van-tai-hanh-khach.vercel.app`); scope
+      `"./"` của `manifest.json` (crew) VỀ MẶT KỸ THUẬT vẫn bao trùm `/dat-ve.html` (scope chỉ là
+      prefix URL, không phải danh sách trang) — vá đủ để 2 app KHÔNG bị Chrome coi là "already
+      installed" nữa, nhưng 2 service worker (`sw.js` crew scope `/`, `sw-dat-ve.js` booking scope
+      `/dat-ve.html`) vẫn CÙNG origin, về lý thuyết vẫn có thể tranh nhau nếu sau này crew đổi scope
+      `sw.js`. Owner yêu cầu tách hẳn origin cho dứt điểm — booking giờ sống ở domain RIÊNG
+      `eakar-booking.vercel.app`, thêm vào **CÙNG project Vercel** `van-tai-hanh-khach` (KHÔNG phải
+      project riêng — qua `vercel domains add eakar-booking.vercel.app van-tai-hanh-khach`, tự động
+      alias theo mỗi lần `vercel --prod`), nên vẫn CÙNG 1 deployment/CÙNG 1 codebase, chỉ khác domain
+      request tới.
+      - **`middleware.js` (root) — Vercel Routing Middleware, KHÔNG phải `rewrites`/`redirects`
+        trong `vercel.json`** — đã THỬ `rewrites` trước (catch-all `/(.*)` kèm `has: host` → 404 cho
+        mọi path không nằm trong allow-list) nhưng KHÔNG chặn được các trang crew (`hang.html`,
+        `login.html`...) trên host booking: verify thật bằng `curl` cho thấy vẫn 200, vì `rewrites`
+        trong `vercel.json` chỉ được xét SAU KHI Vercel đã tìm thấy path khớp đúng 1 file tĩnh có
+        sẵn trong deployment — file đó được serve THẲNG, bỏ qua `rewrites` hoàn toàn bất kể thứ tự
+        khai báo. Middleware chạy TRƯỚC bước filesystem đó nên chặn đúng ý — trên host
+        `eakar-booking.vercel.app`: `/` (rewrite, không phải redirect — giữ `/` trên thanh địa chỉ,
+        khớp `start_url: "/?nx=..."` của manifest) → `/dat-ve.html`; allow-list đúng những gì
+        `dat-ve.html`/`sw-dat-ve.js` cần (`dat-ve.html`, `sw-dat-ve.js`, `manifest-dat-ve.json` tĩnh
+        cũ, `style.css`, `shared.js`, 2 icon booking, `api/manifest-dat-ve`, 6 route
+        `api/cong-khai-*`) → cho qua bình thường (`next()` từ `@vercel/functions`, package mới thêm
+        vào `package.json`); mọi path khác → `404`. Đã verify thật: `hang.html`/`login.html`/
+        `khach.html`/`manifest-hang.html`/`lich-su-chuyen.html`/`auth-callback.html`/
+        `api/zalo-login`/`api/zalo-callback`/`api/doi-chieu-sdt` trên host booking đều trả 404; các
+        path trong allow-list vẫn 200.
+      - **`redirects` trong `vercel.json` (khác `rewrites`) VẪN GIỮ, hoạt động đúng** —
+        `redirects` được xét TRƯỚC filesystem (không bị vấn đề như `rewrites` ở trên, đã verify) nên
+        không cần chuyển vào middleware: trên host `van-tai-hanh-khach.vercel.app`, `/dat-ve.html`
+        và `/api/manifest-dat-ve` → 308 sang `https://eakar-booking.vercel.app` + cùng path, GIỮ
+        NGUYÊN query string (`?nx=...`) — link cũ dạng `?nx=eakar` vẫn sống, chỉ đổi domain.
+      - **`api/manifest-dat-ve.js`**: `scope`/`start_url`/`id` đổi từ `/dat-ve.html` sang `/` —
+        origin booking giờ CHỈ chứa đúng nội dung đặt vé (mọi path khác đã 404 ở middleware) nên
+        scope `/` an toàn, không còn gì để tranh chấp.
+      - **`dat-ve.html`**: đăng ký `sw-dat-ve.js` với `scope: '/'` (trước `'/dat-ve.html'`).
+        **`sw-dat-ve.js`**: `CACHE_NAME` bump `v3` → `v4` (dọn cache/registration cũ ứng với scope
+        hẹp trước đó).
+      - **KHÔNG đụng `manifest.json`/`sw.js` của crew** — giữ nguyên 100%, xem lại chỉ để xác nhận
+        vẫn hoạt động bình thường sau khi thêm `vercel.json`/`middleware.js` (đã verify: crew host
+        `login.html`/`hang.html`/`manifest.json`/`sw.js` vẫn 200).
+      - **Đánh đổi đã xác nhận với owner**: đổi domain booking sau này (khác `eakar-booking.vercel.app`)
+        sẽ BẮT khách cài lại app (icon/app cũ trên home screen trỏ về origin cũ sẽ chết hẳn, giống
+        đánh đổi "chưa test thật trên thiết bị" đã ghi ở đợt 15) — chấp nhận được vì đang ở giai
+        đoạn TEST tính năng, chưa phát hành rộng.
+      - **Đã verify bằng `curl` thật (không chỉ đọc code)**: `eakar-booking.vercel.app/?nx=eakar` →
+        200, đúng `dat-ve.html`; `/api/manifest-dat-ve?nx=eakar` → JSON `scope:"/"`,
+        `id`/`start_url` đều `/?nx=eakar`; `/api/cong-khai-lich-chay?nx=eakar` → 200; toàn bộ trang/
+        route crew trên host này → 404; `van-tai-hanh-khach.vercel.app/dat-ve.html?nx=eakar` và
+        `/api/manifest-dat-ve?nx=eakar` → 308 đúng `Location` sang host booking, giữ `?nx=eakar`;
+        `van-tai-hanh-khach.vercel.app/login.html`/`/hang.html` vẫn 200.
+      - **Chưa test thật trên thiết bị** (cùng ghi chú như đợt 15) — cần crew/owner tự bấm "Thêm vào
+        màn hình chính" từ `https://eakar-booking.vercel.app/?nx=eakar` trên điện thoại thật.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
     tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. Bước 0 sau đó đổi tiếp 2
     lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
