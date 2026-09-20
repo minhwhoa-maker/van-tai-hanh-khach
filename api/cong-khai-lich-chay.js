@@ -7,6 +7,7 @@
 // route serverless Node (ESM `import`). Cùng convention "không import chéo giữa 2 nơi độc lập" đã
 // dùng cho chuanHoaSdt/laSdtHopLe ở api/cong-khai-dat-ve.js.
 import { createClient } from '@supabase/supabase-js'
+import { docNx, layNhaXe, guiLoiNhaXe } from './_lib/nha-xe.js'
 
 function _int(d) { return Math.floor(d) }
 
@@ -135,25 +136,13 @@ function convertSolar2Lunar(dd, mm, yy, timeZone) {
 // GIÁ TRỊ TẠM — owner cần xác nhận thực tế mở bán trước bao lâu, sửa hằng số này nếu khác.
 const SO_NGAY_MO_BAN_TRUOC = 45
 
-// Multi-tenant (2026-09-19) — TẠM THỜI hardcode nhà xe "eakar" (xem cong-khai-diem-khach.js) vì
-// Giai đoạn 5 (routing `?nx=slug`) chưa làm. TRƯỚC đợt sửa này `chuyen` được query KHÔNG lọc
-// `nha_xe_id` chút nào — lỗ hổng thật phát hiện lúc audit (chuyến của nhà xe khác sẽ bị tính nhầm
-// là "ngày này đã có người đặt" của nhà xe hiện tại nếu có ≥2 nhà xe).
-const SLUG_NHA_XE_MAC_DINH = 'eakar'
-
-async function layNhaXeIdMacDinh(sbAdmin) {
-    const { data, error } = await sbAdmin.from('nha_xe').select('id').eq('slug', SLUG_NHA_XE_MAC_DINH).single()
-    if (error) throw error
-    return data.id
-}
-
-// *** owner PHẢI set 2 biến env này trên Vercel (Production) bằng giờ chạy THẬT ***, định dạng
-// "HH:mm". Giá trị fallback dưới đây CHỈ là placeholder tạm để không crash lúc chưa set —
-// TUYỆT ĐỐI không coi đây là giờ chạy chính thức.
-function docGioEnv(bien, fallback) {
-    const raw = process.env[bien] || fallback
-    const m = /^(\d{1,2}):(\d{2})$/.exec(raw)
-    if (!m) return { h: 0, m: 0 }
+// Multi-tenant Giai đoạn 5 (2026-09-20) — resolve nhà xe từ `?nx=<slug>` (BLOCKER hardcode
+// 'eakar' đã gỡ). `layNhaXe` PHẢI là việc đầu tiên của handler (ngay sau kiểm tra method), trước
+// MỌI tính toán/early-return khác — kể cả nhánh "0 ngày hợp lệ" phía dưới, để không có đường nào
+// trả 200 mà chưa từng resolve tenant. Xem SPEC "Multi-tenant Giai đoạn 5" trong CLAUDE.md.
+function docGioTuNhaXe(nhaXe, chieu) {
+    const raw = chieu === 'bac' ? nhaXe.gio_khoi_hanh_bac : nhaXe.gio_khoi_hanh_nam
+    const m = /^(\d{1,2}):(\d{2})/.exec(raw)
     return { h: Number(m[1]), m: Number(m[2]) }
 }
 
@@ -166,8 +155,17 @@ function ngayVN(date) {
 export default async function handler(req, res) {
     if (req.method !== 'GET') { res.status(405).json({ error: 'Method not allowed' }); return }
 
-    const gioBac = docGioEnv('GIO_KHOI_HANH_BAC', '19:30')
-    const gioNam = docGioEnv('GIO_KHOI_HANH_NAM', '19:30')
+    const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
+    let nhaXe
+    try {
+        nhaXe = await layNhaXe(sbAdmin, docNx(req))
+    } catch (err) {
+        if (guiLoiNhaXe(res, err)) return
+        res.status(500).json({ error: err.message }); return
+    }
+
+    const gioBac = docGioTuNhaXe(nhaXe, 'bac')
+    const gioNam = docGioTuNhaXe(nhaXe, 'nam')
 
     const now = new Date()
     const homNay = ngayVN(now)
@@ -198,23 +196,19 @@ export default async function handler(req, res) {
         tatCaNgay.push({ ngay: ngayStr, lunar_day: am.day, lunar_month: am.month, hop_le: hopLe })
     }
 
-    const ngayHopLe = tatCaNgay.filter(x => x.hop_le)
-    if (!ngayHopLe.length) { res.status(200).json({ lich: tatCaNgay }); return }
+    // `nha_xe` giờ có mặt ở MỌI nhánh 200 (kể cả nhánh 0 ngày hợp lệ ngay dưới) — frontend không
+    // phải xử lý riêng 1 response thiếu field này.
+    const nhaXeInfo = { ten: nhaXe.ten, slug: nhaXe.slug }
 
-    const sbAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
-    let nhaXeId
-    try {
-        nhaXeId = await layNhaXeIdMacDinh(sbAdmin)
-    } catch (err) {
-        res.status(500).json({ error: 'Lỗi xác định nhà xe: ' + err.message }); return
-    }
+    const ngayHopLe = tatCaNgay.filter(x => x.hop_le)
+    if (!ngayHopLe.length) { res.status(200).json({ lich: tatCaNgay, nha_xe: nhaXeInfo }); return }
 
     const tuNgay = ngayHopLe[0].ngay
     const denNgay = ngayHopLe[ngayHopLe.length - 1].ngay
     const { data: chuyenCoSan, error } = await sbAdmin
         .from('chuyen')
         .select('id, chieu, khoi_hanh')
-        .eq('nha_xe_id', nhaXeId)
+        .eq('nha_xe_id', nhaXe.id)
         .in('trang_thai', ['dat_truoc', 'dang_chay'])
         .gte('khoi_hanh', tuNgay)
         .lte('khoi_hanh', denNgay + 'T23:59:59')
@@ -240,5 +234,5 @@ export default async function handler(req, res) {
         nam: { chuyen_id: mapCoSan.get(`${ngay}|nam`) || null, ten: 'Hải Dương → Đắk Lắk' },
     } : { ngay, lunar_day, lunar_month, hop_le })
 
-    res.status(200).json({ lich })
+    res.status(200).json({ lich, nha_xe: nhaXeInfo })
 }

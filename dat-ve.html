@@ -8,13 +8,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="icons/icon-192-booking.png">
     <title>Đặt vé xe khách</title>
-    <!-- Manifest RIÊNG cho trang này (2026-09-18, đợt 15: icon/tên/id TÁCH HẲN khỏi app crew —
-         Chrome từng báo "This app is already installed" lúc cài, vì scope "./" của manifest.json
-         (crew) VỀ MẶT KỸ THUẬT đã bao trùm luôn URL /dat-ve.html, cộng thêm dùng chung icon khiến
-         nhìn giống 1 app. `id` tường minh + icon riêng (icons/icon-*-booking.png, không dùng chung
-         file với crew) + tên "Booking" đảm bảo Chrome/Android coi đây là 1 app độc lập hoàn toàn,
-         không đề nghị "mở app đã cài" khi khách bấm "Thêm vào màn hình chính". Xem CLAUDE.md. -->
-    <link rel="manifest" href="manifest-dat-ve.json">
+    <!-- Manifest theo NHÀ XE (Multi-tenant Giai đoạn 5, 2026-09-20) — KHÔNG còn <link rel="manifest">
+         tĩnh ở đây. File tĩnh manifest-dat-ve.json (giữ lại trong repo, không xoá cho tới khi test
+         xong trên điện thoại thật) không mang được `nx`, mọi nhà xe sẽ cài ra CÙNG 1 app — JS cuối
+         trang tự tạo <link> trỏ tới api/manifest-dat-ve.js?nx=<slug> (id/start_url riêng từng nhà
+         xe) SAU KHI đọc `nx` và resolve nhà xe thành công trong initPage(). Thiếu/sai `nx` → không
+         thêm link manifest nào, màn lỗi không được phép cài thành app. Xem SPEC "Multi-tenant Giai
+         đoạn 5" trong CLAUDE.md (lịch sử "already installed" ở đợt 15 vẫn còn giá trị tham khảo). -->
     <link rel="stylesheet" href="style.css">
     <style>
         /* Trang CÔNG KHAI cho khách — KHÔNG requireSession/renderSideMenu/hamburger, khác hẳn 5
@@ -302,7 +302,11 @@
 </head>
 <body>
     <div class="public-header">
-        <h1>🚌 EaKar Xe Khách</h1>
+        <!-- Nhãn "🚌 EaKar Xe Khách" là placeholder trước khi nx resolve xong — initPage() ghi đè
+             bằng nha_xe.ten thật (từ response api/cong-khai-lich-chay.js) khi có nx hợp lệ. Tuyến
+             "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ, KHÔNG sửa
+             ở Giai đoạn 5 (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện sai. -->
+        <h1 id="public-header-ten">🚌 EaKar Xe Khách</h1>
         <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
     </div>
 
@@ -438,6 +442,12 @@
     <script>
         // KHÔNG dùng sb/Supabase client trực tiếp — mọi thao tác qua API route riêng (service key
         // ở server), xem SPEC "dat-ve.html" trong CLAUDE.md để biết lý do không mở RLS anon.
+        //
+        // Multi-tenant Giai đoạn 5 (2026-09-20) — đọc `nx` MỘT LẦN lúc load, truyền xuống MỌI lần
+        // gọi api/cong-khai-* (query cho GET, body cho POST). Thiếu `nx` → initPage() hiện màn lỗi
+        // ngay, KHÔNG gọi API nào (xem đầu initPage). `nxParam()` dùng ở các fetch GET.
+        const nx = new URLSearchParams(location.search).get('nx')
+        function nxParam() { return `nx=${encodeURIComponent(nx || '')}` }
         //
         // lichList: TOÀN BỘ ngày trong khoảng mở bán (kể cả ngày KHÔNG chạy — hop_le:false), từ
         // api/cong-khai-lich-chay.js — [{ngay, lunar_day, lunar_month, hop_le, bac?, nam?}].
@@ -633,7 +643,7 @@
             try {
                 const res = await fetch('/api/cong-khai-gui-otp', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sdt, kenh: kenhEl.value })
+                    body: JSON.stringify({ sdt, kenh: kenhEl.value, nx })
                 })
                 const data = await res.json()
                 if (!res.ok) { showToast(data.error || 'Lỗi gửi mã', 'error'); btn.disabled = false; return }
@@ -664,7 +674,7 @@
             try {
                 const res = await fetch('/api/cong-khai-xac-thuc-otp', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sdt, ma_otp: maOtp })
+                    body: JSON.stringify({ sdt, ma_otp: maOtp, nx })
                 })
                 const data = await res.json()
                 if (!res.ok) { showToast(data.error || 'Mã không đúng', 'error'); btn.disabled = false; return }
@@ -712,8 +722,8 @@
                     // tính ở client), xem api/cong-khai-dat-ve.js. `noiXuatPhatTinh`/`diemDenTinh`
                     // vẫn giữ đúng cặp tỉnh đã xác nhận ở Bước 0 (không bị reset sau confirm).
                     const body = currentChuyen.chuyen_id
-                        ? { chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
-                        : { ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
+                        ? { nx, chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
+                        : { nx, ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
                     const res = await fetch('/api/cong-khai-dat-ve', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -765,8 +775,8 @@
         // chưa tồn tại chuyến thì chắc chắn chưa ai đặt được), xem api/cong-khai-so-do.js.
         async function taiSoDo() {
             const url = currentChuyen.chuyen_id
-                ? `/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.chuyen_id)}`
-                : '/api/cong-khai-so-do'
+                ? `/api/cong-khai-so-do?chuyen_id=${encodeURIComponent(currentChuyen.chuyen_id)}&${nxParam()}`
+                : `/api/cong-khai-so-do?${nxParam()}`
             const res = await fetch(url)
             const data = await res.json()
             if (!res.ok) { showToast(data.error || 'Lỗi tải sơ đồ', 'error'); return }
@@ -1107,17 +1117,47 @@
             renderChonChuyenStep()
         }
 
+        // Thêm <link rel="manifest"> ĐỘNG sau khi resolve nhà xe thành công — KHÔNG có <link> tĩnh
+        // nào trong <head> (đã bỏ hẳn, xem comment ở đầu <head>). Trỏ tới api/manifest-dat-ve.js
+        // với đúng slug đã CANONICAL từ server (nhaXe.slug, không dùng thẳng `nx` thô từ URL) —
+        // id/start_url của manifest đó tự gắn `?nx=<slug>` nên mỗi nhà xe là 1 app cài riêng biệt.
+        function themManifestLink(nhaXe) {
+            if (!nhaXe) return
+            const link = document.createElement('link')
+            link.rel = 'manifest'
+            link.href = `/api/manifest-dat-ve?nx=${encodeURIComponent(nhaXe.slug)}`
+            document.head.appendChild(link)
+        }
+
         async function initPage() {
+            // Thiếu nx → hiện màn lỗi ngay, KHÔNG gọi API nào (xem SPEC "Multi-tenant Giai đoạn 5"
+            // trong CLAUDE.md — nguyên tắc "không có default ngầm").
+            if (!nx) {
+                document.getElementById('chuyen-info-wrap').innerHTML = '<div class="khong-co-chuyen">🚫 Link đặt vé không hợp lệ, vui lòng liên hệ nhà xe.</div>'
+                return
+            }
+
             const [lichRes, diemRes] = await Promise.all([
-                fetch('/api/cong-khai-lich-chay'),
-                fetch('/api/cong-khai-diem-khach')
+                fetch(`/api/cong-khai-lich-chay?${nxParam()}`),
+                fetch(`/api/cong-khai-diem-khach?${nxParam()}`)
             ])
             const lichData = await lichRes.json()
             const diemJson = await diemRes.json()
-            if (!lichRes.ok) { document.getElementById('chuyen-info-wrap').innerHTML = `<div class="khong-co-chuyen">Lỗi tải lịch chạy: ${lichData.error || ''}</div>`; return }
+            // 400/404/403 từ resolve nhà xe (hoặc lỗi khác) → hiển thị ĐÚNG thông điệp server trả,
+            // không retry, không gọi thêm gì (khớp nguyên tắc "không tin client"/"không default
+            // ngầm" — trang KHÔNG được phép âm thầm coi như thành công).
+            if (!lichRes.ok) { document.getElementById('chuyen-info-wrap').innerHTML = `<div class="khong-co-chuyen">${lichData.error || 'Lỗi tải lịch chạy'}</div>`; return }
             if (!diemRes.ok) { showToast(diemJson.error || 'Lỗi tải điểm đón', 'error') }
             diemKhachList = diemJson.diemKhach || []
             tinhList = diemJson.tinh || []
+
+            // Tên nhà xe ở header/title thay cho nhãn cố định (chỉ có ở response lich-chay, xem
+            // SPEC 5.3) — và đây cũng là thời điểm DUY NHẤT thêm <link rel="manifest">.
+            if (lichData.nha_xe) {
+                document.getElementById('public-header-ten').textContent = '🚌 ' + lichData.nha_xe.ten
+                document.title = lichData.nha_xe.ten + ' — Đặt vé'
+            }
+            themManifestLink(lichData.nha_xe)
 
             lichList = lichData.lich || []
             if (!lichList.length) {

@@ -5,7 +5,10 @@
 // SPEC "Đặt vé công khai cho khách" trong CLAUDE.md.
 // v2 (2026-09-18, đợt 15): đổi icon riêng (icon-*-booking.png, không dùng chung file với crew nữa
 // — xem lý do ở dat-ve.html) — bump CACHE_NAME để dọn sạch entry icon cũ trong cache trình duyệt.
-const CACHE_NAME = 'eakar-dat-ve-v2';
+// v3 (2026-09-20, Multi-tenant Giai đoạn 5): dat-ve.html đổi (đọc `nx`, gọi API kèm nx, <link
+// rel="manifest"> giờ chèn động bằng JS thay vì tĩnh) — bump để dọn cache cũ, tránh khách mở lại
+// app đã cài thấy bản dat-ve.html không đọc `nx` (sẽ luôn báo "Link không hợp lệ").
+const CACHE_NAME = 'eakar-dat-ve-v3';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',
