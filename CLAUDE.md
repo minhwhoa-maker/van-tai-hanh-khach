@@ -205,17 +205,24 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   `api/cong-khai-lich-chay.js` (xem mục "Lịch chạy cố định theo ngày chẵn âm lịch" bên dưới), vốn
   không còn phụ thuộc chuyến crew tự tạo tay mà tự tính lịch. Route cũ chỉ tồn tại đúng 1 ngày
   (tạo + xoá cùng 2026-09-17).
-- **`api/cong-khai-so-do.js?chuyen_id=...`** (GET) — JOIN `giuong` + `ve` (lọc `trang_thai='da_dat'`
-  đúng `chuyen_id`) → trả `{id, tang, hang, vi_tri, ma, hoat_dong, trong}` mỗi giường. TUYỆT ĐỐI
-  không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay không. **`chuyen_id`
-  giờ OPTIONAL (2026-09-17, đợt 2)** — ngày/chiều chưa từng có ai đặt thì CHƯA CÓ `chuyen` thật
-  trong DB nên không có id để truyền; gọi không kèm `chuyen_id` thì bỏ qua bước query `ve`, trả
-  toàn bộ giường `trong` theo đúng `hoat_dong` (chưa tồn tại chuyến thì chắc chắn chưa ai đặt được).
-- **`api/cong-khai-diem-khach.js`** (GET) — trả `diem_khach` + `tinh_tuyen` (để dropdown hiện "Tên
-  điểm — Tên tỉnh" và sắp theo thứ tự tuyến, giống `renderDiemKhachOptions` ở `khach.html`). KHÔNG
-  có đường tạo điểm mới từ phía khách — chỉ crew được tạo điểm mới, qua `khach.html` như cũ.
-- **`api/cong-khai-dat-ve.js`** (POST, body `{chuyen_id?, ngay?, chieu?, giuong_id, ten, sdt,
-  diem_len_id, diem_xuong_id, hinh_thuc_thanh_toan, gia?}`) —
+- **Cả 4 route + `api/manifest-dat-ve.js` đều BẮT BUỘC `?nx=<slug>` (Multi-tenant Giai đoạn 5,
+  2026-09-20)** — xem mục "Multi-tenant Giai đoạn 5" để biết chi tiết `layNhaXe`/
+  `xacMinhThuocNhaXe`/nguyên tắc "không default ngầm". Các bullet dưới đây mô tả HÀNH VI NGHIỆP VỤ
+  của từng route (giữ nguyên từ lúc viết), phần tenant-scoping không lặp lại ở đây.
+- **`api/cong-khai-so-do.js?nx=<slug>&chuyen_id=...`** (GET) — JOIN `giuong` + `ve` (lọc
+  `trang_thai='da_dat'` đúng `chuyen_id`) → trả `{id, tang, hang, vi_tri, ma, hoat_dong, trong}`
+  mỗi giường. TUYỆT ĐỐI không trả tên/SĐT khách đã đặt ghế khác — công khai chỉ cần biết trống hay
+  không. **`chuyen_id` giờ OPTIONAL (2026-09-17, đợt 2)** — ngày/chiều chưa từng có ai đặt thì CHƯA
+  CÓ `chuyen` thật trong DB nên không có id để truyền; gọi không kèm `chuyen_id` thì bỏ qua bước
+  query `ve`, trả toàn bộ giường `trong` theo đúng `hoat_dong` (chưa tồn tại chuyến thì chắc chắn
+  chưa ai đặt được). Có `chuyen_id` thì verify sở hữu TRƯỚC khi query `ve` (Giai đoạn 5).
+- **`api/cong-khai-diem-khach.js?nx=<slug>`** (GET) — trả `diem_khach` + `tuyen_tinh` join `tinh`
+  (để dropdown hiện "Tên điểm — Tên tỉnh" và sắp theo thứ tự tuyến, giống `renderDiemKhachOptions`
+  ở `khach.html`) — KHÔNG phải `tinh_tuyen` (bảng cũ, đơn-tenant, ngừng cập nhật từ Giai đoạn 4).
+  KHÔNG có đường tạo điểm mới từ phía khách — chỉ crew được tạo điểm mới, qua `khach.html` như cũ.
+- **`api/cong-khai-dat-ve.js`** (POST, body `{nx, chuyen_id?, ngay?, chieu?, giuong_id, ten, sdt,
+  diem_len_id?, diem_xuong_id?, hinh_thuc_thanh_toan, tinh_len_ma?, tinh_xuong_ma?}` — KHÔNG nhận
+  `gia` từ client, xem mục "Bảng giá theo tỉnh") —
   - Validate tối thiểu: `ten`/`sdt` không rỗng, `sdt` đúng định dạng VN qua `chuanHoaSdt`/
     `laSdtHopLe` **COPY nguyên văn từ `api/doi-chieu-sdt.js`** (cố ý KHÔNG import chéo giữa 2 route
     serverless độc lập).
@@ -223,8 +230,9 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
     `chuyen_id` (chuyến đã tồn tại, `dat_truoc` hoặc `dang_chay`) thì dùng thẳng; không có thì tra
     theo `(ngay, chieu)` qua `ranhGioiNgayVN()` (quy đổi đúng "ngày dương lịch giờ VN" sang mốc UTC,
     KHÔNG so sánh chuỗi ngày thô với `timestamptz` — lệch múi giờ nếu làm vậy), **TỰ TẠO** `chuyen`
-    mới (`trang_thai='dat_truoc'`, `khoi_hanh` = ngày + giờ mặc định từ env `GIO_KHOI_HANH_BAC`/
-    `GIO_KHOI_HANH_NAM`, `tao_boi=null`) nếu ngày đó CHƯA có ai đặt. Đụng unique index
+    mới (`trang_thai='dat_truoc'`, `khoi_hanh` = ngày + giờ mặc định từ
+    `nha_xe.gio_khoi_hanh_bac`/`gio_khoi_hanh_nam` của nhà xe đã resolve — KHÔNG còn ENV, xem mục
+    "Env / Vercel", `tao_boi=null`) nếu ngày đó CHƯA có ai đặt. Đụng unique index
     `uq_chuyen_ngay_chieu` lúc insert (2 khách cùng bấm ngày/chiều mới gần như đồng thời) → bắt lỗi
     `23505`, SELECT lại lấy bản ghi vừa được request kia tạo, KHÔNG báo lỗi cho khách.
   - Chấp nhận đặt vào chuyến `trang_thai` là `'dat_truoc'` HOẶC `'dang_chay'` (mở rộng 2026-09-17,
@@ -250,11 +258,13 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   - **PWA riêng cho trang này (2026-09-18, theo yêu cầu)** — trước đó `dat-ve.html` CỐ Ý chưa phải
     PWA thật (không manifest, không đăng ký service worker), chỉ là trang tĩnh mở qua link. Đăng ký
     thêm 2 file RIÊNG, KHÔNG dùng chung với 5 trang crew:
-    - **`manifest-dat-ve.json`** — `scope: "./dat-ve.html"` (thu hẹp về ĐÚNG 1 URL này, KHÔNG phải
-      `"./"` như `manifest.json` của crew), `name`/`short_name` **"Booking"** (đổi 2026-09-18, đợt
-      15, theo yêu cầu — trước đó "EaKar Xe Khách - Đặt vé"). Icon dùng
-      `icons/icon-192-booking.png`/`icon-512-booking.png` — hình vé cam (`#f57c00`, generate bằng
-      script Python/PIL, KHÔNG dùng chung file với icon xe tải xanh của crew).
+    - **`manifest-dat-ve.json`** (file TĨNH — **THAY THẾ bởi `api/manifest-dat-ve.js?nx=<slug>`
+      ĐỘNG từ Giai đoạn 5, 2026-09-20, xem mục "Multi-tenant Giai đoạn 5"**; giữ lại trong repo
+      chưa xoá cho tới khi test tay trên điện thoại thật xong) — `scope: "./dat-ve.html"` (thu hẹp
+      về ĐÚNG 1 URL này, KHÔNG phải `"./"` như `manifest.json` của crew), `name`/`short_name`
+      **"Booking"** (đổi 2026-09-18, đợt 15, theo yêu cầu — trước đó "EaKar Xe Khách - Đặt vé").
+      Icon dùng `icons/icon-192-booking.png`/`icon-512-booking.png` — hình vé cam (`#f57c00`,
+      generate bằng script Python/PIL, KHÔNG dùng chung file với icon xe tải xanh của crew).
     - **Bug thật gặp lúc cài (2026-09-18, đợt 15, cùng ngày với lúc thêm manifest ở trên)** — bấm
       "Thêm vào màn hình chính" ở `dat-ve.html`, Chrome hiện *"This app is already installed"* thay
       vì cho cài mới, kèm icon của app crew (ảnh chụp thật). Nguyên nhân: (1) `scope: "./"` của
@@ -267,9 +277,10 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       icon riêng (`icon-*-booking.png`) như trên. `theme_color`/`background_color` CỐ Ý giữ nguyên
       `#1565c0`/`#f0f2f5` khớp header trong trang (chỉ đổi icon/tên/id ở tầng OS-install, không đổi
       màu sắc hiển thị trong app).
-    - **`sw-dat-ve.js`** — network-first + cache riêng `eakar-dat-ve-v2` (bump từ `v1` lên `v2` cùng
-      lúc đổi icon, dọn sạch entry icon cũ trong cache trình duyệt — KHÔNG chung `CACHE_NAME` với
-      `eakar-hang-v2` của crew), đăng ký với `{ scope: '/dat-ve.html' }` tường minh (KHÔNG để mặc
+    - **`sw-dat-ve.js`** — network-first + cache riêng `eakar-dat-ve-v3` (bump `v1`→`v2` lúc đổi
+      icon, `v2`→`v3` ở Giai đoạn 5 vì `dat-ve.html` đổi cách đọc `nx`/gọi API — mỗi lần bump dọn
+      sạch cache cũ trong trình duyệt, KHÔNG chung `CACHE_NAME` với `eakar-hang-v2` của crew), đăng
+      ký với `{ scope: '/dat-ve.html' }` tường minh (KHÔNG để mặc
       định — mặc định sẽ là `/`, đụng scope `sw.js` nếu cùng trình duyệt từng cài cả 2 app). **KHÁC
       `sw.js` ở đúng 1 điểm quan trọng**: offline navigate thất bại → fallback về CHÍNH
       `./dat-ve.html` (không phải `./login.html` như crew) — khách công khai không có tài khoản,
@@ -561,14 +572,16 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
     Nam" (chỉ in thẳng `info.ten`/`c.ten` ra 2 nút chiều + thanh "Chuyến đã chọn") nên đổi 1 chỗ
     duy nhất ở server là đủ, không cần sửa gì thêm ở frontend ngoài việc đổi hardcode cũ
     `chieu === 'bac' ? '🚏 Ra Bắc' : '🚏 Vào Nam'` (trong `chonNgay`) thành `🚏 ${info.ten}`.
-- **`GIO_KHOI_HANH_BAC` / `GIO_KHOI_HANH_NAM`** (env Vercel, định dạng `"HH:mm"`) — **đã set giờ
-  thật (2026-09-19)**: `GIO_KHOI_HANH_BAC = "07:00"` (Đắk Lắk → Hải Dương), `GIO_KHOI_HANH_NAM =
-  "02:00"` (Hải Dương → Đắk Lắk), theo owner xác nhận trực tiếp — thay cho giá trị fallback tạm
-  `"19:30"` trước đó (Claude Code tự đặt để không crash lúc chưa set, không phải giờ chính thức).
-  Đọc ở CẢ 2 nơi (`api/cong-khai-lich-chay.js`'s `docGioEnv`, `api/cong-khai-dat-ve.js`'s
-  `docGioEnv`/`tinhKhoiHanhMacDinh` — 2 bản copy độc lập), sửa giờ sau này chỉ cần set lại env
-  Vercel + deploy lại (Vercel không tự áp env mới cho function đang chạy, cần deploy mới để đọc lại
-  `process.env`), không cần sửa code.
+- **Giờ khởi hành KHÔNG còn là ENV Vercel (đổi 2026-09-20, Multi-tenant Giai đoạn 5)** — trước đó
+  `GIO_KHOI_HANH_BAC`/`GIO_KHOI_HANH_NAM` là 2 biến ENV dùng chung cho MỌI nhà xe (`"07:00"`/
+  `"02:00"`, owner xác nhận 2026-09-19), giờ chuyển thành **2 cột DB riêng từng nhà xe**:
+  `nha_xe.gio_khoi_hanh_bac`/`nha_xe.gio_khoi_hanh_nam` (kiểu `time`, `NOT NULL`, KHÔNG có
+  `DEFAULT` — cố ý, nhà xe mới bắt buộc khai báo tường minh khi onboard ở Giai đoạn 6, không được
+  âm thầm rơi vào giờ của nhà xe khác). Đọc ở `api/cong-khai-lich-chay.js` (`docGioTuNhaXe`) và
+  `api/cong-khai-dat-ve.js` (`tinhKhoiHanhMacDinh`) — cả 2 nhận `nhaXe` (đã resolve từ `?nx=`) làm
+  tham số thay vì đọc `process.env`. 2 biến ENV cũ đã xoá khỏi Vercel (mọi scope) sau khi deploy +
+  test pass — sửa giờ 1 nhà xe giờ chỉ cần `UPDATE nha_xe SET gio_khoi_hanh_bac=... WHERE
+  slug=...`, không cần set lại env/deploy lại như trước.
 - **`api/cong-khai-dat-ve.js` tự tạo `chuyen` nếu chưa có** — nhận `chuyen_id` (chuyến đã tồn tại)
   HOẶC `{ngay, chieu}` (chưa chắc tồn tại). Xem bullet chi tiết ở mục "Đặt vé công khai" phía trên
   (phần `api/cong-khai-dat-ve.js`) — không lặp lại ở đây.
@@ -658,10 +671,11 @@ gia_moc(tỉnh đi)|`** — chỉ phụ thuộc CẶP TỈNH đã chọn ở Bư
 ### Multi-tenant — nhiều nhà xe dùng chung 1 hệ thống (2026-09-19, đang triển khai theo giai đoạn)
 
 **Spec B, làm TUẦN TỰ theo yêu cầu owner — KHÔNG đổ hết 1 lần.** Trạng thái hiện tại: **xong Giai
-đoạn 1-4** (4 trang crew nội bộ đã đọc/ghi `nha_xe_id` tường minh, RLS theo tenant đã verify bằng
-SQL simulation) — CHƯA `DROP DEFAULT` (chờ owner xác nhận dùng thử ổn sau khi deploy, xem cuối Giai
-đoạn 4), Giai đoạn 5 (`api/cong-khai-*.js` nhận `?nx=slug` — booking công khai vẫn CHỈ phục vụ đúng
-1 nhà xe "eakar" cứng, chưa đọc slug từ URL), 6 (checklist onboard nhà xe mới) **CHƯA LÀM**.
+đoạn 1-5** (4 trang crew nội bộ đã đọc/ghi `nha_xe_id` tường minh, RLS theo tenant đã verify bằng
+SQL simulation; `api/cong-khai-*.js` + `dat-ve.html` giờ resolve nhà xe từ `?nx=<slug>`, không còn
+hardcode `'eakar'` — xem mục "Multi-tenant Giai đoạn 5" bên dưới) — CHƯA `DROP DEFAULT` (chờ owner
+xác nhận dùng thử ổn sau khi deploy, xem cuối Giai đoạn 4). Giai đoạn 6 (checklist onboard nhà xe
+mới, UI superadmin) **CHƯA LÀM**.
 
 **Quyết định kiến trúc đã chốt** (không tự đổi khi làm các giai đoạn sau):
 1. Tách `tinh_tuyen` (bảng cũ, đơn-tenant) → `tinh` (mã/tên tỉnh, dùng chung mọi nhà xe) +
@@ -822,6 +836,94 @@ code, migration `multitenant_giai_doan_4a_fix_unique_constraint_global`** — Gi
   sót 1 chỗ chưa phát hiện sẽ biến lỗi "âm thầm rơi vào default" thành lỗi "insert fail giữa chừng"
   ngay lập tức, cũng tệ không kém nếu chưa kịp verify.
 
+**Giai đoạn 5 (2026-09-20) — ĐÃ XONG**, routing `?nx=<slug>` cho booking công khai — gỡ BLOCKER
+hardcode `'eakar'` ở 4 route `api/cong-khai-*.js` (đặt tạm lúc audit Giai đoạn 4, xem
+`layNhaXeIdMacDinh` ở mục "Security audit" bên dưới). **Nguyên tắc bất biến, không tự nới**:
+KHÔNG có default ngầm — thiếu `nx` → 400, slug không tồn tại → 404, nhà xe `tam_dung` → 403, TUYỆT
+ĐỐI không fallback về `'eakar'` (đúng dạng lỗi "âm thầm rơi vào default" đã lo ở `DROP DEFAULT`
+trên). KHÔNG tin client — route dùng `SUPABASE_SERVICE_KEY` (bypass RLS), nên mọi id client gửi
+lên (`chuyen_id`, `giuong_id`, `diem_len_id`, `diem_xuong_id`, `tinh_len_ma`, `tinh_xuong_ma`) phải
+verify thuộc đúng `nha_xe_id` đã resolve.
+
+- **`api/_lib/nha-xe.js`** (helper DÙNG CHUNG cho cả 4 route + route manifest — NGOẠI LỆ có chủ
+  đích so với convention "không import chéo giữa route": đây là code bảo mật, copy 4-5 bản dễ lệch
+  nhau và 1 bản sai là rò data chéo). File/thư mục bắt đầu bằng `_` trong `api/` không bị Vercel
+  coi là 1 Serverless Function riêng — đã verify qua `vercel build`, không xuất hiện trong
+  `.vercel/output/functions`, chỉ được bundle làm module thường bên trong từng function dùng nó.
+  - `docNx(req)` — đọc `nx` từ query (GET) hoặc body (POST).
+  - `layNhaXe(sbAdmin, nx)` — **PHẢI là việc ĐẦU TIÊN của mọi handler** (ngay sau kiểm tra method),
+    trước MỌI tính toán/early-return khác — kể cả 1 nhánh trả 200 sớm hiếm gặp (vd
+    `cong-khai-lich-chay.js` từng có early-return khi 0 ngày hợp lệ, đã sửa gọi `layNhaXe` trước
+    nhánh đó). Validate format bằng đúng regex của constraint `nha_xe_slug_format` trước khi query
+    DB, rồi tra `nha_xe` theo slug — throw lỗi có `status` + message tiếng Việt (400 thiếu/sai định
+    dạng, 404 không tồn tại, 403 `tam_dung`).
+  - `xacMinhThuocNhaXe(sbAdmin, bang, id, nhaXeId)` — CHỈ dùng cho lookup theo PK `id`
+    (`chuyen`/`giuong`/`diem_khach`). KHÔNG dùng cho `tinh_len_ma`/`tinh_xuong_ma` (giá trị
+    `tuyen_tinh.tinh_ma`, không phải `tuyen_tinh.id`) — chỗ đó tự viết query riêng (xem
+    `cong-khai-dat-ve.js` bên dưới). Không phân biệt "không tồn tại" với "thuộc nhà xe khác" trong
+    response (luôn 404) — tránh lộ thông tin.
+- **Migration** (`nha_xe` thêm `gio_khoi_hanh_bac`/`gio_khoi_hanh_nam` `NOT NULL` không `DEFAULT`,
+  seed giờ thật cho `eakar`, + constraint `nha_xe_slug_format` check định dạng slug an toàn cho
+  URL) — xem mục "Env / Vercel" để biết chi tiết đổi từ ENV sang cột DB.
+- **4 route công khai**: resolve `nx` đầu handler, lọc mọi query theo `nha_xe_id` đã resolve.
+  `cong-khai-so-do.js` — có `chuyen_id` thì `xacMinhThuocNhaXe` TRƯỚC khi query `ve` (không verify
+  trước sẽ lộ ghế trống/đã đặt của chuyến nhà xe khác). `cong-khai-lich-chay.js` — response thêm
+  `nha_xe: {ten, slug}` ở MỌI nhánh 200 (kể cả nhánh 0 ngày hợp lệ). `cong-khai-dat-ve.js` — verify
+  sở hữu ĐẦY ĐỦ trước khi insert: `chuyen_id` (ownership 404 + trạng thái `in
+  ('dat_truoc','dang_chay')` riêng, KHÔNG gộp — gộp sẽ khiến 1 chuyến `xong` hợp lệ của ĐÚNG nhà xe
+  này báo nhầm 404 thay vì 400); `giuong_id` (ownership 404 + `hoat_dong=true` riêng — **nhân tiện
+  vá 1 lỗ hổng có sẵn KHÔNG liên quan multi-tenant**: trước đợt này route không hề check
+  `hoat_dong`, gọi thẳng API vẫn đặt được giường UI đã khoá); `diem_len_id`/`diem_xuong_id` (khi có
+  giá trị); `tinh_len_ma`/`tinh_xuong_ma` (query riêng theo `tinh_ma`, KHÔNG qua
+  `xacMinhThuocNhaXe` — mỗi mã ĐƯỢC GỬI validate ĐỘC LẬP, mã lạ không thuộc `tuyen_tinh` của đúng
+  nhà xe này → 400 hard-fail dù đứng một mình hay đủ cặp; `gia_moc` null ở tỉnh hợp lệ vẫn giữ hành
+  vi cũ, `ve.gia = null`, không chặn đặt vé). `cong-khai-gui-otp.js`/`cong-khai-xac-thuc-otp.js`
+  KHÔNG đổi — `dat_ve_otp` cố ý GLOBAL, không gắn `nha_xe_id`.
+- **`api/manifest-dat-ve.js?nx=<slug>`** (route MỚI) — manifest PWA ĐỘNG theo nhà xe, thay thế vai
+  trò của `manifest-dat-ve.json` tĩnh cho việc cài app. `id`/`start_url` gắn `?nx=<slug>` (mỗi nhà
+  xe là 1 app cài riêng biệt trên máy khách — tránh lặp lại bug "already installed" đã gặp ở đợt
+  15). `name`/`short_name` lấy từ `nha_xe.ten`. `nx` sai/`tam_dung` → route trả lỗi, KHÔNG trả
+  manifest. `dat-ve.html` **KHÔNG còn `<link rel="manifest">` tĩnh trong `<head>`** — JS tự tạo
+  `<link>` trỏ tới route này SAU KHI đọc `nx` và resolve nhà xe thành công (KHÔNG chỉ đổi `href`
+  của 1 link tĩnh có sẵn — trình duyệt có thể đã chụp manifest lúc parse HTML ban đầu, đổi `href`
+  muộn không chắc được tính cho việc xét install). File `manifest-dat-ve.json` tĩnh GIỮ LẠI trong
+  repo cho tới khi test xong trên điện thoại thật. **Chưa test tay trên điện thoại thật** (chỉ
+  verify qua `curl`/query DB) — cần crew/owner tự bấm "Thêm vào màn hình chính" xác nhận Chrome cài
+  đúng app riêng theo từng `nx`.
+- **`dat-ve.html`** — đọc `const nx = new URLSearchParams(location.search).get('nx')` MỘT LẦN lúc
+  load. Thiếu `nx` → hiện màn "Link đặt vé không hợp lệ, vui lòng liên hệ nhà xe", KHÔNG gọi API
+  nào. Mọi `fetch` tới `api/cong-khai-*` (kể cả gửi/xác thực OTP, dù server không dùng `nx` ở 2
+  route đó) truyền `nx`. Tên nhà xe (`nha_xe.ten` từ response `cong-khai-lich-chay`) hiện ở
+  header/title thay nhãn cố định "EaKar Xe Khách". Lỗi 404/403 hiện đúng thông điệp server trả,
+  không retry. `sw-dat-ve.js` bump `CACHE_NAME` `v2` → `v3` (dat-ve.html đổi cách đọc `nx`/gọi API,
+  cần dọn cache cũ để khách không kẹt ở bản không đọc `nx`).
+- **`private.ve_check_tenant()` + trigger `trg_ve_check_tenant`** (khoá tenant ở tầng DB cho `ve`,
+  lớp phòng thủ THỨ 2 sau khi route đã verify ở tầng API) — `BEFORE INSERT OR UPDATE OF
+  nha_xe_id, chuyen_id, giuong_id ON ve`, raise exception nếu `ve.nha_xe_id` không khớp
+  `chuyen.nha_xe_id`/`giuong.nha_xe_id`. Đóng đúng lỗ hổng đã ghi ở audit Giai đoạn 4 ("Không có
+  constraint đảm bảo `ve.nha_xe_id = chuyen.nha_xe_id = giuong.nha_xe_id`"). Đã verify: insert `ve`
+  cố tình lệch `nha_xe_id` bị chặn (`P0001`), security advisor không sinh lỗi mới sau khi tạo
+  trigger.
+- **Test bắt buộc đã chạy thật (không chỉ đọc code)** — tạo tạm nhà xe `test-b` (kèm `tuyen_tinh`
+  có 1 tỉnh `gia_moc` null, `giuong` có 1 giường `hoat_dong=false`, `diem_khach`, 1 `chuyen`
+  `dat_truoc` + 1 `chuyen` `xong`), `curl` vào production: isolation đúng (`nx=test-b` không lẫn
+  data `eakar`); 400/404/403 đúng cho thiếu/sai/không tồn tại/`tam_dung` `nx`; cross-tenant
+  `chuyen_id`/`giuong_id`/`diem_len_id` đều 404; mã tỉnh lạ 400 (kể cả gửi 1 mình), mã hợp lệ +
+  `gia_moc` null vẫn 200 với `ve.gia = null`; giường `hoat_dong=false` → 400; chuyến `xong` → 400
+  (không phải 404, xác nhận ownership/status là 2 kiểm tra riêng); 2 nhà xe cùng ngày/chiều tạo
+  `chuyen` riêng không đụng `uq_chuyen_ngay_chieu`; đặt vé `nx=eakar` end-to-end (qua API, tương
+  đương luồng thật của `dat-ve.html`) ra đúng `nguon='khach_tu_dat'`/`gia` tính đúng — khớp badge
+  "🌐 Đặt online" ở `khach.html`; trigger `ve_check_tenant` chặn insert lệch tenant. Đã xoá sạch data
+  test (`test-b` + các `ve`/`chuyen` test tạo dưới `eakar` trong lúc test) sau khi xong. Sau khi
+  deploy + test pass: đã xoá `GIO_KHOI_HANH_BAC`/`GIO_KHOI_HANH_NAM` khỏi Vercel (mọi scope).
+- **KHÔNG LÀM ở Giai đoạn 5 (ghi nợ)**: `DROP DEFAULT` 6 cột `nha_xe_id` (vẫn chờ owner test tay 4
+  trang crew, xem Giai đoạn 4); lịch chạy "ngày chẵn âm lịch" vẫn hardcode cho `eakar`
+  (`cong-khai-lich-chay.js`) — nhà xe thứ 2 có lịch khác sẽ cần cột kiểu `nha_xe.lich_chay`, chưa
+  làm; các hardcode riêng `eakar` còn sót (tên chuyến "Đắk Lắk → Hải Dương", lọc `ma !== 'KHH'`
+  trong `dat-ve.html`, mã `DLK`/`HDG`) — nhà xe khác tuyến sẽ hiện sai, ghi nhận không sửa; Giai
+  đoạn 6 (onboard nhà xe mới), UI superadmin, Zalo OA/SMS Brandname riêng từng nhà xe — ngoài phạm
+  vi.
+
 ### Security audit sau Giai đoạn 4 (2026-09-19) — checklist 10 mục, chạy thật không chỉ đọc code
 
 Owner yêu cầu audit độc lập sau khi xong Giai đoạn 1-4, vì phiên chat ngoài (không có quyền
@@ -839,7 +941,8 @@ Owner yêu cầu audit độc lập sau khi xong Giai đoạn 1-4, vì phiên ch
    crew) — kiểm tra lộ ra ĐÚNG như lo ngại: mọi route công khai query `giuong`/`chuyen`/`diem_khach`
    KHÔNG lọc `nha_xe_id` chút nào (đọc TOÀN BỘ mọi nhà xe). Vô hại lúc này (chỉ có 1 nhà xe thật)
    nhưng là lỗ hổng rò dữ liệu chéo THẬT nếu có nhà xe thứ 2 trước khi Giai đoạn 5 xong — **đã vá
-   TẠM THỜI ngay trong lúc audit** (xem "Đã sửa" bên dưới), không đợi Giai đoạn 5 đầy đủ.
+   TẠM THỜI ngay trong lúc audit** (xem "Đã sửa" bên dưới, hardcode tạm `layNhaXeIdMacDinh` — đã gỡ
+   hẳn khi Giai đoạn 5 xong, xem mục "Multi-tenant Giai đoạn 5" bên dưới).
 4. **Trust boundary `api/cong-khai-*.js`** — rà lại đủ cả 6 route: `cong-khai-dat-ve.js` (giá tự
    tính server, OTP tự verify server, KHÔNG tin `gia`/cờ verify từ client — đúng thiết kế), các
    route còn lại chỉ đọc (GET), không có field nhạy cảm nhận từ client. Không phát hiện thêm lỗ
@@ -881,9 +984,8 @@ trên production):
   `nha_xe.id` theo slug) vì Giai đoạn 5 (`?nx=slug` từ URL thật) CHƯA làm — dùng để `.eq('nha_xe_id',
   nhaXeId)` cho mọi query `giuong`/`chuyen`/`diem_khach`/`tuyen_tinh`, và gắn `nha_xe_id: nhaXeId`
   vào 2 điểm insert (`chuyen`/`ve`) trong `cong-khai-dat-ve.js` — đóng lỗ hổng rò dữ liệu chéo NGAY,
-  không đợi routing `?nx=` đầy đủ. **Khi làm Giai đoạn 5 thật, xoá `layNhaXeIdMacDinh`/
-  `SLUG_NHA_XE_MAC_DINH` ở cả 4 file, thay bằng resolve từ `req.query.nx`/`req.body.nx`** — đánh dấu
-  rõ để không quên dọn code tạm này.
+  không đợi routing `?nx=` đầy đủ. **(2026-09-20) Đã gỡ hẳn khi Giai đoạn 5 xong** — xem mục
+  "Multi-tenant Giai đoạn 5" bên dưới, không còn hardcode `'eakar'` nào trong `api/`.
 
 **Lỗ hổng CHƯA sửa (ghi nhận, cần quyết định riêng, không tự ý làm vì đụng kiến trúc lớn hơn)**:
 - **Bucket `kien` KHÔNG scope theo nhà xe — CHỦ ĐÍCH, không phải bug sót.** Public bucket từ đầu, path
