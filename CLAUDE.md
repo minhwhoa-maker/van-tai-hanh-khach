@@ -886,13 +886,10 @@ trên production):
   rõ để không quên dọn code tạm này.
 
 **Lỗ hổng CHƯA sửa (ghi nhận, cần quyết định riêng, không tự ý làm vì đụng kiến trúc lớn hơn)**:
-- **`storage.objects` bucket `kien`** — policy INSERT/UPDATE/DELETE chỉ check `bucket_id = 'kien'`,
-  KHÔNG scope theo nhà xe — bất kỳ crew `authenticated` nào (của BẤT KỲ nhà xe nào) cũng
-  UPDATE/DELETE được file ảnh của nhà xe khác nếu biết đúng path (`{kien.id}.jpg`, UUID khó đoán
-  nhưng không phải bất khả thi nếu có leak danh sách `kien.id` từ đâu đó). Sửa đúng cách cần đổi
-  path scheme (vd `{nha_xe_id}/{kien.id}.jpg`) + viết lại policy theo path prefix + MIGRATE toàn bộ
-  ảnh cũ đã upload sang path mới — thay đổi kiến trúc lớn hơn phạm vi audit này, để Giai đoạn 5+
-  quyết định.
+- **Bucket `kien` KHÔNG scope theo nhà xe — CHỦ ĐÍCH, không phải bug sót.** Public bucket từ đầu, path
+  `{kien.id}.jpg` là UUID khó đoán; policy chỉ check `bucket_id = 'kien'`. Đã cân nhắc (audit 2026-09-19)
+  và chấp nhận vì đổi path scheme + migrate toàn bộ ảnh cũ tốn hơn rủi ro thực tế. Không "vá" trừ khi
+  owner quyết định lại.
 - **Không có constraint đảm bảo `ve.nha_xe_id = chuyen.nha_xe_id` VÀ `= giuong.nha_xe_id`** (3 giá
   trị đang độc lập, không ép buộc khớp nhau ở tầng DB) — hiện KHÔNG có đường khai thác qua code app
   (UI/API đều tự suy `nha_xe_id` nhất quán từ 1 nguồn), nhưng về lý thuyết 1 bug tương lai có thể
