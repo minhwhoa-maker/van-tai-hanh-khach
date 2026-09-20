@@ -39,11 +39,16 @@ export default async function handler(req, res) {
         background_color: '#f0f2f5',
         theme_color: '#1565c0',
         lang: 'vi',
+        // Đường dẫn TUYỆT ĐỐI (bắt đầu "/") — bắt buộc, vì manifest này được serve từ
+        // /api/manifest-dat-ve, KHÔNG phải từ gốc trang. Trình duyệt resolve icon path tương đối
+        // theo URL CỦA CHÍNH MANIFEST (không phải theo dat-ve.html) — "icons/..." (thiếu "/" đầu)
+        // sẽ ra "/api/icons/..." (404 thật, đã verify bằng curl), khiến Chrome coi PWA "cannot be
+        // installed" và fallback icon xám mặc định. Lỗi thật gặp trên điện thoại thật (2026-09-20).
         icons: [
-            { src: 'icons/icon-192-booking.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-            { src: 'icons/icon-192-booking.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-            { src: 'icons/icon-512-booking.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-            { src: 'icons/icon-512-booking.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+            { src: '/icons/icon-192-booking.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-192-booking.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+            { src: '/icons/icon-512-booking.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: '/icons/icon-512-booking.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
     })
 }
