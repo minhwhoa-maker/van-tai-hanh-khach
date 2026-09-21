@@ -314,6 +314,14 @@
                mọi hành vi đóng hiện có (bấm ra ngoài/nút Back qua history) — chỉ đổi CSS. */
             .dia-diem-picker { align-items: center; }
             .dia-diem-picker-card { max-width: 520px; border-radius: var(--radius); }
+
+            /* Sơ đồ giường to hơn (2026-09-21) — cùng cơ chế/lý do như khach.html (xem comment ở
+               đó): `--seat-cell` set trên .giuong-hang, kế thừa xuống .giuong-icon qua CSS custom
+               property. Baseline mobile thật 28px (không phải 54px). */
+            .giuong-hang { --seat-cell: 44px; }
+        }
+        @media (min-width: 1024px) and (min-height: 480px) {
+            .giuong-hang { --seat-cell: 52px; }
         }
     </style>
 </head>

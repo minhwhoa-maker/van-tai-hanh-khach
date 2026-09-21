@@ -189,6 +189,17 @@
             .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card {
                 max-width: 520px; border-radius: var(--radius);
             }
+
+            /* Sơ đồ giường to hơn (2026-09-21) — `--seat-cell` set trên .giuong-hang, kế thừa
+               xuống .giuong-icon con qua CSS custom property (không cần sửa gì ở .giuong-icon
+               hay JS). Baseline mobile THẬT là 28px (không phải 54px như CLAUDE.md ghi nhầm —
+               đã xác nhận qua code, không có nơi nào khác override giá trị này). Vẫn xếp theo
+               vi_tri thật (grid-column không đổi), vùng chạm .giuong-icon luôn >= 44px vì
+               aspect-ratio:3/4 + width=--seat-cell → 44px width x ~58px height ở breakpoint đầu. */
+            .giuong-hang { --seat-cell: 44px; }
+        }
+        @media (min-width: 1024px) and (min-height: 480px) {
+            .giuong-hang { --seat-cell: 52px; }
         }
     </style>
 </head>
