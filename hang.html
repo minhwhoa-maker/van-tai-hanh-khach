@@ -781,7 +781,15 @@
         // chọn theo độ tin cậy thực tế của nền tảng, không phải feature-detection thông
         // thường. Android dùng camera nhúng (nhanh hơn, không phải mở/đóng app riêng), có
         // fallback về input file nếu getUserMedia lỗi (từ chối quyền, máy/WebView không hỗ trợ).
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+        // iPadOS 13+ báo User-Agent GIỐNG macOS Safari (Apple đổi mặc định từ iOS 13 để web
+        // "desktop-first" tương thích hơn) — regex UA thuần /iPad|iPhone|iPod/ KHÔNG bắt được
+        // iPad thật nữa, khiến iPad lọt vào nhánh getUserMedia (camera nhúng) mà đoạn comment
+        // trên vừa giải thích lý do CỐ TÌNH tránh trên iOS. Thêm điều kiện phụ: Mac thật không có
+        // touchscreen multi-point (`maxTouchPoints <= 1`), iPad luôn > 1 — kết hợp
+        // `platform === 'MacIntel'` phân biệt đúng iPad giả-dạng Mac với Mac thật. Chỉ đổi biến
+        // này, không đổi luồng nào khác (tablet 2026-09-21).
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
         let cameraStream = null
 
         function stopCameraStream() {
