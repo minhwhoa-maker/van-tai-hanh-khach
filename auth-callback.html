@@ -38,7 +38,14 @@
                 return
             }
 
-            const { error } = await sb.auth.verifyOtp({ email, token: tokenHash, type: 'magiclink' })
+            // BUG THẬT phát hiện 2026-09-21 (lúc dựng session test cho spec tối ưu tablet, đúng
+            // dạng "chưa test end-to-end" đã cảnh báo ở TODO Zalo): verifyOtp() với `{email, token}`
+            // là cho luồng OTP 6 số, KHÔNG phải luồng token_hash từ generateLink()/magic link — 2
+            // cơ chế xác thực khác nhau của GoTrue, không thể trộn tham số. Gọi sai tham số này
+            // luôn trả 403 "otp_expired" dù token vừa tạo, tức Zalo login trước đây không hoạt
+            // động được — đã verify lại bằng cách gọi trực tiếp Supabase Admin API tạo magic link
+            // rồi thử cả 2 cách, chỉ `token_hash` (không cần `email`) mới thành công.
+            const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' })
             if (error) {
                 document.getElementById('msg').textContent = 'Đăng nhập thất bại: ' + error.message
                 setTimeout(() => window.location.href = 'login.html', 2000)
