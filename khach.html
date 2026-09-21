@@ -12,7 +12,73 @@
     <link rel="stylesheet" href="style.css">
     <style>
         body { background: var(--bg); padding-bottom: 40px; }
+        body.co-gia-ve-bar { padding-bottom: 92px; }
         .chuyen-select-wrap { padding: 10px 16px 8px; }
+        /* Đặt vé giống dat-ve.html (2026-09-21) — CSS COPY NGUYÊN VĂN từ dat-ve.html cho 3 cụm:
+           dải "Nơi xuất phát/Điểm đến" (.route-*), modal chọn địa danh (.dia-diem-picker*), thanh
+           giá cố định đáy (.gia-ve-bar*). Xem dat-ve.html để biết lịch sử/lý do từng chi tiết —
+           không lặp lại comment ở đây, chỉ ghi khác biệt. */
+        .route-select-wrap {
+            position: relative; margin: 10px 16px 10px; padding: 12px 50px 12px 16px; cursor: default;
+            background: var(--white); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        .route-select-wrap::before {
+            content: ''; position: absolute; left: 21px; top: 28px; bottom: 28px;
+            border-left: 2px dashed var(--border);
+        }
+        .route-row { display: flex; align-items: flex-start; gap: 12px; padding: 6px 0; position: relative; z-index: 1; }
+        .route-row .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+        .route-row.origin .dot { background: var(--primary); }
+        .route-row.dest .dot { background: #e53935; }
+        .route-row .route-label { font-size: 12px; color: var(--text-muted); }
+        .route-row .route-value { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 1px; }
+        .route-place-value {
+            border-bottom: 1.5px dotted var(--border); display: inline-block;
+            font-size: 22px; font-weight: 700; cursor: pointer;
+        }
+        .route-place-value.route-place-placeholder { font-size: 15px; font-weight: 400; color: var(--text-muted); }
+        .route-swap-btn {
+            position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+            width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
+            background: var(--white); font-size: 17px; cursor: pointer; color: var(--primary);
+            display: flex; align-items: center; justify-content: center; font-family: inherit;
+        }
+        .dia-diem-picker {
+            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+        }
+        .dia-diem-picker.open { display: flex; }
+        .dia-diem-picker-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+        .dia-diem-picker-card {
+            position: relative; width: 100%; max-width: 480px; background: var(--white);
+            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+            max-height: 75vh; overflow-y: auto; box-shadow: var(--shadow);
+            user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        .dia-diem-picker-card h3 { margin: 0 0 6px; font-size: 17px; }
+        .dia-diem-picker-option {
+            display: flex; align-items: center; justify-content: space-between; padding: 14px 4px;
+            font-size: 16px; cursor: pointer; border-bottom: 1px solid var(--border);
+        }
+        .dia-diem-picker-option:last-of-type { border-bottom: none; }
+        .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
+        .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
+        .dia-diem-picker-option.dang-chon .check { visibility: visible; }
+        .gia-ve-bar {
+            display: none; position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
+            width: 100%; max-width: 480px; box-sizing: border-box; z-index: 500;
+            background: var(--primary); color: #fff;
+            padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+            box-shadow: 0 -2px 10px rgba(0,0,0,.15);
+            align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .gia-ve-bar.hien { display: flex; }
+        .gia-ve-bar-text { font-size: 13px; font-weight: 700; line-height: 1.4; }
+        .btn-gia-ve-tiep-tuc {
+            flex-shrink: 0; padding: 11px 22px; border: none; border-radius: var(--radius-sm);
+            background: #ffc107; color: #1a1a1a; font-size: 15px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+        }
         .chuyen-select-wrap select#chuyen-select { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .doanhthu-ve-summary {
             display: none; margin: 0 16px 8px; padding: 8px 14px; border-radius: var(--radius-sm);
@@ -185,10 +251,13 @@
                trên) — chỉ hợp lý trên màn hẹp. Từ tablet: căn giữa + bo đủ 4 góc + max-width hẹp
                lại thành hộp thay vì tràn theo body (đã rộng 960px). Giữ nguyên max-height/overflow
                (cuộn nội bộ) và mọi hành vi đóng hiện có (bấm ra ngoài/nút Back) — chỉ đổi CSS. */
-            .ve-modal, .diemkhach-modal, .gia-tinh-modal { align-items: center; }
-            .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card {
+            .ve-modal, .diemkhach-modal, .gia-tinh-modal, .dia-diem-picker { align-items: center; }
+            .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card, .dia-diem-picker-card {
                 max-width: 520px; border-radius: var(--radius);
             }
+            /* Đặt vé giống dat-ve.html (2026-09-21) — thanh giá cố định đáy nới theo body (960px)
+               cho đồng bộ mép trái/phải với phần nội dung phía trên, cùng cách dat-ve.html làm. */
+            .gia-ve-bar { max-width: 960px; }
 
             /* Sơ đồ giường to hơn (2026-09-21) — `--seat-cell` set trên .giuong-hang, kế thừa
                xuống .giuong-icon con qua CSS custom property (không cần sửa gì ở .giuong-icon
@@ -226,6 +295,12 @@
     </div>
 
     <div id="view-so-do">
+        <!-- Dải "Nơi xuất phát/Điểm đến" giống dat-ve.html (2026-09-21) — nội dung dựng bằng JS
+             (renderChieuSelectorCrew), luôn hiện ngay khi đã tải xong tinhList, KHÔNG gate theo
+             bước "xác nhận" nào (khác dat-ve.html — ở đó tỉnh gắn với chọn NGÀY/CHUYẾN mới nên
+             cần xác nhận trước khi qua bước sau; ở đây chuyến đã có sẵn từ dropdown, tỉnh chỉ ảnh
+             hưởng giá mặc định + lọc điểm đón/trả, đổi lúc nào cũng được, không cần "chốt"). -->
+        <div id="chieu-select-wrap"></div>
         <div class="chu-thich-giuong">
             <div class="chu-thich-item">
                 <svg viewBox="0 0 40 64" width="16" height="24" style="color:var(--text-muted)"><rect x="3" y="3" width="34" height="58" rx="10" fill="none" stroke="currentColor" stroke-width="4"></rect><rect x="11" y="41" width="18" height="9" rx="4.5" fill="none" stroke="currentColor" stroke-width="4"></rect></svg>
@@ -337,6 +412,48 @@
         </div>
     </div>
 
+    <!-- Modal chọn địa danh cho dải "Nơi xuất phát/Điểm đến" — COPY nguyên cấu trúc từ
+         dat-ve.html's #dia-diem-picker (JS: moDiaDiemPickerCrew). -->
+    <div class="dia-diem-picker" id="dia-diem-picker">
+        <div class="dia-diem-picker-backdrop"></div>
+        <div class="dia-diem-picker-card">
+            <h3 id="dia-diem-picker-title">Chọn nơi xuất phát</h3>
+            <div id="dia-diem-picker-options"></div>
+        </div>
+    </div>
+
+    <!-- Form đặt vé cho NHIỀU giường đã chọn (giống dat-ve.html) — dùng LẠI class .ve-modal/
+         .ve-modal-card (bottom-sheet mobile, hộp giữa màn tablet, xem media query trên) để không
+         phải viết thêm CSS modal riêng — chỉ khác nội dung/id bên trong. -->
+    <div class="ve-modal" id="dat-nhieu-modal">
+        <div class="ve-modal-backdrop"></div>
+        <div class="ve-modal-card">
+            <h3>Đặt vé</h3>
+            <div id="giuong-da-chon-crew" style="font-size:13px;color:var(--primary);font-weight:700;"></div>
+            <label>Tên khách</label>
+            <input type="text" id="dn-ten-khach" placeholder="Tên khách (áp dụng cho mọi giường đã chọn)">
+            <label>SĐT khách</label>
+            <input type="tel" id="dn-sdt-khach" placeholder="SĐT khách">
+            <label>Giá mỗi giường (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
+            <input type="number" inputmode="numeric" id="dn-gia" placeholder="vd 200">
+            <div class="tien-chu" id="dn-gia-chu"></div>
+            <label>Điểm đón (tùy chọn)</label>
+            <div class="diem-row">
+                <select id="dn-diem-len"><option value="">— Chọn điểm đón —</option></select>
+                <button type="button" class="btn-them-diem" id="btn-dn-them-diem-len">+</button>
+            </div>
+            <label>Điểm trả (tùy chọn)</label>
+            <div class="diem-row">
+                <select id="dn-diem-xuong"><option value="">— Chọn điểm trả —</option></select>
+                <button type="button" class="btn-them-diem" id="btn-dn-them-diem-xuong">+</button>
+            </div>
+            <div class="ve-modal-actions">
+                <button type="button" class="btn-ve-dong" id="btn-dn-dong">Đóng</button>
+                <button type="button" class="btn-ve-luu" id="btn-dn-dat-ve">Đặt vé</button>
+            </div>
+        </div>
+    </div>
+
     <div class="gia-tinh-modal" id="gia-tinh-modal">
         <div class="gia-tinh-modal-backdrop"></div>
         <div class="gia-tinh-modal-card">
@@ -347,6 +464,13 @@
                 <button type="button" class="btn-ve-luu" id="btn-gia-tinh-luu">💾 Lưu bảng giá</button>
             </div>
         </div>
+    </div>
+
+    <!-- Thanh giá cố định đáy, giống dat-ve.html's #gia-ve-bar — id riêng "-crew" vì đây là trang
+         crew (không phải đổi tên class, class .gia-ve-bar dùng chung CSS). -->
+    <div class="gia-ve-bar" id="gia-ve-bar-crew">
+        <div class="gia-ve-bar-text" id="gia-ve-bar-text-crew"></div>
+        <button type="button" class="btn-gia-ve-tiep-tuc" id="btn-gia-ve-tiep-tuc-crew">Tiếp tục</button>
     </div>
 
     <div class="toast" id="toast"></div>
@@ -367,6 +491,17 @@
         let selectedGiuongId = null    // giường đang mở form (dùng cả cho highlight "Đang chọn")
         let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
         let currentView = 'so_do'      // 'so_do' | 'danh_sach' — toggle 2 khối UI, dùng chung veMap/giuongMap
+        // Đặt vé giống dat-ve.html (2026-09-21) — xem SPEC "Đặt vé trên khach.html" CLAUDE.md.
+        // noiXuatPhatTinh/diemDenTinh: object THAM CHIẾU trực tiếp tới phần tử trong `tinhList`
+        // (không copy) — để khi modal "Giá vé theo tỉnh" cập nhật t.gia_moc, giá hiện ở thanh đáy
+        // tự đúng theo mà không cần đồng bộ tay 2 nơi.
+        let noiXuatPhatTinh = null
+        let diemDenTinh = null
+        let tinhMacDinhDaDat = false   // true sau lần đầu set mặc định theo chieu — không tự reset
+                                       // nữa khi đổi chuyến (giữ lựa chọn tỉnh crew đã đổi tay)
+        let selectedGiuongMap = new Map()  // giường TRỐNG đang multi-select, KHÁC selectedGiuongId
+                                            // (giường ĐÃ ĐẶT đang mở modal sửa — 2 khái niệm độc lập)
+        let chuyenDaXong = false       // currentChuyen.trang_thai === 'xong' — khoá đặt vé mới
 
         // SVG icon giường dùng chung cho mọi ô — khung viền + gối, cả 2 nét đều stroke=currentColor
         // để màu đổi theo CSS `color` của .giuong-icon (trống/đã đặt/đang chọn), không cần build
@@ -455,19 +590,28 @@
                 row.style.gridTemplateColumns = `repeat(${soCot}, var(--seat-cell, 28px))`
                 giuongHang.forEach(g => {
                     const ve = veMap.get(g.id)
-                    const dangChon = selectedGiuongId === g.id
-                    // Mã giường (g.ma, vd "T1-05") không còn hiện trên mặt icon — chỉ ở tiêu đề
-                    // form lúc tap vào (xem openVeModal), giữ qua title (tooltip) để vẫn đối
-                    // chiếu được nếu cần mà không hover được trên mobile.
+                    // 2 khái niệm "đang chọn" ĐỘC LẬP, không bao giờ trùng nhau (1 giường chỉ có
+                    // thể là ĐÃ ĐẶT hoặc TRỐNG, không phải cả 2): selectedGiuongId — giường ĐÃ ĐẶT
+                    // đang mở modal sửa (openVeModal, hành vi CŨ giữ nguyên); selectedGiuongMap —
+                    // giường TRỐNG đang multi-select để đặt vé mới (MỚI, 2026-09-21, giống
+                    // dat-ve.html's toggleChonGiuong). Mã giường (g.ma) không hiện trên mặt icon —
+                    // chỉ ở tiêu đề form/title (tooltip) để vẫn đối chiếu được không cần hover.
+                    const dangChon = (ve && selectedGiuongId === g.id) || selectedGiuongMap.has(g.id)
                     const btn = document.createElement('button')
                     btn.type = 'button'
                     btn.className = 'giuong-icon' + (!g.hoat_dong ? ' offline' : dangChon ? ' dang-chon' : ve ? ' da-dat' : '')
                     btn.dataset.giuongId = g.id
                     btn.style.gridColumn = String(g.vi_tri)
                     btn.title = !g.hoat_dong ? `Giường ${g.ma} — Ngưng phục vụ`
-                        : ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}${ve.nguon === 'khach_tu_dat' ? ' — 🌐 Đặt online' : ''}` : `Giường ${g.ma} — còn trống`
+                        : ve ? `Giường ${g.ma} — ${ve.ten_khach || '(chưa có tên)'}${ve.sdt_khach ? ' — ' + ve.sdt_khach : ''}${ve.nguon === 'khach_tu_dat' ? ' — 🌐 Đặt online' : ''}`
+                        : `Giường ${g.ma} — còn trống${selectedGiuongMap.has(g.id) ? ' (đang chọn, bấm lại để bỏ chọn)' : ''}`
                     btn.innerHTML = SEAT_SVG + (ve?.nguon === 'khach_tu_dat' ? '<span class="badge-online">🌐</span>' : '')
-                    btn.addEventListener('click', () => openVeModal(g))
+                    // Giường ĐÃ ĐẶT: giữ NGUYÊN hành vi cũ (mở modal sửa/huỷ) bất kể chuyến đã
+                    // xong hay chưa — chuyến "xong" chỉ khoá ĐẶT MỚI (xem chỗ gọi toggleChonGiuongCrew
+                    // dưới), không đổi luồng sửa/huỷ vé cũ. Giường TRỐNG: multi-select, CHẶN nếu
+                    // chuyến đã xong hoặc giường hoat_dong=false.
+                    if (ve) btn.addEventListener('click', () => openVeModal(g))
+                    else if (g.hoat_dong && !chuyenDaXong) btn.addEventListener('click', () => toggleChonGiuongCrew(g))
                     row.appendChild(btn)
                 })
                 wrap.appendChild(row)
@@ -487,6 +631,231 @@
             renderMotTang(2, 'seat-grid-wrap-2', 'availability-caption-2')
         }
 
+        // === Đặt vé giống dat-ve.html (2026-09-21) — xem SPEC "Đặt vé trên khach.html" CLAUDE.md ===
+
+        // 17 tỉnh dọc tuyến cho picker địa danh — loại Khánh Hòa, TÁI DÙNG tinhList đã tải sẵn
+        // (loadTinhList, cùng field {ma, ten, thu_tu, gia_moc} như dat-ve.html's tinhList từ
+        // api/cong-khai-diem-khach.js — không cần API riêng). Đã sort thu_tu tăng dần từ server.
+        function tinhTuyenChoDatVeCrew() {
+            return tinhList.filter(t => t.ma !== 'KHH')
+        }
+
+        // Mặc định theo chuyen.chieu, lấy ĐẦU/CUỐI tuyến thật từ tuyen_tinh (không hardcode
+        // DLK/HDG) — bac: đầu tuyến -> cuối tuyến; nam: ngược lại. CHỈ gọi 1 LẦN (guard
+        // tinhMacDinhDaDat ở nơi gọi) — đổi chuyến sau đó KHÔNG reset lại, giữ tỉnh crew đã chọn.
+        function datMacDinhTinhTheoChieu(chieu) {
+            const tuyen = tinhTuyenChoDatVeCrew()
+            if (!tuyen.length) return
+            const dau = tuyen[0], cuoi = tuyen[tuyen.length - 1]
+            if (chieu === 'nam') { noiXuatPhatTinh = cuoi; diemDenTinh = dau }
+            else { noiXuatPhatTinh = dau; diemDenTinh = cuoi }
+        }
+
+        // Giá mặc định = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)| — CHỈ để điền sẵn ô "Giá mỗi
+        // giường" (crew sửa được, KHÁC dat-ve.html nơi server tự tính và không tin client — ở đây
+        // crew là người tin cậy, RLS đã giới hạn theo tenant, xem SPEC). null nếu thiếu gia_moc 1
+        // trong 2 tỉnh — "chưa định giá", không chặn đặt vé.
+        function tinhGiaVeCrew() {
+            if (!noiXuatPhatTinh || !diemDenTinh) return null
+            const a = noiXuatPhatTinh.gia_moc, b = diemDenTinh.gia_moc
+            if (a == null || b == null) return null
+            return Math.abs(a - b)
+        }
+
+        // Dải "Nơi xuất phát/Điểm đến" — KHÔNG có bước "xác nhận" như dat-ve.html (tỉnh ở đây chỉ
+        // ảnh hưởng giá mặc định + lọc điểm đón/trả, đổi lúc nào cũng được vì chuyến đã có sẵn từ
+        // dropdown) — chỉ 2 vùng bắt click: nút "⇅" (swap) và tên tỉnh (mở picker), KHÁC 3 vùng
+        // của dat-ve.html (đợt 6-11, không cần vùng "bấm cả dòng để chốt" ở đây).
+        function renderChieuSelectorCrew() {
+            const wrap = document.getElementById('chieu-select-wrap')
+            const xuatPhatHtml = noiXuatPhatTinh
+                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span>`
+                : `<span class="route-place-value route-place-placeholder" data-vai-tro="xuat_phat">Chọn nơi xuất phát</span>`
+            const diemDenHtml = diemDenTinh
+                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span>`
+                : `<span class="route-place-value route-place-placeholder" data-vai-tro="diem_den">Chọn điểm đến</span>`
+            wrap.innerHTML = `
+                <div class="route-select-wrap">
+                    <div class="route-row origin"><span class="dot"></span>
+                        <div><div class="route-label">Nơi xuất phát</div><div class="route-value">${xuatPhatHtml}</div></div>
+                    </div>
+                    <div class="route-row dest"><span class="dot"></span>
+                        <div><div class="route-label">Điểm đến</div><div class="route-value">${diemDenHtml}</div></div>
+                    </div>
+                    <button type="button" class="route-swap-btn" id="route-swap-btn-crew" title="Đổi chiều">⇅</button>
+                </div>
+            `
+            document.getElementById('route-swap-btn-crew').addEventListener('click', (e) => {
+                e.stopPropagation()
+                const tam = noiXuatPhatTinh; noiXuatPhatTinh = diemDenTinh; diemDenTinh = tam
+                renderChieuSelectorCrew()
+                capNhatGiaVeBarCrew()
+            })
+            wrap.querySelectorAll('.route-place-value').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation()
+                    moDiaDiemPickerCrew(el.dataset.vaiTro)
+                })
+            })
+        }
+
+        // Modal chọn địa danh — COPY logic từ dat-ve.html's moDiaDiemPicker (loại tỉnh đang chọn ở
+        // đầu kia khỏi list, chọn xong chỉ đổi hiển thị + giá, không có khái niệm "chốt").
+        function moDiaDiemPickerCrew(vaiTro) {
+            const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
+            const dangChonMa = (vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh)?.ma
+            const list = tinhTuyenChoDatVeCrew().filter(t => t.ma !== tinhBenKia?.ma)
+            document.getElementById('dia-diem-picker-title').textContent =
+                vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
+            const optionsWrap = document.getElementById('dia-diem-picker-options')
+            optionsWrap.innerHTML = list.map(t => `
+                <div class="dia-diem-picker-option${t.ma === dangChonMa ? ' dang-chon' : ''}" data-ma="${t.ma}">
+                    <span>${t.ten}</span><span class="check">✓</span>
+                </div>
+            `).join('')
+            optionsWrap.querySelectorAll('.dia-diem-picker-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    const tinh = list.find(t => t.ma === el.dataset.ma)
+                    if (vaiTro === 'xuat_phat') noiXuatPhatTinh = tinh
+                    else diemDenTinh = tinh
+                    dongDiaDiemPickerCrew()
+                    renderChieuSelectorCrew()
+                    capNhatGiaVeBarCrew()
+                })
+            })
+            document.getElementById('dia-diem-picker').classList.add('open')
+        }
+        function dongDiaDiemPickerCrew() {
+            document.getElementById('dia-diem-picker').classList.remove('open')
+        }
+        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPickerCrew)
+
+        // Bấm giường TRỐNG = bật/tắt multi-select (KHÔNG mở modal — khác hành vi cũ của giường đã
+        // đặt). Giống hệt dat-ve.html's toggleChonGiuong.
+        function toggleChonGiuongCrew(g) {
+            if (selectedGiuongMap.has(g.id)) selectedGiuongMap.delete(g.id)
+            else selectedGiuongMap.set(g.id, g)
+            renderGiuongGrid()
+            capNhatGiaVeBarCrew()
+        }
+
+        // Thanh giá cố định đáy — giống dat-ve.html's capNhatGiaVeBar, khác nhãn "chưa định giá"
+        // (thay vì "liên hệ sau" — đúng ngữ cảnh crew nội bộ, không phải khách công khai) và thêm
+        // điều kiện ẩn khi chuyenDaXong (dat-ve.html không có khái niệm "chuyến đã xong").
+        function capNhatGiaVeBarCrew() {
+            const bar = document.getElementById('gia-ve-bar-crew')
+            const n = selectedGiuongMap.size
+            if (!n || chuyenDaXong) {
+                bar.classList.remove('hien')
+                document.body.classList.remove('co-gia-ve-bar')
+                return
+            }
+            const giaVe = tinhGiaVeCrew()
+            document.getElementById('gia-ve-bar-text-crew').textContent = giaVe == null
+                ? `Đã chọn ${n} giường · Giá: chưa định giá`
+                : `Đã chọn ${n} giường · Tổng: ${formatMoney(giaVe * n)}`
+            bar.classList.add('hien')
+            document.body.classList.add('co-gia-ve-bar')
+        }
+
+        // renderDiemKhachOptions (đã có sẵn, dùng cho modal sửa-1-vé cũ) sắp theo TUYẾN + không
+        // lọc gì — giữ NGUYÊN cho hành vi cũ (điểm đón/trả TRƯỚC đây không gắn với tỉnh cụ thể của
+        // lượt đặt). Hàm MỚI này lọc đúng tỉnh đã chọn ở dải phía trên — "Điểm đón/trả cụ thể trở
+        // thành tùy chọn, lọc theo tỉnh đã chọn" (SPEC).
+        function renderDiemKhachOptionsTheoTinh(selectEl, tinhMa, selectedId) {
+            const list = diemKhachList.filter(d => d.tinh_ma === tinhMa)
+                .sort((a, b) => (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi'))
+            selectEl.textContent = ''
+            const optEmpty = document.createElement('option')
+            optEmpty.value = ''
+            optEmpty.textContent = '— Chọn điểm —'
+            selectEl.appendChild(optEmpty)
+            list.forEach(d => {
+                const opt = document.createElement('option')
+                opt.value = d.id
+                opt.textContent = d.ten
+                selectEl.appendChild(opt)
+            })
+            selectEl.value = selectedId || ''
+        }
+
+        function capNhatGiaChuDatNhieu() {
+            const raw = document.getElementById('dn-gia').value.trim()
+            const el = document.getElementById('dn-gia-chu')
+            const so = raw === '' ? null : Number(raw) * 1000
+            el.textContent = so !== null && Number.isFinite(so) ? `= ${formatMoney(so)} — ${soTienBangChu(so)}` : ''
+        }
+        document.getElementById('dn-gia').addEventListener('input', capNhatGiaChuDatNhieu)
+
+        // Duy nhất đường mở form đặt nhiều vé — gọi từ nút "Tiếp tục" trên thanh giá đáy, giống
+        // dat-ve.html's moFormLienHe (ở đây dùng modal .ve-modal thay vì khối inline).
+        function moFormDatNhieu() {
+            const list = [...selectedGiuongMap.values()]
+            if (!list.length) return
+            document.getElementById('giuong-da-chon-crew').textContent =
+                `Giường đã chọn (${list.length}): ${list.map(g => g.ma).join(', ')}`
+            document.getElementById('dn-ten-khach').value = ''
+            document.getElementById('dn-sdt-khach').value = ''
+            const giaMacDinh = tinhGiaVeCrew()
+            document.getElementById('dn-gia').value = giaMacDinh != null ? giaMacDinh / 1000 : ''
+            capNhatGiaChuDatNhieu()
+            renderDiemKhachOptionsTheoTinh(document.getElementById('dn-diem-len'), noiXuatPhatTinh?.ma, null)
+            renderDiemKhachOptionsTheoTinh(document.getElementById('dn-diem-xuong'), diemDenTinh?.ma, null)
+            document.getElementById('dat-nhieu-modal').classList.add('open')
+        }
+        document.getElementById('btn-gia-ve-tiep-tuc-crew').addEventListener('click', moFormDatNhieu)
+
+        function closeDatNhieuModal() {
+            document.getElementById('dat-nhieu-modal').classList.remove('open')
+        }
+        document.querySelector('#dat-nhieu-modal .ve-modal-backdrop').addEventListener('click', closeDatNhieuModal)
+        document.getElementById('btn-dn-dong').addEventListener('click', closeDatNhieuModal)
+
+        // Đặt NHIỀU giường = MỘT insert([...]) 1 dòng/giường, NGUYÊN TỬ (khác route công khai
+        // api/cong-khai-dat-ve.js vốn đặt TUẦN TỰ từng giường) — 1 giường trùng thì CẢ LỆNH fail,
+        // không đặt dở nửa vời (quyết định thiết kế #2, SPEC). tinh_len_ma/tinh_xuong_ma lấy
+        // THẲNG từ noiXuatPhatTinh/diemDenTinh hiện tại — không verify lại (crew là người tin cậy,
+        // RLS + trigger ve_check_tenant là lớp chặn ở tầng DB nếu có gì sai).
+        document.getElementById('btn-dn-dat-ve').addEventListener('click', async () => {
+            if (chuyenDaXong) { showToast('Chuyến đã kết thúc, không thể đặt vé mới', 'error'); return }
+            const list = [...selectedGiuongMap.values()]
+            if (!list.length) { showToast('Chưa chọn giường nào', 'error'); return }
+            const tenKhach = document.getElementById('dn-ten-khach').value.trim() || null
+            const sdtKhach = document.getElementById('dn-sdt-khach').value.trim() || null
+            const diemLenId = document.getElementById('dn-diem-len').value || null
+            const diemXuongId = document.getElementById('dn-diem-xuong').value || null
+            const giaRaw = document.getElementById('dn-gia').value.trim()
+            const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
+            if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
+
+            const rows = list.map(g => ({
+                chuyen_id: currentChuyen.id, giuong_id: g.id, nha_xe_id: currentNhaXeId,
+                tinh_len_ma: noiXuatPhatTinh?.ma || null, tinh_xuong_ma: diemDenTinh?.ma || null,
+                diem_len_id: diemLenId, diem_xuong_id: diemXuongId,
+                ten_khach: tenKhach, sdt_khach: sdtKhach, gia,
+                trang_thai: 'da_dat', nguon: 'crew', hinh_thuc_thanh_toan: null
+            }))
+            const { error } = await sb.from('ve').insert(rows)
+            if (error) {
+                if (error.code === '23505') {
+                    // 2 nhân viên cùng bấm 1 giường gần như đồng thời — KHÔNG đặt gì cả (nguyên tử),
+                    // tải lại sơ đồ rồi loại khỏi lựa chọn đúng giường vừa bị người khác đặt, GIỮ
+                    // LẠI các giường còn trống trong `list` (SPEC điểm 7).
+                    showToast('Có giường vừa được người khác đặt, đã tải lại', 'error')
+                    await loadVeChoChuyen(currentChuyen)
+                    for (const g of list) { if (veMap.has(g.id)) selectedGiuongMap.delete(g.id) }
+                    renderGiuongGrid()
+                    capNhatGiaVeBarCrew()
+                    return
+                }
+                showToast('Lỗi đặt vé: ' + error.message, 'error'); return
+            }
+            showToast(`Đã đặt ${list.length} vé`, 'success')
+            selectedGiuongMap.clear()
+            closeDatNhieuModal()
+            await loadVeChoChuyen(currentChuyen)
+        })
+
         function renderDoanhThuVe(veList) {
             const el = document.getElementById('doanhthu-ve-summary')
             const daDat = veList.filter(v => v.trang_thai === 'da_dat')
@@ -499,6 +868,12 @@
         }
 
         async function loadVeChoChuyen(chuyen) {
+            chuyenDaXong = chuyen.trang_thai === 'xong'
+            // Mặc định tỉnh CHỈ set 1 LẦN (guard tinhMacDinhDaDat) — đổi chuyến sau đó KHÔNG reset
+            // lại tỉnh crew đã chọn tay (SPEC điểm 9: "giữ lại cặp tỉnh đã chọn nếu vẫn hợp lệ" —
+            // tuyen_tinh không phụ thuộc chuyến nào nên luôn hợp lệ, không cần validate lại).
+            if (!tinhMacDinhDaDat && tinhList.length) { datMacDinhTinhTheoChieu(chuyen.chieu); tinhMacDinhDaDat = true }
+            renderChieuSelectorCrew()
             const { data, error } = await sb.from('ve')
                 .select('id, chuyen_id, giuong_id, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
                 .eq('chuyen_id', chuyen.id)
@@ -508,6 +883,7 @@
             renderDoanhThuVe(data || [])
             renderGiuongGrid()
             renderDanhSachVe()
+            capNhatGiaVeBarCrew()
         }
 
         async function loadChuyenOptions() {
@@ -542,7 +918,14 @@
 
         document.getElementById('chuyen-select').addEventListener('change', e => {
             const chuyen = chuyenList.find(c => c.id === e.target.value)
-            if (chuyen) { currentChuyen = chuyen; loadVeChoChuyen(chuyen) }
+            if (chuyen) {
+                currentChuyen = chuyen
+                // Giường thuộc chuyến CŨ không còn ý nghĩa cho chuyến MỚI — xoá lựa chọn (SPEC
+                // điểm 9). Tỉnh đi/đến KHÔNG xoá (xem loadVeChoChuyen/tinhMacDinhDaDat).
+                selectedGiuongMap.clear()
+                closeDatNhieuModal()
+                loadVeChoChuyen(chuyen)
+            }
         })
 
         // === Toggle Sơ đồ ⇄ Danh sách ===
@@ -807,18 +1190,27 @@
                 sel.appendChild(opt)
             })
         }
+        // `target` giờ là ID CỦA SELECT ĐÍCH trực tiếp (không phải 'len'/'xuong' như trước) — tổng
+        // quát hoá (2026-09-21) để dùng chung cho CẢ modal sửa-1-vé cũ ('ve-diem-len'/
+        // 've-diem-xuong') LẪN form đặt-nhiều-vé mới ('dn-diem-len'/'dn-diem-xuong'), tránh viết
+        // lại modal thêm điểm 2 lần. Prefill sẵn tỉnh liên quan (nếu đang đặt nhiều vé) — vẫn sửa
+        // được, chỉ là gợi ý để điểm mới thêm khớp ngay với dropdown lọc theo tỉnh phía dưới.
         function openDiemKhachModal(target) {
             diemKhachTarget = target
             document.getElementById('diemkhach-ten').value = ''
             renderDiemKhachTinhOptions()
+            const tinhGoiY = target === 'dn-diem-len' ? noiXuatPhatTinh?.ma : target === 'dn-diem-xuong' ? diemDenTinh?.ma : null
+            if (tinhGoiY) document.getElementById('diemkhach-tinh').value = tinhGoiY
             document.getElementById('diemkhach-modal').classList.add('open')
         }
         function closeDiemKhachModal() {
             document.getElementById('diemkhach-modal').classList.remove('open')
             diemKhachTarget = null
         }
-        document.getElementById('btn-them-diem-len').addEventListener('click', () => openDiemKhachModal('len'))
-        document.getElementById('btn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('xuong'))
+        document.getElementById('btn-them-diem-len').addEventListener('click', () => openDiemKhachModal('ve-diem-len'))
+        document.getElementById('btn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('ve-diem-xuong'))
+        document.getElementById('btn-dn-them-diem-len').addEventListener('click', () => openDiemKhachModal('dn-diem-len'))
+        document.getElementById('btn-dn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('dn-diem-xuong'))
         document.querySelector('#diemkhach-modal .diemkhach-modal-backdrop').addEventListener('click', closeDiemKhachModal)
         document.getElementById('btn-diemkhach-dong').addEventListener('click', closeDiemKhachModal)
 
@@ -829,8 +1221,12 @@
             const { data, error } = await sb.from('diem_khach').insert({ ten, tinh_ma: tinhMa, nha_xe_id: currentNhaXeId }).select('id, ten, tinh_ma, thu_tu').single()
             if (error) { showToast('Lỗi thêm điểm: ' + error.message, 'error'); return }
             diemKhachList.push(data)
-            const target = diemKhachTarget === 'len' ? document.getElementById('ve-diem-len') : document.getElementById('ve-diem-xuong')
-            renderDiemKhachOptions(target, currentChuyen.chieu, data.id)
+            if (diemKhachTarget === 've-diem-len' || diemKhachTarget === 've-diem-xuong') {
+                renderDiemKhachOptions(document.getElementById(diemKhachTarget), currentChuyen.chieu, data.id)
+            } else if (diemKhachTarget === 'dn-diem-len' || diemKhachTarget === 'dn-diem-xuong') {
+                const tinhCanKhop = diemKhachTarget === 'dn-diem-len' ? noiXuatPhatTinh?.ma : diemDenTinh?.ma
+                renderDiemKhachOptionsTheoTinh(document.getElementById(diemKhachTarget), tinhCanKhop, data.id)
+            }
             showToast('Đã thêm điểm', 'success')
             closeDiemKhachModal()
         })
@@ -902,6 +1298,10 @@
                 const t = tinhList.find(x => x.ma === ma)
                 if (t) t.gia_moc = giaMoi
             }
+            // noiXuatPhatTinh/diemDenTinh THAM CHIẾU trực tiếp phần tử trong tinhList nên giá đã
+            // tự đúng — chỉ cần vẽ lại thanh giá đáy để hiện SỐ MỚI ngay (SPEC: "sửa bảng giá xong,
+            // thanh này phải cập nhật ngay").
+            capNhatGiaVeBarCrew()
             showToast('Đã lưu bảng giá', 'success')
             closeGiaTinhModal()
         })

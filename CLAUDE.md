@@ -250,12 +250,89 @@ NGUYÊN `portrait` (khách lẻ dùng điện thoại, ít khi gắn cố địn
   - **UI sơ đồ đổi theo design handoff (2026-09-15)** — nhận 1 file mockup HTML (`design_handoff_seat_map`, không phải code sản xuất, chỉ là tham chiếu hình thức/hành vi) qua file đính kèm, không kèm chỉ dẫn bằng lời nào khác ngoài "chỉnh sửa theo mẫu hình". Đã port phần VISUAL/LAYOUT khớp mockup, GIỮ NGUYÊN phần dữ liệu/form đã có sẵn đúng schema thật (mockup dùng field/hành vi mock không khớp DB thật — xem "Không port theo mockup" bên dưới):
     - **~~1 tầng/lượt qua tab~~ (`#tab-tang-1`/`#tab-tang-2`, biến `currentFloor`) — ĐÃ BỊ ĐẢO NGƯỢC sau đó, bullet này SAI so với code hiện tại, giữ lại có gạch ngang để biết lịch sử.** Bản 2026-09-15 (mô tả nguyên văn ở bullet này) từng đổi sang tab chọn 1 tầng — nhưng dòng comment còn sót lại ngay trong `khach.html` ("đã bỏ khái niệm tầng-đang-xem") xác nhận đã ĐẢO NGƯỢC lại về **2 tầng cạnh nhau cùng lúc** (`.tang-cols` flex, mỗi `.tang-col{flex:1 1 0}`) — không rõ đổi lại chính xác ngày nào (không có bullet ghi lại đợt đảo ngược này), phát hiện lúc audit tablet 2026-09-21 khi đọc code thay vì tin tài liệu. `dat-ve.html` dùng CHUNG pattern `.tang-cols` này (copy từ `khach.html`). Bài học: nếu nghi ngờ, đọc code — đừng tin CLAUDE.md khi nó mô tả hành vi UI có thể đã bị đổi lại mà không cập nhật tài liệu.
     - **Icon giường = SVG thật** (`SEAT_SVG`, hằng số dùng chung, khung viền `rx=10` + gối `rx=4.5` gần đáy, cả 2 nét `stroke="currentColor"`) thay cho div + `::before` CSS — màu đổi qua CSS `color` của `.giuong-icon` theo class trạng thái, không cần build lại SVG mỗi lần render.
-    - **Thêm trạng thái thứ 3 "Đang chọn"** (`.dang-chon`, nền `--primary` đặc + icon trắng) — CHỈ hiện tạm thời trên đúng giường đang mở form (`selectedGiuongId`), mất ngay khi đóng modal — đây KHÔNG phải quay lại việc thêm màu cố định cho 1 nhóm giường như hàng cuối đã từ chối trước đó (2026-09-14), mà là phản hồi trực quan tức thời cho 1 thao tác đang diễn ra, tự động biến mất.
+    - **Thêm trạng thái thứ 3 "Đang chọn"** (`.dang-chon`, nền `--primary` đặc + icon trắng) — CHỈ hiện tạm thời trên đúng giường đang mở form (`selectedGiuongId`), mất ngay khi đóng modal — đây KHÔNG phải quay lại việc thêm màu cố định cho 1 nhóm giường như hàng cuối đã từ chối trước đó (2026-09-14), mà là phản hồi trực quan tức thời cho 1 thao tác đang diễn ra, tự động biến mất. **(2026-09-21) Class `.dang-chon` giờ dùng cho 2 khái niệm ĐỘC LẬP** — `selectedGiuongId` (giường ĐÃ ĐẶT đang mở modal sửa, hành vi CŨ giữ nguyên) HOẶC `selectedGiuongMap.has(g.id)` (giường TRỐNG đang multi-select để đặt vé mới, MỚI — xem bullet "Đặt vé giống dat-ve.html" bên dưới) — 1 giường chỉ rơi vào ĐÚNG 1 trong 2 trường hợp, không bao giờ trùng.
     - **Dòng "X giường trống · Y đã đặt"** (`#availability-caption`) tính riêng theo tầng đang xem, không phải cả xe.
     - **Bước xác nhận huỷ vé chuyển thành inline trong modal** (banner đỏ `#ve-cancel-section` + "Không"/"Xác nhận huỷ") thay vì gọi `confirmDialog()` toàn cục như trước — tránh chồng 2 lớp modal lên nhau, khớp mockup. Đây là NGOẠI LỆ so với quy ước chung của app (mọi chỗ huỷ khác vẫn dùng `confirmDialog()` — xem mục "Tiện ích dùng chung"), chấp nhận được vì mockup là spec rõ ràng riêng cho đúng màn hình này.
     - **Nút "Lưu" KHÔNG còn bắt buộc tên + SĐT** (bỏ 2026-09-16, theo yêu cầu — trước đó chỉ ràng buộc lúc TẠO vé mới qua `editingVeId === null`) — giờ luôn bấm được kể cả để trống, cả lúc tạo mới lẫn sửa vé đã có. `tenKhach`/`sdtKhach` để trống thì lưu `null` bình thường (đã có sẵn `|| null` khi build giá trị gửi lên).
     - **Không port theo mockup** (mockup dùng dữ liệu/schema mock, không khớp DB thật đã có từ trước): (1) Điểm lên/xuống trong mockup là text tự do prefill theo tuyến — giữ nguyên dropdown `diem_khach` + nút "+" tự thêm điểm đã có (đúng schema `ve.diem_len_id`/`diem_xuong_id` là FK, không phải text); (2) Giá vé trong mockup là số cố định đọc từ "bảng giá chuyến" — schema thật KHÔNG có bảng giá, giữ nguyên ô nhập tay theo nghìn đồng (quyết định owner từ spec gốc: "crew tự nhập, không tra bảng giá"); (3) Header mockup dùng nút "✕ đóng" đơn lẻ (README tự ghi "chưa nối đích đến") — giữ nguyên header chuẩn `renderSideMenu`/hamburger dùng chung cả 5 trang, vì mockup vốn thiết kế như màn hình độc lập, không có khái niệm menu điều hướng giữa các trang của app thật.
+  - **Đặt vé giống `dat-ve.html` (2026-09-21)** — crew đặt vé cho khách NGAY trong `khach.html`,
+    trải nghiệm giống hệt trang đặt vé công khai (chọn tỉnh bằng picker, multi-select nhiều giường,
+    thanh giá cố định đáy, form thông tin) — TÁI DÙNG code có sẵn từ `dat-ve.html` (`SEAT_SVG`,
+    `.route-*`/`.dia-diem-picker*`/`.gia-ve-bar*` CSS COPY nguyên văn, cùng pattern hàm), KHÔNG viết
+    lại từ đầu. Khác `dat-ve.html` ở 3 điểm cốt lõi: (a) **crew ghi THẲNG bằng supabase-js** (session
+    `authenticated`, RLS theo tenant + trigger `ve_check_tenant`) — KHÔNG qua `api/cong-khai-*`,
+    KHÔNG có OTP (OTP chỉ chống đặt ảo của khách vô danh, không áp dụng cho crew đã đăng nhập);
+    (b) **đặt NHIỀU giường = MỘT `insert([...])` NGUYÊN TỬ** (khác route công khai đặt TUẦN TỰ từng
+    giường) — 1 giường trùng thì CẢ LỆNH fail, không đặt dở nửa vời; (c) **giá mặc định crew SỬA
+    ĐƯỢC** (khác booking công khai — server tự tính, không tin client) vì crew là người tin cậy.
+    - **Bấm giường TRỐNG = multi-select (`toggleChonGiuongCrew`/`selectedGiuongMap`), KHÔNG còn mở
+      modal như trước** — đổi hành vi so với bullet "openVeModal" phía trên (bullet đó giờ CHỈ áp
+      dụng cho giường ĐÃ ĐẶT, xem `renderMotTang` — `if (ve) openVeModal(g); else if
+      (g.hoat_dong && !chuyenDaXong) toggleChonGiuongCrew(g)`). Giường ĐÃ ĐẶT giữ NGUYÊN 100% hành
+      vi cũ (mở modal sửa/huỷ, banner xác nhận inline) — không đổi gì ở nhánh đó.
+    - **Dải "Nơi xuất phát/Điểm đến"** (`renderChieuSelectorCrew`, `#chieu-select-wrap` trong
+      `#view-so-do`, phía trên `.tang-cols`) — KHÔNG có bước "xác nhận"/"chốt" như `dat-ve.html`
+      (tỉnh ở đây chỉ ảnh hưởng giá mặc định + lọc điểm đón/trả, đổi lúc nào cũng được vì chuyến đã
+      có sẵn từ dropdown `#chuyen-select`, không gắn với việc chọn NGÀY/TẠO chuyến mới như
+      `dat-ve.html`) — chỉ 2 vùng bắt click (nút "⇅", tên tỉnh mở picker `moDiaDiemPickerCrew`),
+      khác 3 vùng của `dat-ve.html`. Mặc định lấy ĐẦU/CUỐI tuyến thật từ `tuyen_tinh` theo
+      `chuyen.chieu` (`datMacDinhTinhTheoChieu`, KHÔNG hardcode DLK/HDG) — **CHỈ set 1 LẦN**
+      (`tinhMacDinhDaDat` guard) — đổi chuyến sau đó KHÔNG reset lại tỉnh crew đã chọn tay.
+      `noiXuatPhatTinh`/`diemDenTinh` là THAM CHIẾU trực tiếp phần tử trong `tinhList` (không copy)
+      — sửa giá qua modal "Giá vé theo tỉnh" tự phản ánh ngay, chỉ cần gọi lại `capNhatGiaVeBarCrew()`
+      để vẽ lại TEXT của thanh giá (giá trị đã đúng qua tham chiếu).
+    - **Thanh giá cố định đáy** (`#gia-ve-bar-crew`, dùng CHUNG class CSS `.gia-ve-bar` với
+      `dat-ve.html` — không viết CSS riêng) — "Đã chọn N giường · Tổng: X" hoặc "chưa định giá" nếu
+      thiếu `gia_moc` 1 trong 2 tỉnh (khác nhãn "liên hệ sau" của booking công khai — đúng ngữ
+      cảnh crew nội bộ). Ẩn khi 0 giường chọn HOẶC `chuyenDaXong`. Nút "Tiếp tục" mở
+      `#dat-nhieu-modal` (dùng CHUNG class `.ve-modal`/`.ve-modal-card` với modal sửa-1-vé cũ —
+      bottom-sheet mobile, hộp giữa màn tablet tự động qua media query đã có).
+    - **Form đặt vé** (`#dat-nhieu-modal`) — Tên/SĐT (không bắt buộc, 1 bộ áp dụng cho MỌI giường
+      đã chọn — muốn khác nhau thì sửa từng vé sau ở chế độ Danh sách), **Giá mỗi giường** (prefill
+      `tinhGiaVeCrew()`, crew sửa được), Điểm đón/trả (tùy chọn, LỌC THEO TỈNH đã chọn qua
+      `renderDiemKhachOptionsTheoTinh` — hàm MỚI, KHÁC `renderDiemKhachOptions` cũ vốn sắp theo
+      tuyến không lọc tỉnh, vẫn giữ nguyên cho modal sửa-1-vé cũ). Nút "+" thêm `diem_khach`
+      (`openDiemKhachModal`) đã TỔNG QUÁT HOÁ để nhận thẳng ID select đích (`'ve-diem-len'`/
+      `'ve-diem-xuong'`/`'dn-diem-len'`/`'dn-diem-xuong'`, trước đây chỉ `'len'`/`'xuong'` hardcode
+      2 select cũ) — dùng CHUNG 1 modal cho cả 2 luồng, prefill sẵn tỉnh liên quan (gợi ý, vẫn sửa
+      được).
+    - **Đặt vé** = `sb.from('ve').insert([...])` 1 mảng N dòng (N=số giường chọn), mỗi dòng đủ
+      `nha_xe_id`/`tinh_len_ma`/`tinh_xuong_ma`/`nguon:'crew'`/`hinh_thuc_thanh_toan:null`. Lỗi
+      `23505` (2 crew cùng bấm 1 giường) → KHÔNG đặt gì cả (nguyên tử), `loadVeChoChuyen` tải lại,
+      loại khỏi `selectedGiuongMap` đúng giường vừa bị đặt mất (`veMap.has(g.id)`), GIỮ LẠI các
+      giường còn trống trong lựa chọn — không mất trắng cả lượt chỉ vì 1 giường trùng.
+    - **Chuyến `xong`** — `chuyenDaXong` (derive trong `loadVeChoChuyen`) chặn ĐÚNG 2 việc: ẩn
+      thanh giá đáy, không gắn click-handler cho giường trống (bấm không có phản ứng gì). KHÔNG đổi
+      gì thêm cho luồng sửa/huỷ vé đã đặt (giữ nguyên hành vi cũ, không mở rộng khoá thêm).
+    - **Đổi chuyến ở dropdown** — xoá `selectedGiuongMap` + đóng `#dat-nhieu-modal` (giường thuộc
+      chuyến cũ không còn ý nghĩa), GIỮ NGUYÊN cặp tỉnh đã chọn (`tuyen_tinh` không phụ thuộc
+      chuyến nào nên luôn còn hợp lệ, không cần validate lại).
+    - **Test bắt buộc đã chạy thật** (tenant `test-b` cô lập, user tạm CHỈ thuộc `test-b`, đăng
+      nhập thật qua Playwright + `auth-callback.html`) — 2 giường + giá mặc định đúng; sửa giá tay
+      lưu đúng số; tỉnh `gia_moc null` → "chưa định giá" + đặt được với `gia=null`; race 2 phiên
+      cùng giường → phiên sau 0 dòng tạo, giữ giường còn trống trong lựa chọn; SQL trực tiếp xác
+      nhận `ve_tinh_len_fk` chặn tỉnh lạ VÀ `ve_check_tenant` chặn `chuyen_id`/`giuong_id` chéo
+      tenant; regression đầy đủ (giường đã đặt vẫn mở modal sửa/huỷ, Danh sách sửa tại dòng, giường
+      `hoat_dong=false` không bấm được, badge "🌐 Đặt online" hiện đúng cho vé `nguon='khach_tu_dat'`,
+      sửa bảng giá cập nhật thanh đáy ngay, chuyến `xong` không đặt được); regression đặt vé công
+      khai qua `api/cong-khai-dat-ve.js` (đã sửa ở Phần 1) — `tinh_len_ma`/`tinh_xuong_ma`/
+      `nguon='khach_tu_dat'` đúng, 404/400 các ca ownership/nx cũ vẫn đúng. Đã dọn sạch data test
+      sau khi xong — `select slug from nha_xe` chỉ còn `eakar`.
   - **`ve`**: 1 dòng/vé, `giuong_id` + `chuyen_id` + thông tin khách + `diem_len_id`/`diem_xuong_id` (FK `diem_khach`) + `gia` (nhập theo nghìn đồng, cùng quy ước `tien_thu`/`tien_thu_ho` bên hàng hoá — có `soTienBangChu` hiện chữ đọc số). **Partial unique index `uq_ve_giuong_active` trên `(chuyen_id, giuong_id) WHERE trang_thai = 'da_dat'`** — chặn 2 vé active cùng giường/chuyến nhưng vẫn cho đặt lại giường sau khi vé cũ `huy` (bản đầu của spec viết nhầm thành `UNIQUE` constraint không điều kiện trong `CREATE TABLE` rồi `DROP INDEX` cùng tên — lỗi SQL thật (Postgres không cho drop index đang backing 1 constraint bằng `DROP INDEX` trực tiếp) VÀ sai logic (khoá luôn giường sau 1 lần huỷ vé) — đã sửa trước khi chạy migration, chỉ dùng đúng 1 `CREATE UNIQUE INDEX ... WHERE ...` sau khi tạo bảng thường). Client bắt lỗi `23505` (unique violation) khi 2 crew cùng bấm 1 giường gần như đồng thời → toast báo tải lại, không crash.
+    - **`tinh_len_ma`/`tinh_xuong_ma` (thêm 2026-09-21, migration `ve_tinh_len_xuong_ma`) — trả nợ
+      "vé không biết khách xuống đâu" khi tỉnh chưa có `diem_khach`.** Trước đó `dat-ve.html` cho
+      khách chọn TỈNH (không bắt chọn điểm cụ thể, xem mục "Đặt vé công khai") nhưng `ve` chỉ lưu
+      `diem_len_id`/`diem_xuong_id` — tỉnh nào chưa có `diem_khach` (đa số 17 tỉnh, chỉ Đắk Lắk/Hải
+      Dương có điểm thật) thì 2 cột đó ra `null`, không ai biết khách lên/xuống ở đâu. Backfill từ
+      `diem_khach.tinh_ma` cho vé cũ có điểm cụ thể (verify 0 dòng lệch sau backfill trước khi thêm
+      FK). **`ve_tinh_len_fk`/`ve_tinh_xuong_fk` — composite FK `(nha_xe_id, tinh_len_ma/tinh_xuong_ma)
+      references tuyen_tinh(nha_xe_id, tinh_ma)`** (tận dụng `UNIQUE(nha_xe_id, tinh_ma)` có sẵn
+      trên `tuyen_tinh`) — khoá tenant ngay ở tầng DB: 1 mã tỉnh chỉ hợp lệ nếu thuộc ĐÚNG
+      `tuyen_tinh` của nhà xe đang ghi `ve` đó, `MATCH SIMPLE` mặc định nên `null` vẫn hợp lệ
+      (không bắt buộc phải có tỉnh). `api/cong-khai-dat-ve.js` ghi 2 cột này bằng đúng
+      `tinh_len_ma`/`tinh_xuong_ma` ĐÃ validate sẵn ở bước tính giá (không validate lại 2 lần).
+      `khach.html`'s form đặt-nhiều-vé (xem bullet riêng bên dưới) cũng ghi 2 cột này từ
+      `noiXuatPhatTinh`/`diemDenTinh` đang chọn.
   - **`diem_khach`** — điểm đón/trả khách, TÁCH RIÊNG khỏi bảng `diem` của hàng hoá (quyết định owner) vì `diem` có cơ chế chống trùng + đếm `so_lan_giao` gắn riêng logic giao hàng, không phù hợp trộn với điểm đón khách (bến xe/điểm cố định, số lượng ít). **Không seed sẵn** — bảng khởi đầu trống. Spec gốc không có đường tạo điểm mới trong `khach.html` (giả định seed tay hoặc qua Supabase dashboard) — PHÁT HIỆN lúc implement: với bảng trống, form đặt vé sẽ không có gì để chọn ở 2 dropdown điểm lên/xuống, tính năng coi như không dùng được ngay từ đầu → đã TỰ THÊM nút "+" cạnh mỗi dropdown mở modal nhỏ (tên + chọn tỉnh) để crew tự thêm điểm dần ngay trong lúc đặt vé, không cần rời app. Đây là bổ sung ngoài spec ban đầu, không phải yêu cầu owner — cân nhắc lại UX này nếu owner muốn khác.
   - **Không có trạng thái "đã lên/đã xuống xe"** (khác `kien.trang_thai`/`da_giao`) — v1 chỉ cần biết "đã đặt hay chưa" (`trang_thai 'da_dat'|'huy'`), cố ý đơn giản theo spec, có thể mở rộng sau nếu cần theo dõi lúc lên/xuống xe thực tế.
   - **Không có offline-queue cho `ve`** (khác `idb-queue.js` của `kien`) — vé cần mạng để lưu ngay, tránh 2 khách trùng giường khi offline khó merge (cố ý theo spec, khác triết lý offline-first của `hang.html`).
@@ -332,7 +409,10 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
   - `gia`: optional, KHÔNG có trong form `dat-ve.html` (khách không tự định giá) — luôn `null` khi
     đặt qua trang này, giữ đúng nguyên tắc "crew tự định giá" của module gốc; crew xem lại/điền giá
     thật lúc xử lý vé qua Danh sách ở `khach.html`.
-  - INSERT với `trang_thai='da_dat'`, `nguon='khach_tu_dat'`. **Response trả kèm `chuyen_id` đã
+  - INSERT với `trang_thai='da_dat'`, `nguon='khach_tu_dat'`, **kèm `tinh_len_ma`/`tinh_xuong_ma`
+    (thêm 2026-09-21, xem mục "Đặt vé giống dat-ve.html" ở `khach.html` và cột `ve` trong mục
+    Database)** — ghi thẳng 2 giá trị ĐÃ VALIDATE sẵn ở bước tính giá phía trên (không validate lại
+    lần 2). **Response trả kèm `chuyen_id` đã
     dùng** (kể cả khi vừa tự tạo) — `dat-ve.html` cần giá trị này để các lượt đặt/tải-lại-sơ-đồ
     TIẾP THEO trong cùng phiên dùng đúng chuyến vừa tạo, không tạo/tra lại mỗi lần.
 - **`dat-ve.html`** — trang PUBLIC, KHÔNG có `requireSession`/`renderSideMenu`/hamburger (khác hẳn

@@ -224,6 +224,13 @@ export default async function handler(req, res) {
         chuyen_id: chuyenId, giuong_id,
         ten_khach: tenSach, sdt_khach: sdtChuan,
         diem_len_id, diem_xuong_id,
+        // tinh_len_ma/tinh_xuong_ma: ĐÃ validate thuộc đúng tuyen_tinh của nhaXe ở trên (xem
+        // maTinhGuiLen) trước khi dùng để tính giá — ghi thêm vào đây để trả nợ "vé không biết
+        // khách xuống đâu" khi tỉnh chưa có diem_khach cụ thể (spec "Đặt vé trên khach.html",
+        // 2026-09-21). Không cần validate lại — cùng giá trị/cùng lượt request đã qua bước tính
+        // giá phía trên, `ve_tinh_len_fk`/`ve_tinh_xuong_fk` (composite theo nha_xe_id) là lớp
+        // chặn thứ 2 ở tầng DB nếu có gì đó sai sót.
+        tinh_len_ma: tinh_len_ma || null, tinh_xuong_ma: tinh_xuong_ma || null,
         gia: giaSo,
         trang_thai: 'da_dat',
         nguon: 'khach_tu_dat',
