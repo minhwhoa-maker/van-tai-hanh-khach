@@ -136,6 +136,13 @@
             .btn-menu-more { width: 48px; height: 48px; font-size: 22px; }
             .kien-row-edit .btn-sm { flex: 1 1 calc(50% - 4px); padding: 12px 8px; font-size: 14px; text-align: center; }
         }
+
+        /* Tablet (2026-09-21) — container cap, CHỈ thêm rule mới, rule @media(max-width:600px) ở
+           trên giữ nguyên. Áp thẳng lên <body>, không bọc thêm div — xem lý do ở hang.html. 960px
+           vì đây là trang DANH SÁCH kiện (khác form nhập liệu dùng 720px). */
+        @media (min-width: 768px) and (min-height: 480px) {
+            body { max-width: 960px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+        }
     </style>
 </head>
 <body>

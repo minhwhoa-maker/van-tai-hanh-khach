@@ -108,6 +108,15 @@
             flex-shrink: 0; width: 28px; height: 28px; border: none; background: none;
             color: var(--text-muted); font-size: 16px; cursor: pointer;
         }
+        /* Tablet (2026-09-21) — container cap, CHỈ thêm rule mới, không sửa rule mobile hiện có.
+           Áp thẳng lên <body> (không bọc thêm div nào — trang này vốn không có wrapper content,
+           header/step đều là con trực tiếp của body) — cách ít đụng DOM nhất, cùng pattern
+           body{max-width} đã có sẵn ở dat-ve.html. Điều kiện (min-height:480px) loại điện thoại
+           xoay ngang (~844x390) khỏi rule này — xem CLAUDE.md mục "Tối ưu mobile / PWA". 720px vì
+           đây là trang form/nhập liệu nhiều bước (khác trang danh sách dùng 960px). */
+        @media (min-width: 768px) and (min-height: 480px) {
+            body { max-width: 720px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+        }
     </style>
 </head>
 <body>

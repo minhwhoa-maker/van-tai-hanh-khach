@@ -172,6 +172,14 @@
             border: 1.5px solid var(--primary); border-radius: var(--radius-sm); background: var(--white);
             color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
         }
+
+        /* Tablet (2026-09-21) — container cap, CHỈ thêm rule mới. Áp thẳng lên <body>, không bọc
+           thêm div — xem lý do ở hang.html. 960px vì trang này có chế độ "Danh sách" vé (sơ đồ
+           giường tự căn giữa bằng justify-content:center bên trong .tang-cols/.giuong-hang sẵn có,
+           không bị kéo giãn xấu dù body rộng hơn). */
+        @media (min-width: 768px) and (min-height: 480px) {
+            body { max-width: 960px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+        }
     </style>
 </head>
 <body>

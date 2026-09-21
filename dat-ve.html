@@ -298,6 +298,16 @@
         .xac-nhan-box .icon { font-size: 40px; }
         .xac-nhan-box h3 { color: var(--success); margin: 8px 0 4px; }
         .xac-nhan-box p { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
+
+        /* Tablet (2026-09-21) — nới cột 480px (khoá cứng ở đầu file) lên 640px, CHỈ thêm rule
+           mới, không sửa rule 480px gốc (vẫn áp dụng cho mobile/phone-landscape dưới breakpoint
+           này). `.gia-ve-bar` (position:fixed, tự căn giữa qua left:50%+translateX) phải nới CÙNG
+           giá trị — nếu không sẽ hẹp hơn hẳn phần nội dung phía trên, nhìn lệch. Lịch dạng lưới
+           (#lich-thang-wrap) từ 1024px hiện 2 tháng cạnh nhau — xem rule riêng cuối file. */
+        @media (min-width: 768px) and (min-height: 480px) {
+            body { max-width: 640px; }
+            .gia-ve-bar { max-width: 640px; }
+        }
     </style>
 </head>
 <body>
