@@ -226,17 +226,26 @@
                 document.getElementById('list-wrap').innerHTML = '<div class="empty">Chưa có chuyến nào</div>'
                 return
             }
-            chuyenList.forEach(c => {
+            // Chuyến 'xong' KHÔNG hiện trong dropdown này nữa — đã có lich-su-chuyen.html riêng
+            // cho việc xem lại chuyến đã hoàn thành. Chỉ hiện nếu đó ĐÚNG là chuyến đang được mở
+            // tới qua ?chuyen_id= (link "Xem"/"Bắt đầu" từ lich-su-chuyen.html trỏ về đây), để
+            // đường dẫn đó vẫn mở được đúng chuyến thay vì rơi về chuyến khác.
+            const preselectId = new URLSearchParams(location.search).get('chuyen_id')
+            const visibleList = chuyenList.filter(c => c.trang_thai !== 'xong' || c.id === preselectId)
+            if (!visibleList.length) {
+                sel.innerHTML = '<option value="">Chưa có chuyến nào</option>'
+                document.getElementById('list-wrap').innerHTML = '<div class="empty">Chưa có chuyến nào</div>'
+                return
+            }
+            visibleList.forEach(c => {
                 const chieuLabel = c.chieu === 'bac' ? 'Ra Bắc (ĐL → HD)' : 'Vào Nam (HD → ĐL)'
                 const opt = document.createElement('option')
                 opt.value = c.id
                 opt.textContent = `${chieuLabel} — ${formatDate(c.khoi_hanh)}${c.trang_thai === 'xong' ? ' (đã xong)' : c.trang_thai === 'dat_truoc' ? ' (đặt trước, chưa bắt đầu)' : ''}`
                 sel.appendChild(opt)
             })
-            // Cho phép trang lịch-sử-chuyến điều hướng thẳng tới 1 chuyến cụ thể qua ?chuyen_id=
-            const preselectId = new URLSearchParams(location.search).get('chuyen_id')
             const preselect = preselectId && chuyenList.find(c => c.id === preselectId)
-            const initial = preselect || chuyenList[0]
+            const initial = preselect || visibleList[0]
             sel.value = initial.id
             loadManifest(initial)
         }
