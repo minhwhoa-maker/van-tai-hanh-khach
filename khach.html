@@ -179,6 +179,16 @@
            không bị kéo giãn xấu dù body rộng hơn). */
         @media (min-width: 768px) and (min-height: 480px) {
             body { max-width: 960px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+
+            /* Modal/bottom-sheet -> hộp giữa màn hình (2026-09-21) — .ve-modal/.diemkhach-modal/
+               .gia-tinh-modal đều dùng chung pattern align-items:flex-end (bottom-sheet, bo góc
+               trên) — chỉ hợp lý trên màn hẹp. Từ tablet: căn giữa + bo đủ 4 góc + max-width hẹp
+               lại thành hộp thay vì tràn theo body (đã rộng 960px). Giữ nguyên max-height/overflow
+               (cuộn nội bộ) và mọi hành vi đóng hiện có (bấm ra ngoài/nút Back) — chỉ đổi CSS. */
+            .ve-modal, .diemkhach-modal, .gia-tinh-modal { align-items: center; }
+            .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card {
+                max-width: 520px; border-radius: var(--radius);
+            }
         }
     </style>
 </head>

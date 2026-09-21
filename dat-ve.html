@@ -307,6 +307,13 @@
         @media (min-width: 768px) and (min-height: 480px) {
             body { max-width: 640px; }
             .gia-ve-bar { max-width: 640px; }
+
+            /* Modal -> hộp giữa màn hình (2026-09-21), cùng lý do/đổi y hệt khach.html —
+               #dia-diem-picker vốn bottom-sheet (align-items:flex-end, bo góc trên) chỉ hợp trên
+               màn hẹp. Giữ nguyên max-height/overflow-y (cuộn nội bộ) + user-select:none +
+               mọi hành vi đóng hiện có (bấm ra ngoài/nút Back qua history) — chỉ đổi CSS. */
+            .dia-diem-picker { align-items: center; }
+            .dia-diem-picker-card { max-width: 520px; border-radius: var(--radius); }
         }
     </style>
 </head>
