@@ -63,6 +63,93 @@ thêm form/nút mới:
   có từ trước, chưa đồng bộ lại vì đổi giá trị trong `manifest.json` ảnh hưởng icon/theme đã cài
   trên máy crew, cần cân nhắc riêng chứ không sửa tuỳ tiện.
 
+### Tối ưu tablet (2026-09-21)
+
+Mục tiêu: dùng được thoải mái trên tablet (dọc + ngang), Android lẫn iPad, **điện thoại không đổi**.
+Chỉ đổi layout CSS/JS phía client — không đụng DB/API/RLS/logic nghiệp vụ/`idb-queue.js`.
+
+- **Nguyên tắc**: chỉ THÊM rule mới trong media query riêng, không sửa rule mobile hiện có
+  (`@media (max-width: 600px)` ở `manifest-hang.html` giữ nguyên 100%). Layout theo CHIỀU RỘNG
+  VÙNG HIỂN THỊ, không theo loại thiết bị — tablet split-screen/cửa sổ nhỏ vẫn phải đúng.
+- **2 breakpoint, LUÔN kèm điều kiện chiều cao**: `(min-width: 768px) and (min-height: 480px)` và
+  `(min-width: 1024px) and (min-height: 480px)`. Điều kiện `min-height` bắt buộc để loại điện
+  thoại xoay ngang (~844×390 — rộng hơn 768px nhưng thấp) khỏi rule tablet, nếu không nó sẽ vô tình
+  ăn layout tablet dù thực chất vẫn là 1 điện thoại nhỏ cầm ngang. Đã verify bằng Playwright: ở
+  844×390, `body` vẫn giữ đúng hành vi mobile ở mọi trang.
+- **Bộ viewport test chuẩn** (dùng khi audit/verify lại sau này): `360×800` (baseline điện thoại),
+  `844×390` (điện thoại ngang — phải KHÔNG ăn rule tablet), `768×1024`/`820×1180` (tablet dọc),
+  `1024×768`/`1280×800` (tablet ngang), `800×1280` (tablet Android dọc).
+- **Container cap — áp thẳng lên `<body>`, KHÔNG bọc thêm div nào** (`hang.html`/`manifest-hang.html`/
+  `khach.html`/`lich-su-chuyen.html` vốn không có div wrapper content — header/step là con trực
+  tiếp của body, nên cap ngay ở body là cách ít đụng DOM nhất). Giá trị: 720px trang form/nhập liệu
+  (`hang.html`), 960px trang danh sách (`manifest-hang.html`/`khach.html`/`lich-su-chuyen.html`),
+  640px `dat-ve.html` (nới từ 480px gốc, riêng lịch 2 cột nới thêm lên 880px ở 1024px — xem bên
+  dưới). `login.html` không cần sửa — card riêng đã tự `max-width:400px` centered từ trước, đã
+  verify ảnh thật không có vấn đề gì ở tablet. **Phát hiện lúc audit**: `.container{max-width:900px}`
+  trong `style.css` (leftover từ fork `eakar-logistics`) là **CSS CHẾT** — không trang crew nào
+  dùng `class="container"` (đã `grep` xác nhận 0 kết quả cả 5 trang) — đây là lý do phải cap trực
+  tiếp lên `body` thay vì "chỉ cần dùng `.container` có sẵn".
+- **Modal/bottom-sheet → hộp giữa màn hình từ 768px**: `.ve-modal-card`/`.diemkhach-modal-card`/
+  `.gia-tinh-modal-card` (`khach.html`), `.dia-diem-picker-card` (`dat-ve.html`) — đổi
+  `align-items: flex-end` → `center`, bo đủ 4 góc (`border-radius: var(--radius)` thay vì chỉ 2 góc
+  trên), `max-width: 520px`. Giữ nguyên `max-height`/`overflow-y` (cuộn nội bộ) và mọi hành vi đóng
+  hiện có (bấm ra ngoài, nút Back qua `popstate`/`history`) — chỉ đổi CSS. `.confirm-dialog*`
+  (shared, `style.css`) **ĐÃ SẴN LÀ hộp giữa màn hình** từ trước (`align-items:center`, bo đủ 4
+  góc) — không cần sửa gì, liệt kê ở đây chỉ để xác nhận đã kiểm tra.
+- **Sơ đồ giường to hơn**: `--seat-cell` (biến CSS set trên `.giuong-hang`, kế thừa xuống
+  `.giuong-icon` con qua CSS custom property — không cần sửa `.giuong-icon`/JS) đổi 28px (mobile,
+  xem đính chính "54px" sai ở mục `khach.html`) → 44px (≥768px) → 52px (≥1024px), cả
+  `khach.html` lẫn `dat-ve.html`. Vẫn xếp theo `vi_tri` thật/giữ khoảng trống lối cầu thang — không
+  đổi cách render dữ liệu, chỉ đổi kích thước ô.
+- **Nhận diện iPad** (`hang.html:784`, `openCameraFlow`) — iPadOS 13+ báo User-Agent giống macOS
+  Safari, regex `/iPad|iPhone|iPod/` không bắt được → thêm điều kiện phụ
+  `navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1`. Đây là UA-sniffing DUY NHẤT
+  trong repo (đã `grep` xác nhận ở lúc audit, không có chỗ khác cần sửa tương tự).
+- **Camera nhúng trên tablet** (`hang.html`, `#camera-live video`) — thêm `max-height: 45vh;
+  object-fit: cover` từ 768px, tránh video tỉ lệ rộng cao gần hết viewport ở tablet NGANG (đẩy nút
+  "📸 Chụp"/"Hủy" ra ngoài tầm nhìn).
+- **`manifest-hang.html` GIỮ 1 CỘT, không chia lưới** — thứ tự tỉnh dọc tuyến (`tinh_tuyen.thu_tu`,
+  gắn với `km_moc`) là dữ liệu NGHIỆP VỤ, crew cần đọc tuần tự đúng thứ tự đi trên đường trong 1
+  tỉnh; chia 2 cột sẽ làm lẫn thứ tự đọc. Chỉ tăng `.kien-row` gap/padding + thumbnail 44px→64px.
+  `.kien-menu` (toạ độ tính bằng JS, tự kẹp theo `innerWidth`/`innerHeight`) và lightbox không cần
+  sửa gì — đã tự thích ứng viewport động từ lúc viết.
+- **Lịch `dat-ve.html` — 2 tháng cạnh nhau từ 1024px** (dưới đó giữ 1 tháng như từ trước, xem lịch
+  sử đổi qua lại ở mục "Lịch dạng lưới") — chỉ khối tháng ĐẦU TIÊN có nút `‹›` (khối 2 chỉ hiện tiêu
+  đề), tránh 2 cặp nút cùng chỉnh 1 biến `baseMonthOffset` dùng chung. `matchMedia('(min-width:
+  1024px)...')` đăng ký DUY NHẤT 1 lần, gọi lại `renderLichThang()` khi xoay màn hình qua lại
+  ngưỡng — `ngayDangChonTam` (biến JS module-level) tự động giữ nguyên vì không bị đụng lúc render
+  lại, không cần xử lý gì thêm để "giữ ngày đang chọn tạm".
+- **Đã verify bằng Playwright thật (không chỉ đọc code)**: 42 tổ hợp (6 trang × 7 viewport) — 0 lỗi
+  console, không request nào ngoài các API/asset hiện có; resize giữa chừng lúc đã chọn ngày+giường
+  ở `dat-ve.html` và lúc đang ở bước 3 `hang.html` (đã điền SĐT/ghi chú/loại hàng) — mọi state giữ
+  nguyên qua resize, không mất dữ liệu đang nhập dở.
+- **Đề xuất, KHÔNG LÀM ở đợt này** (chờ owner duyệt riêng nếu muốn):
+  - Sidebar cố định thay `renderSideMenu` (side drawer) ở tablet.
+  - Giao diện master-detail (sơ đồ trái/danh sách phải hiện đồng thời ở `khach.html` ≥1024px, thay
+    vì bật/tắt qua `currentView` như hiện tại) — cần đổi logic `currentView`, chỉ nên làm nếu audit
+    sau này cho thấy hợp lý và owner đồng ý.
+  - Lưới card 2 cột cho `lich-su-chuyen.html` nếu thấy trang quá trống ở tablet.
+  - Tách bản giao diện riêng cho tablet — chỉ dùng responsive, không tách file/route riêng.
+  - Đổi `theme_color` trong `manifest.json` (đã biết lệch nhẹ với CSS từ trước, xem mục "Tối ưu
+    mobile/PWA" phía trên — không sửa tuỳ tiện, ảnh hưởng icon/theme đã cài trên máy crew).
+- **Nợ, CHỈ TEST ĐƯỢC TRÊN TABLET THẬT** (headless không kiểm chứng được):
+  1. Camera nhúng (Android tablet) và luồng `capture` (iPad, gồm camera trước/sau) — sau khi sửa
+     nhận diện iPad ở trên, cần xác nhận iPad THẬT rơi đúng nhánh `<input capture>`, không lọt vào
+     `getUserMedia`.
+  2. Cài PWA lên tablet (Android Chrome và iPad Safari) — mở từ icon, đúng tên/icon, đúng
+     `orientation` (xem dưới).
+  3. Xoay màn hình THẬT (không phải resize cửa sổ) giữa chừng lúc đang nhập kiện — cảm biến xoay
+     vật lý có thể có độ trễ/hành vi khác `matchMedia` giả lập qua resize.
+  4. Chế độ chia đôi màn hình/cửa sổ nổi (Android split-screen, Samsung DeX...).
+
+**`orientation` — ĐÃ SỬA (2026-09-21), không phải nợ**: audit Phase 1 phát hiện CẢ `manifest.json`
+(crew) lẫn `api/manifest-dat-ve.js` (booking) đều khoá `orientation: 'portrait'` — tablet gắn cố
+định NGANG sẽ bị hệ điều hành ép xoay dọc khi mở app standalone. Owner quyết định: `manifest.json`
+đổi `portrait` → `any` (crew thao tác trên tablet có thể gắn ngang); `api/manifest-dat-ve.js` GIỮ
+NGUYÊN `portrait` (khách lẻ dùng điện thoại, ít khi gắn cố định ngang, giữ đơn giản cho trải nghiệm
+đặt vé). Vẫn còn trong mục "nợ test trên thiết bị thật" ở trên (mục 2 — cài PWA) vì đổi
+`orientation` chỉ verify được đầy đủ khi cài thật trên tablet, chưa test qua headless.
+
 ## Tiện ích dùng chung (`shared.js`)
 
 - `formatDate(dateStr)` — hiện giờ + ngày âm lịch + ngày dương, vd `13:03 - 20/7 ÂL - 01/09/26`, dùng cho label chuyến ở cả `hang.html` và `manifest-hang.html`. Âm lịch tính bằng thuật toán Hồ Ngọc Đức viết thuần JS ngay trong file (`convertSolar2Lunar` + các hàm phụ trợ `_jdFromDate`/`_newMoon`/`_sunLongitude`/...), không phụ thuộc thư viện ngoài, múi giờ cố định UTC+7 (khớp app chỉ chạy tuyến trong nước).
@@ -87,7 +174,7 @@ thêm form/nút mới:
   - **`selectTinh(tinh, chipEl)` xoá sạch `#diem-search` + danh sách gợi ý NGAY LẬP TỨC trước khi gọi `loadDiem(tinh.ma)` (async)** — trước đây cả ô tìm kiếm lẫn `allDiemInTinh`/`#diem-list` giữ nguyên giá trị của lượt chọn điểm TRƯỚC cho tới khi request tải điểm mới trả về, nên giữa lúc chờ mạng (đặc biệt sau "+ Nhập kiện tiếp theo" → quay lại bước 1 chọn tỉnh cho kiện kế tiếp), crew vẫn thấy tạm thời text đã gõ + điểm đã chọn của kiện TRƯỚC, dễ hiểu nhầm là hệ thống "tự gợi ý" điểm sai. `loadDiem` cũng thêm guard so `selectedTinh.ma === tinhMa` trước khi áp kết quả — phòng đổi tỉnh liên tiếp nhanh khiến request cũ trả về SAU request mới (race condition) và ghi đè nhầm danh sách của tỉnh đang chọn bằng dữ liệu tỉnh đã rời khỏi.
   - **Bước 2 (chọn điểm), danh sách gợi ý dưới ô "Gõ tên điểm..." thụt vào trong** (`.diem-list`, `margin-left` lớn hơn ô nhập phía trên + nền xám nhạt `#f5f7fa` + chữ màu `--text-muted`, font nhỏ hơn `14px`) — trước đó `.diem-item` dùng chung style với `.chuyen-item` (border 1.5px, nền trắng, y hệt ô nhập phía trên) khiến ô nhập và danh sách gợi ý nhìn giống nhau, không rõ cái nào là input cái nào là kết quả gợi ý. `.chuyen-item` (danh sách chọn chuyến ở bước 0, không phải gợi ý phụ thuộc ô nhập) giữ nguyên style cũ.
   - **Bước 0 chỉ hiện chuyến `dang_chay`** (`loadChuyenList`, render qua `renderChuyenItem`) — từng thử hiện thêm nhóm "Chuyến đã hoàn thành" ở đây (bấm để xem lại) nhưng đã bỏ theo yêu cầu: nhập kiện mới không cần thấy chuyến cũ, xem lại chuyến đã xong thì qua `lich-su-chuyen.html`. `lich-su-chuyen.html` vẫn giữ nguyên 2 nhóm (xem bên dưới) — 2 trang khác nhau ở điểm này, không phải bug.
-  - **`.current-chuyen-bar` (thanh hiện tên chuyến đang chọn, phía trên các bước) có nút "📋 Xem danh sách"** (`updateChuyenBar()`) — link `manifest-hang.html?chuyen_id=<id>`, mở `target="_blank"` (tab/cửa sổ mới) để không mất luồng nhập kiện đang dở ở `hang.html`. Thêm vì sau khi lưu 1 kiện, app tự reset về bước 1 mà không có cách xem lại kiện vừa nhập tại chỗ — trước đó phải rời hẳn trang hoặc gõ URL tay sang `manifest-hang.html`. Dùng chung convention `?chuyen_id=` với chỗ điều hướng cũ ở `lich-su-chuyen.html`. Cố ý KHÔNG làm danh sách/preview kiện ngay trong `hang.html` — chỉ là link tắt sang trang đã có sẵn.
+  - **`.current-chuyen-bar` (thanh hiện tên chuyến đang chọn, phía trên các bước) — bar TĨNH trong flow bình thường, KHÔNG phải `position:fixed`** (đính chính lúc audit tablet 2026-09-21 — dễ nhầm vì nó "trông giống" 1 thanh cố định, nhưng CSS thực tế chỉ là 1 div thường ngay dưới header, full-width theo container cha; không cần xử lý gì riêng khi container cha đổi độ rộng ở tablet). Có nút "📋 Xem danh sách" (`updateChuyenBar()`) — link `manifest-hang.html?chuyen_id=<id>`, mở `target="_blank"` (tab/cửa sổ mới) để không mất luồng nhập kiện đang dở ở `hang.html`. Thêm vì sau khi lưu 1 kiện, app tự reset về bước 1 mà không có cách xem lại kiện vừa nhập tại chỗ — trước đó phải rời hẳn trang hoặc gõ URL tay sang `manifest-hang.html`. Dùng chung convention `?chuyen_id=` với chỗ điều hướng cũ ở `lich-su-chuyen.html`. Cố ý KHÔNG làm danh sách/preview kiện ngay trong `hang.html` — chỉ là link tắt sang trang đã có sẵn.
   - **Tạo chuyến mới có 2 field: Chiều + Ngày giờ khởi hành** (`#new-chuyen-khoi-hanh`, `type="datetime-local"`, ĐỔI 2026-09-17 — trước đó chỉ có Chiều, `khoi_hanh` luôn cứng = `new Date()` lúc bấm "Tạo chuyến", không cho nhập tay) — cho phép crew LÊN LỊCH TRƯỚC nhiều chuyến ở các ngày khác nhau, phục vụ tính năng "Bước 0 — Chọn ngày đi" ở `dat-ve.html` (xem mục đó). Prefill = giờ hiện tại mỗi lần MỞ form (`toDatetimeLocalValue(new Date())`, tính theo giờ ĐỊA PHƯƠNG chứ không phải `toISOString()` — tránh lệch múi giờ hiển thị trong ô nhập), để trống lúc lưu thì fallback về `new Date()` (giữ hành vi cũ làm lưới an toàn). `chuyen.ghi_chu` vẫn còn cột trong DB, chỉ không thu thập ở form này, luôn `null` cho chuyến mới.
   - **"+ Tạo chuyến mới" LUÔN hiện, không còn tự ẩn khi đã có chuyến `dang_chay`** (đổi 2026-09-17 cùng lúc với ô ngày giờ ở trên) — trước đó ẩn hẳn nút này nếu ĐÃ có 1 chuyến `dang_chay` bất kỳ, dựa trên giả định "chỉ chạy 1 chuyến tại 1 thời điểm". Giả định đó không còn đúng khi cho khách chọn ngày đi — crew cần tạo được NHIỀU chuyến `dang_chay` cùng lúc (mỗi chuyến 1 ngày/chiều khác nhau) để khách có gì đó thật sự để chọn ở `dat-ve.html`. Danh sách "0. Chọn chuyến đang chạy" (`loadChuyenList`) đổi `order by` từ `created_at desc` sang `khoi_hanh` TĂNG DẦN (chuyến gần nhất lên đầu, hợp lý hơn cho crew chọn đúng chuyến sắp chạy khi có nhiều chuyến cùng lúc).
   - **Bước 3 (chụp ảnh) có nút "💰 Thu hộ (COD)"** (`#btn-thu-ho-toggle`) — bật lên mới hiện ô nhập `#kien-thu-ho`, bắt buộc số dương nếu bật (validate trước khi `queueKien`). Lưu vào `record.tien_thu_ho`, đi qua `idb-queue.js` như các field khác.
@@ -157,11 +244,11 @@ thêm form/nút mới:
   - **Sơ đồ 44 giường tĩnh** (bảng `giuong`, seed 1 lần, không đổi theo chuyến) — 2 tầng × 22 giường, khớp mẫu owner cung cấp. Không có ô chặn cố định — cả 44 giường đều bán được (owner xác nhận, KHÁC ảnh mockup 2026-09-15 thứ 2 có ô ✕ — owner xác nhận ô ✕ đó CHỈ là style minh hoạ, không phải sơ đồ thật, không áp dụng).
     - **Hàng 1 → hàng cuối (hàng 7): `T1-02`/`T2-02` chuyển xuống làm giường thứ 5 hàng cuối** (2026-09-15 đợt 1) — `UPDATE giuong SET hang=7, vi_tri=5`, KHÔNG xoá/tạo lại giường (giữ nguyên `id`/`ma`), tổng vẫn 22 giường/tầng. Áp dụng đối xứng cả 2 tầng.
     - **Hàng 6 có khoảng trống giữa thật (lối cầu thang), hàng 1 được lấp lại đủ 3 giường** (2026-09-15 đợt 2, theo ảnh mockup thứ 2 — owner xác nhận khoảng trống hàng 6 trong ảnh LÀ cầu thang thật, khác ô ✕ chỉ là minh hoạ) — `T1-17`/`T2-17` (giường giữa hàng 6) CHUYỂN lên lấp `hang=1, vi_tri=3` (hàng 1 quay lại đủ 3 giường như ban đầu), hàng 6 CHỦ Ý không dồn lại `vi_tri` của 2 giường còn lại (giữ nguyên 1 và 3, không renumber về 1-2) — `vi_tri=2` bị bỏ trống có chủ đích để hiện đúng ô trống ở giữa. Tổng vẫn 44 giường bán được (owner xác nhận giữ nguyên 44, không giảm xuống 42) — chỉ là đổi vị trí vật lý giữa các hàng, không xoá giường nào.
-    - **`renderGiuongGrid()` (`khach.html`) đặt icon theo đúng `vi_tri` thật (`grid-column: vi_tri`), số cột = `vi_tri` LỚN NHẤT trong hàng** — thay cho cách cũ (số cột = số giường thực tế trong hàng, các giường luôn dồn sát nhau). Cách cũ không biểu diễn được khoảng trống thật giữa hàng (hàng 6) vì chỉ đếm SỐ LƯỢNG giường chứ không quan tâm `vi_tri` cụ thể — 2 giường hàng 6 (vi_tri 1 và 3) sẽ bị vẽ dính sát nhau như đang ở vi_tri 1,2, không lộ ra khoảng trống ở giữa. Hàng không có khoảng trống (vi_tri liên tục 1..N, đa số các hàng) thì hành vi giống hệt cách cũ. Icon vẫn giữ kích thước cố định 54px cho mọi hàng bất kể số cột (1 class CSS chung `.giuong-hang`, không còn 2 class cứng `.giuong-hang-thuong`/`.giuong-hang-cuoi` chỉ hỗ trợ đúng 3/4 cột như bản trước 2026-09-15).
+    - **`renderGiuongGrid()` (`khach.html`) đặt icon theo đúng `vi_tri` thật (`grid-column: vi_tri`), số cột = `vi_tri` LỚN NHẤT trong hàng** — thay cho cách cũ (số cột = số giường thực tế trong hàng, các giường luôn dồn sát nhau). Cách cũ không biểu diễn được khoảng trống thật giữa hàng (hàng 6) vì chỉ đếm SỐ LƯỢNG giường chứ không quan tâm `vi_tri` cụ thể — 2 giường hàng 6 (vi_tri 1 và 3) sẽ bị vẽ dính sát nhau như đang ở vi_tri 1,2, không lộ ra khoảng trống ở giữa. Hàng không có khoảng trống (vi_tri liên tục 1..N, đa số các hàng) thì hành vi giống hệt cách cũ. Icon vẫn giữ kích thước cố định cho mọi hàng bất kể số cột (1 class CSS chung `.giuong-hang`, không còn 2 class cứng `.giuong-hang-thuong`/`.giuong-hang-cuoi` chỉ hỗ trợ đúng 3/4 cột như bản trước 2026-09-15) — kích thước đó là biến CSS `--seat-cell`, set trên chính `.giuong-hang` (**28px, KHÔNG PHẢI 54px như bản ghi cũ ở đây** — sai sót phát hiện lúc audit tablet 2026-09-21, đã grep xác nhận không có nơi nào khác override giá trị 28px này). Từ tablet, `--seat-cell` được nới lên 44px/52px — xem mục "Tối ưu mobile / PWA" phần quy ước tablet.
     - **Hàng 1-5 giãn từ 3 giường liền (vt 1,2,3) sang vt 1,3,5; hàng 6 giãn từ vt 1,3 sang vt 1,5** (2026-09-16, theo ảnh mockup thứ 3 khớp layout tổng thể — hàng 7 giữ nguyên) — CHỈ đổi `vi_tri` (dời chỗ trong cùng hàng, KHÔNG đổi `hang`, không xoá/tạo giường), áp dụng đối xứng cả 2 tầng (tầng trên khi đó GIẢ ĐỊNH đối xứng tầng dưới, chưa có ảnh xác nhận riêng — owner chưa phản hồi khác nên giữ giả định này). `renderGiuongGrid()` không cần sửa gì (đã tự tính cột theo `vi_tri` lớn nhất từ đợt sửa hàng 6 trước) — chỉ đổi data là hàng 1-5 tự hiện đúng 5 cột với giường ở cột 1/3/5 (giãn cách đều 2 bên), hàng 6 hiện giường ở cột 1/5. Đã verify: tổng vẫn 44 giường, không có `(tang,hang,vi_tri)` trùng lặp, và `ve.giuong_id` không đổi khi dời `vi_tri` nên vé cũ (nếu có) vẫn join đúng giường vật lý — không cần touch bảng `ve`.
     - **`ma` đánh số lại theo đúng thứ tự trái→phải, xuống hàng (2026-09-16, sau khi phát hiện lệch)** — nhiều đợt di dời `vi_tri` ở trên (2026-09-15/16) chỉ đổi vị trí hiển thị mà KHÔNG đánh số lại `ma`, dẫn tới `ma` không còn khớp thứ tự đọc trên sơ đồ (vd hàng 1 từng là `T1-01, T1-03, T1-17` — nhảy cóc; hàng cuối từng là `...T1-21, T1-02` — ghế phải cùng lại mang mã `02`). Chạy `UPDATE` qua `row_number() over (partition by tang order by hang, vi_tri)` (2 bước, đổi qua mã tạm `TMP-...` trước để tránh đụng unique constraint `giuong_ma_key` giữa chừng) — giờ `ma` LUÔN = thứ tự đọc trái→phải, xuống hàng, liên tục `T{tang}-01`…`T{tang}-22`, khớp đúng sơ đồ hiện tại (hàng 1-5: 3 ghế/hàng ở vt 1,3,5; hàng 6: 2 ghế ở vt 1,5; hàng 7: 5 ghế liền vt 1-5). Chỉ đổi cột `ma` (text hiển thị), KHÔNG đổi `id` — 4 vé thật trong DB lúc chạy vẫn join đúng giường vật lý qua `ve.giuong_id`, không cần touch bảng `ve`. **Nếu sau này còn di dời `vi_tri`/`hang` (như 2 đợt trước), PHẢI chạy lại đúng UPDATE này** — không có gì trong code tự động giữ `ma` đồng bộ với thứ tự đọc, dễ tái diễn lệch nếu quên.
   - **UI sơ đồ đổi theo design handoff (2026-09-15)** — nhận 1 file mockup HTML (`design_handoff_seat_map`, không phải code sản xuất, chỉ là tham chiếu hình thức/hành vi) qua file đính kèm, không kèm chỉ dẫn bằng lời nào khác ngoài "chỉnh sửa theo mẫu hình". Đã port phần VISUAL/LAYOUT khớp mockup, GIỮ NGUYÊN phần dữ liệu/form đã có sẵn đúng schema thật (mockup dùng field/hành vi mock không khớp DB thật — xem "Không port theo mockup" bên dưới):
-    - **1 tầng/lượt qua tab** (`#tab-tang-1`/`#tab-tang-2`, biến `currentFloor`) thay cho 2 khối tầng cạnh nhau trước đó — `renderGiuongGrid()` chỉ vẽ tầng đang chọn, đổi tab không cần tải lại `ve` (đã có sẵn `veMap` cho cả chuyến). Đây cũng là cách fix triệt để hơn bug "icon phình to trên PWA desktop" đã vá tạm bằng cột px cố định (spec trước, 2026-09-15 sáng) — giờ dùng lại cột `1fr` nhưng khoá `max-width: 260px` cho hàng giường (giống mockup), nên tổng chiều rộng không bao giờ vượt ngưỡng đó dù màn hình rộng cỡ nào.
+    - **~~1 tầng/lượt qua tab~~ (`#tab-tang-1`/`#tab-tang-2`, biến `currentFloor`) — ĐÃ BỊ ĐẢO NGƯỢC sau đó, bullet này SAI so với code hiện tại, giữ lại có gạch ngang để biết lịch sử.** Bản 2026-09-15 (mô tả nguyên văn ở bullet này) từng đổi sang tab chọn 1 tầng — nhưng dòng comment còn sót lại ngay trong `khach.html` ("đã bỏ khái niệm tầng-đang-xem") xác nhận đã ĐẢO NGƯỢC lại về **2 tầng cạnh nhau cùng lúc** (`.tang-cols` flex, mỗi `.tang-col{flex:1 1 0}`) — không rõ đổi lại chính xác ngày nào (không có bullet ghi lại đợt đảo ngược này), phát hiện lúc audit tablet 2026-09-21 khi đọc code thay vì tin tài liệu. `dat-ve.html` dùng CHUNG pattern `.tang-cols` này (copy từ `khach.html`). Bài học: nếu nghi ngờ, đọc code — đừng tin CLAUDE.md khi nó mô tả hành vi UI có thể đã bị đổi lại mà không cập nhật tài liệu.
     - **Icon giường = SVG thật** (`SEAT_SVG`, hằng số dùng chung, khung viền `rx=10` + gối `rx=4.5` gần đáy, cả 2 nét `stroke="currentColor"`) thay cho div + `::before` CSS — màu đổi qua CSS `color` của `.giuong-icon` theo class trạng thái, không cần build lại SVG mỗi lần render.
     - **Thêm trạng thái thứ 3 "Đang chọn"** (`.dang-chon`, nền `--primary` đặc + icon trắng) — CHỈ hiện tạm thời trên đúng giường đang mở form (`selectedGiuongId`), mất ngay khi đóng modal — đây KHÔNG phải quay lại việc thêm màu cố định cho 1 nhóm giường như hàng cuối đã từ chối trước đó (2026-09-14), mà là phản hồi trực quan tức thời cho 1 thao tác đang diễn ra, tự động biến mất.
     - **Dòng "X giường trống · Y đã đặt"** (`#availability-caption`) tính riêng theo tầng đang xem, không phải cả xe.
