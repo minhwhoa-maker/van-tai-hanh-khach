@@ -142,6 +142,16 @@
            vì đây là trang DANH SÁCH kiện (khác form nhập liệu dùng 720px). */
         @media (min-width: 768px) and (min-height: 480px) {
             body { max-width: 960px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+
+            /* GIỮ 1 CỘT — thứ tự tỉnh dọc tuyến (tinh_tuyen.thu_tu) là nghiệp vụ, chia 2 cột sẽ
+               làm lẫn thứ tự đọc (crew cần đọc TUẦN TỰ đúng thứ tự đi trên đường trong 1 tỉnh, xem
+               CLAUDE.md mục km_moc) — KHÔNG đổi display/flex-direction ở đây, chỉ tăng kích thước
+               thumbnail + khoảng cách cho đỡ chật so với 44px/gap 12px mặc định (vốn nhỏ hơn cả
+               bản mobile @media max-width:600px ở trên — lịch sử để lại, chưa ai chỉnh cho khoảng
+               481-767px trước đây). .kien-menu (position:fixed, toạ độ tính bằng
+               getBoundingClientRect) và lightbox không cần sửa — đã tự thích ứng viewport động. */
+            .kien-row { gap: 16px; padding: 14px 20px; }
+            .kien-row img { width: 64px; height: 64px; }
         }
     </style>
 </head>
