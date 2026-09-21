@@ -116,6 +116,14 @@
            đây là trang form/nhập liệu nhiều bước (khác trang danh sách dùng 960px). */
         @media (min-width: 768px) and (min-height: 480px) {
             body { max-width: 720px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+
+            /* Camera nhúng trên tablet (2026-09-21) — video gốc chỉ có width:100% (theo body,
+               giờ đã rộng 720px), không giới hạn chiều cao — trên tablet NGANG (vd 1024x768),
+               video tỉ lệ rộng có thể cao gần hết viewport, đẩy nút "📸 Chụp"/"Hủy"
+               (.camera-live-actions, nằm NGAY DƯỚI trong flow bình thường) ra ngoài màn hình,
+               phải cuộn mới thấy. Cap max-height theo vh + object-fit:cover (giữ khung hình đầy,
+               không méo) để nút luôn còn trong tầm nhìn. Không đổi gì trên mobile (dưới 768px). */
+            #camera-live video { max-height: 45vh; object-fit: cover; }
         }
     </style>
 </head>
