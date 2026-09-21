@@ -322,6 +322,14 @@
         }
         @media (min-width: 1024px) and (min-height: 480px) {
             .giuong-hang { --seat-cell: 52px; }
+            /* 2 tháng cạnh nhau (2026-09-21) — 640px (breakpoint 768px) quá hẹp để đặt 2 khối
+               tháng đọc thoải mái (đúng vấn đề gặp phải lúc thử ở 480px trước đây, chỉ đỡ hơn chứ
+               chưa hết) — nới thêm cho riêng khối lịch, vẫn theo nguyên tắc "giới hạn max-width,
+               không phóng to chữ": 880px đủ chỗ cho 2 cột lịch ~7 ô/hàng dễ đọc mà không cần tăng
+               font. `.gia-ve-bar` (chỉ xuất hiện SAU khi đã qua bước lịch, ở bước chọn giường) vẫn
+               giữ 640px — không cần nới, tránh nút "Đặt vé" bị kéo dài quá mức ở bước đó. */
+            body { max-width: 880px; }
+            .lich-thang-wrap { gap: 16px; }
         }
     </style>
 </head>
@@ -840,26 +848,43 @@
         }
 
         // Vẽ lại lịch theo baseMonthOffset hiện tại — gọi lại mỗi khi đổi tháng HOẶC khi tô/bỏ tô
-        // cam 1 ngày. CHỈ 1 KHỐI THÁNG (đổi 2026-09-19, đợt 2 — bản 2 khối cạnh nhau theo spec gốc
-        // trên thực tế phải thu nhỏ chữ/ô tới mức khó đọc trên điện thoại để vừa 480px, owner xem
-        // ảnh chụp thật xong yêu cầu quay lại 1 tháng/màn hình cho dễ nhìn, đổi ‹›  để lùi/tới).
+        // cam 1 ngày. 1 KHỐI THÁNG dưới 1024px (đổi 2026-09-19, đợt 2 — bản 2 khối cạnh nhau theo
+        // spec gốc trên thực tế phải thu nhỏ chữ/ô tới mức khó đọc trên điện thoại để vừa 480px,
+        // owner xem ảnh chụp thật xong yêu cầu quay lại 1 tháng/màn hình cho dễ nhìn, đổi ‹› để
+        // lùi/tới). **2 KHỐI cạnh nhau từ 1024px (tablet, 2026-09-21)** — đủ chỗ ngang để không
+        // lặp lại vấn đề chữ bị bóp như trên điện thoại; chỉ khối ĐẦU TIÊN có nút ‹›, khối thứ 2
+        // (tháng kế tiếp) chỉ hiện tiêu đề — tránh 2 cặp nút cùng chỉnh 1 biến `baseMonthOffset`
+        // dùng chung gây cảm giác "bấm 1 nút mà cả 2 khối cùng nhảy" khó hiểu. `matchMedia` listener
+        // (đăng ký 1 lần, xem cuối hàm renderChonChuyenStep) gọi lại đúng hàm này khi xoay màn hình
+        // qua lại ngưỡng 1024px — KHÔNG cần xử lý riêng gì để "giữ ngày đang chọn tạm"
+        // (`ngayDangChonTam`) vì đó là biến JS module-level, render lại chỉ đọc lại giá trị cũ,
+        // tự động tô đúng ô (xem renderNgayO).
         function renderLichThang() {
             const wrapEl = document.getElementById('lich-thang-wrap')
             wrapEl.textContent = ''
             const goc = thangCuaNgay(homNayStr)
-            const thang = themThang(goc, baseMonthOffset)
-            wrapEl.appendChild(renderThangBlock(thang, baseMonthOffset <= 0))
+            const thang1 = themThang(goc, baseMonthOffset)
+            wrapEl.appendChild(renderThangBlock(thang1, baseMonthOffset <= 0, true))
+            if (window.matchMedia('(min-width: 1024px) and (min-height: 480px)').matches) {
+                const thang2 = themThang(goc, baseMonthOffset + 1)
+                wrapEl.appendChild(renderThangBlock(thang2, true, false))
+            }
         }
 
-        function renderThangBlock({ y, m }, khoaLui) {
+        function renderThangBlock({ y, m }, khoaLui, hienDieuHuong) {
             const block = document.createElement('div')
             block.className = 'lich-thang-block'
             const header = document.createElement('div')
             header.className = 'lich-thang-header'
-            header.innerHTML = `<button type="button" class="btn-lui"${khoaLui ? ' disabled' : ''}>‹</button>` +
-                `<span>Tháng ${m}/${y}</span><button type="button" class="btn-toi">›</button>`
-            header.querySelector('.btn-lui').addEventListener('click', () => { baseMonthOffset--; renderLichThang() })
-            header.querySelector('.btn-toi').addEventListener('click', () => { baseMonthOffset++; renderLichThang() })
+            if (hienDieuHuong) {
+                header.innerHTML = `<button type="button" class="btn-lui"${khoaLui ? ' disabled' : ''}>‹</button>` +
+                    `<span>Tháng ${m}/${y}</span><button type="button" class="btn-toi">›</button>`
+                header.querySelector('.btn-lui').addEventListener('click', () => { baseMonthOffset--; renderLichThang() })
+                header.querySelector('.btn-toi').addEventListener('click', () => { baseMonthOffset++; renderLichThang() })
+            } else {
+                header.innerHTML = `<span>Tháng ${m}/${y}</span>`
+                header.style.justifyContent = 'center'
+            }
             block.appendChild(header)
 
             const tuanHeader = document.createElement('div')
@@ -887,6 +912,15 @@
             block.appendChild(grid)
             return block
         }
+
+        // Đăng ký DUY NHẤT 1 LẦN ở top-level (cùng convention với listener document click của
+        // .kien-menu ở manifest-hang.html — đặt trong renderChonChuyenStep sẽ chồng listener mỗi
+        // lần hàm đó chạy lại, vd sau "Đổi chuyến khác"). Guard `#lich-thang-wrap` tồn tại: sau khi
+        // khách đã chọn xong ngày/chiều, khối lịch bị thay bằng renderChuyenDaChonBar (thu gọn) —
+        // lúc đó xoay màn hình không có gì để vẽ lại, bỏ qua an toàn.
+        window.matchMedia('(min-width: 1024px) and (min-height: 480px)').addEventListener('change', () => {
+            if (document.getElementById('lich-thang-wrap')) renderLichThang()
+        })
 
         // Âm lịch tính LẠI Ở CLIENT (convertSolar2Lunar, dùng chung hàm global từ shared.js) cho
         // MỌI ô — kể cả ngày ngoài khoảng server trả về (quá khứ, hoặc quá xa tương lai nếu khách
