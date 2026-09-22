@@ -26,6 +26,8 @@ const DUONG_DAN_CHO_PHEP_BOOKING = new Set([
     '/manifest-dat-ve.json', // file tĩnh cũ, giữ tới khi test xong trên điện thoại thật — xem CLAUDE.md
     '/style.css',
     '/shared.js',
+    '/point-match.js', // dùng cho boDau() trong picker Tỉnh->Xã/Huyện (2026-09-22, thay diem_khach)
+    '/data/tinh-xa-huyen.json', // dữ liệu xã/huyện cũ/mới cho picker cùng tính năng trên
     '/icons/icon-192-booking.png',
     '/icons/icon-512-booking.png',
     '/api/manifest-dat-ve',

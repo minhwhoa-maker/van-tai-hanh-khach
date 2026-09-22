@@ -1,4 +1,8 @@
-const CACHE_NAME = 'eakar-hang-v2';
+// v3 (2026-09-22, Bỏ diem_khach): khach.html thêm phụ thuộc point-match.js (boDau, lọc picker
+// Tỉnh->Xã/Huyện) + data/tinh-xa-huyen.json (dữ liệu xã/huyện) — thêm vào STATIC_ASSETS, bump để
+// dọn cache cũ. Nhân tiện thêm point-match.js vào đây dù manifest-hang.html đã dùng từ trước (sót
+// khỏi STATIC_ASSETS ở đợt thêm tính năng đó, không phải lỗi mới của đợt này).
+const CACHE_NAME = 'eakar-hang-v3';
 const STATIC_ASSETS = [
     './login.html',
     './auth-callback.html',
@@ -9,8 +13,10 @@ const STATIC_ASSETS = [
     './manifest.json',
     './idb-queue.js',
     './km-moc.js',
+    './point-match.js',
     './data/tuyen_chuan_bactien.json',
     './data/tinh_km_range.json',
+    './data/tinh-xa-huyen.json',
     './icons/icon-192.png',
     './icons/icon-512.png'
 ];

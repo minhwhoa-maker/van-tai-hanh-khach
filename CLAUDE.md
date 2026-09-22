@@ -287,7 +287,7 @@ NGUYÊN `portrait` (khách lẻ dùng điện thoại, ít khi gắn cố địn
       cảnh crew nội bộ). Ẩn khi 0 giường chọn HOẶC `chuyenDaXong`. Nút "Tiếp tục" mở
       `#dat-nhieu-modal` (dùng CHUNG class `.ve-modal`/`.ve-modal-card` với modal sửa-1-vé cũ —
       bottom-sheet mobile, hộp giữa màn tablet tự động qua media query đã có).
-    - **Form đặt vé** (`#dat-nhieu-modal`) — Tên/SĐT (không bắt buộc, 1 bộ áp dụng cho MỌI giường
+    - **Form đặt vé** (`#dat-nhieu-modal`) — **ĐOẠN NÀY LỖI THỜI (2026-09-22)**: `renderDiemKhachOptionsTheoTinh`/`openDiemKhachModal`/2 dropdown "Điểm đón/trả" mô tả dưới đây ĐÃ BỊ GỠ BỎ HOÀN TOÀN, xem mục "Bỏ diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" ở trên — điểm đón/trả giờ chọn SẴN ở dải "Nơi xuất phát/Điểm đến" phía trên form này, modal chỉ còn HIỂN THỊ LẠI (không chọn lại). Giữ nguyên văn lịch sử bên dưới: Tên/SĐT (không bắt buộc, 1 bộ áp dụng cho MỌI giường
       đã chọn — muốn khác nhau thì sửa từng vé sau ở chế độ Danh sách), **Giá mỗi giường** (prefill
       `tinhGiaVeCrew()`, crew sửa được), Điểm đón/trả (tùy chọn, LỌC THEO TỈNH đã chọn qua
       `renderDiemKhachOptionsTheoTinh` — hàm MỚI, KHÁC `renderDiemKhachOptions` cũ vốn sắp theo
@@ -318,7 +318,7 @@ NGUYÊN `portrait` (khách lẻ dùng điện thoại, ít khi gắn cố địn
       khai qua `api/cong-khai-dat-ve.js` (đã sửa ở Phần 1) — `tinh_len_ma`/`tinh_xuong_ma`/
       `nguon='khach_tu_dat'` đúng, 404/400 các ca ownership/nx cũ vẫn đúng. Đã dọn sạch data test
       sau khi xong — `select slug from nha_xe` chỉ còn `eakar`.
-  - **`ve`**: 1 dòng/vé, `giuong_id` + `chuyen_id` + thông tin khách + `diem_len_id`/`diem_xuong_id` (FK `diem_khach`) + `gia` (nhập theo nghìn đồng, cùng quy ước `tien_thu`/`tien_thu_ho` bên hàng hoá — có `soTienBangChu` hiện chữ đọc số). **Partial unique index `uq_ve_giuong_active` trên `(chuyen_id, giuong_id) WHERE trang_thai = 'da_dat'`** — chặn 2 vé active cùng giường/chuyến nhưng vẫn cho đặt lại giường sau khi vé cũ `huy` (bản đầu của spec viết nhầm thành `UNIQUE` constraint không điều kiện trong `CREATE TABLE` rồi `DROP INDEX` cùng tên — lỗi SQL thật (Postgres không cho drop index đang backing 1 constraint bằng `DROP INDEX` trực tiếp) VÀ sai logic (khoá luôn giường sau 1 lần huỷ vé) — đã sửa trước khi chạy migration, chỉ dùng đúng 1 `CREATE UNIQUE INDEX ... WHERE ...` sau khi tạo bảng thường). Client bắt lỗi `23505` (unique violation) khi 2 crew cùng bấm 1 giường gần như đồng thời → toast báo tải lại, không crash.
+  - **`ve`**: 1 dòng/vé, `giuong_id` + `chuyen_id` + thông tin khách + `diem_len_id`/`diem_xuong_id` (FK `diem_khach`, **DEPRECATED 2026-09-22 — KHÔNG còn ghi từ app, xem mục "Bỏ diem_khach"**, cột giữ nullable cho dữ liệu cũ) + `dia_diem_len_nhan`/`dia_diem_xuong_nhan` (text, nullable — nhãn tự do thay thế, migration `ve_dia_diem_len_xuong_nhan`) + `dia_diem_len_loai`/`dia_diem_xuong_loai` (text, check `in ('xa','huyen')`) + `gia` (nhập theo nghìn đồng, cùng quy ước `tien_thu`/`tien_thu_ho` bên hàng hoá — có `soTienBangChu` hiện chữ đọc số). **Partial unique index `uq_ve_giuong_active` trên `(chuyen_id, giuong_id) WHERE trang_thai = 'da_dat'`** — chặn 2 vé active cùng giường/chuyến nhưng vẫn cho đặt lại giường sau khi vé cũ `huy` (bản đầu của spec viết nhầm thành `UNIQUE` constraint không điều kiện trong `CREATE TABLE` rồi `DROP INDEX` cùng tên — lỗi SQL thật (Postgres không cho drop index đang backing 1 constraint bằng `DROP INDEX` trực tiếp) VÀ sai logic (khoá luôn giường sau 1 lần huỷ vé) — đã sửa trước khi chạy migration, chỉ dùng đúng 1 `CREATE UNIQUE INDEX ... WHERE ...` sau khi tạo bảng thường). Client bắt lỗi `23505` (unique violation) khi 2 crew cùng bấm 1 giường gần như đồng thời → toast báo tải lại, không crash.
     - **`tinh_len_ma`/`tinh_xuong_ma` (thêm 2026-09-21, migration `ve_tinh_len_xuong_ma`) — trả nợ
       "vé không biết khách xuống đâu" khi tỉnh chưa có `diem_khach`.** Trước đó `dat-ve.html` cho
       khách chọn TỈNH (không bắt chọn điểm cụ thể, xem mục "Đặt vé công khai") nhưng `ve` chỉ lưu
@@ -333,7 +333,11 @@ NGUYÊN `portrait` (khách lẻ dùng điện thoại, ít khi gắn cố địn
       `tinh_len_ma`/`tinh_xuong_ma` ĐÃ validate sẵn ở bước tính giá (không validate lại 2 lần).
       `khach.html`'s form đặt-nhiều-vé (xem bullet riêng bên dưới) cũng ghi 2 cột này từ
       `noiXuatPhatTinh`/`diemDenTinh` đang chọn.
-  - **`diem_khach`** — điểm đón/trả khách, TÁCH RIÊNG khỏi bảng `diem` của hàng hoá (quyết định owner) vì `diem` có cơ chế chống trùng + đếm `so_lan_giao` gắn riêng logic giao hàng, không phù hợp trộn với điểm đón khách (bến xe/điểm cố định, số lượng ít). **Không seed sẵn** — bảng khởi đầu trống. Spec gốc không có đường tạo điểm mới trong `khach.html` (giả định seed tay hoặc qua Supabase dashboard) — PHÁT HIỆN lúc implement: với bảng trống, form đặt vé sẽ không có gì để chọn ở 2 dropdown điểm lên/xuống, tính năng coi như không dùng được ngay từ đầu → đã TỰ THÊM nút "+" cạnh mỗi dropdown mở modal nhỏ (tên + chọn tỉnh) để crew tự thêm điểm dần ngay trong lúc đặt vé, không cần rời app. Đây là bổ sung ngoài spec ban đầu, không phải yêu cầu owner — cân nhắc lại UX này nếu owner muốn khác.
+  - **`diem_khach` — DEPRECATED (2026-09-22)**, bullet gốc bên dưới giữ lại chỉ để biết lịch sử —
+    xem mục "Bỏ diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" ở trên để biết trạng thái hiện tại
+    (bảng vẫn còn trong DB, KHÔNG còn đường tạo mới/chọn mới từ app, cả nút "+" nhắc tới ngay dưới
+    đây LẪN 2 dropdown điểm lên/xuống đều đã bị gỡ bỏ hoàn toàn). Nguyên văn lịch sử:
+    điểm đón/trả khách, TÁCH RIÊNG khỏi bảng `diem` của hàng hoá (quyết định owner) vì `diem` có cơ chế chống trùng + đếm `so_lan_giao` gắn riêng logic giao hàng, không phù hợp trộn với điểm đón khách (bến xe/điểm cố định, số lượng ít). **Không seed sẵn** — bảng khởi đầu trống. Spec gốc không có đường tạo điểm mới trong `khach.html` (giả định seed tay hoặc qua Supabase dashboard) — PHÁT HIỆN lúc implement: với bảng trống, form đặt vé sẽ không có gì để chọn ở 2 dropdown điểm lên/xuống, tính năng coi như không dùng được ngay từ đầu → đã TỰ THÊM nút "+" cạnh mỗi dropdown mở modal nhỏ (tên + chọn tỉnh) để crew tự thêm điểm dần ngay trong lúc đặt vé, không cần rời app. Đây là bổ sung ngoài spec ban đầu, không phải yêu cầu owner — cân nhắc lại UX này nếu owner muốn khác.
   - **Không có trạng thái "đã lên/đã xuống xe"** (khác `kien.trang_thai`/`da_giao`) — v1 chỉ cần biết "đã đặt hay chưa" (`trang_thai 'da_dat'|'huy'`), cố ý đơn giản theo spec, có thể mở rộng sau nếu cần theo dõi lúc lên/xuống xe thực tế.
   - **Không có offline-queue cho `ve`** (khác `idb-queue.js` của `kien`) — vé cần mạng để lưu ngay, tránh 2 khách trùng giường khi offline khó merge (cố ý theo spec, khác triết lý offline-first của `hang.html`).
   - **RLS bật + policy allow-all cho `authenticated`** trên cả 3 bảng (`giuong` chỉ có policy `SELECT`, không cần ghi từ client) — xem ghi chú RLS chung ở mục Database bên dưới (đã sửa lại nhận định "RLS disabled" cũ, thực ra RLS đã bật từ trước với policy allow-all).
@@ -592,8 +596,13 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
       `chonNgay` (chọn ngày mới) kế tiếp mới reset lại về mặc định 2 đầu tuyến. `.dia-diem-picker-card`
       thêm `max-height:75vh; overflow-y:auto` (giống `.ve-modal-card` ở `khach.html`) — 17 dòng
       không còn vừa màn hình nhỏ như bản 2 dòng cố định trước đó.
-    - **BỎ HẲN Bước "Chọn điểm lên/xuống" (2026-09-19, đợt 10, theo yêu cầu) — sau khi xác nhận tỉnh
-      xuất phát/đến ở Bước 0, đi THẲNG sang sơ đồ giường**, không còn dropdown `#diem-len-select`/
+    - **BỎ HẲN Bước "Chọn điểm lên/xuống" (2026-09-19, đợt 10, theo yêu cầu)** — bullet này mô tả
+      `timDiemChoTinh`/`diemLenId`/`diemXuongId`, đã BỊ THAY THẾ HOÀN TOÀN bởi picker Tỉnh→Xã/Huyện
+      (2026-09-22) — xem mục "Bỏ diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" phía trên. Giữ lại
+      nguyên văn bên dưới chỉ để biết lịch sử/lý do "tỉnh chưa có diem_khach vẫn cho đặt vé bình
+      thường" (nguyên tắc đó vẫn còn đúng tinh thần dù cơ chế đã đổi hẳn).
+      Sau khi xác nhận tỉnh xuất phát/đến ở Bước 0, đi THẲNG sang sơ đồ giường, không còn dropdown
+      `#diem-len-select`/
       `#diem-xuong-select` chờ khách chọn `diem_khach` cụ thể (đã bỏ hẳn HTML/CSS `.diem-chon-wrap`/
       `.cho-chon-diem-hint`, hàm `renderDiemKhachOptions`, listener `capNhatHienThiSoDo`). Thay bằng
       `timDiemChoTinh(tinhMa)` — tự lấy điểm ĐẦU TIÊN (sắp theo `thu_tu`, null xuống cuối) của đúng
@@ -1255,6 +1264,160 @@ Zalo Login OAuth ở `login.html`) — mục đích khác nhau, không liên qua
   đúng số vừa xác thực, hiện dấu "✓ Đã xác thực". Nút "Đặt vé" so `sdt` đang gõ với
   `sdtDaXacThucOtp` — lệch (kể cả đổi số sau khi đã xác thực số khác) → chặn, báo toast yêu cầu xác
   thực lại; listener `input` trên `#f-sdt` tự ẩn dấu ✓/khối nhập mã khi số không khớp nữa.
+
+### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
+
+Áp dụng cho `dat-ve.html` (khách tự đặt online) + `khach.html` (crew đặt vé nội bộ). **KHÔNG áp
+dụng cho `hang.html`** (nhập kiện hàng) — trang đó dùng bảng `diem` riêng, không liên quan gì tới
+`diem_khach`, giữ nguyên 100% cách chọn tỉnh hiện có.
+
+**Vấn đề gốc**: từ đợt "Bỏ hẳn Bước Chọn điểm lên/xuống" (2026-09-19, đợt 10) ở `dat-ve.html`,
+khách đặt vé cho cặp tỉnh CHƯA có `diem_khach` (đa số 15/17 tỉnh, chỉ ĐL/HD có điểm thật) sẽ có
+`diem_xuong_id = null`. `manifest-hang.html` có guard `if (!v.diem_xuong) return` — vé này bị
+loại thẳng khỏi manifest, KHÔNG hiện ở đâu cả — crew không biết khách này tồn tại nếu chỉ xem
+trang đó. Giải pháp: bỏ hẳn khái niệm `diem_khach` (điểm cụ thể, kiểu bến xe) khỏi luồng đặt vé,
+thay bằng chọn **Tỉnh → Xã/Huyện**, có toggle tìm theo tên hành chính CŨ (trước sáp nhập 7/2025,
+63 tỉnh) hoặc MỚI (sau sáp nhập, 34 tỉnh) — giống pattern Vexere (nút gạt "Địa chỉ mới", gõ để lọc
+gợi ý). `manifest-hang.html` nhóm lại theo `ve.tinh_xuong_ma` (đã có sẵn cột này từ đợt
+2026-09-21) — không còn phụ thuộc `diem_khach` có tồn tại dữ liệu hay không, giải quyết đúng gốc
+vấn đề.
+
+**18 dòng `tinh_tuyen` của app giữ nguyên rời rạc, KHÔNG gộp lại** dù tên tỉnh MỚI trùng nhau —
+quan trọng để không mất `thu_tu`/`gia_moc` cần cho tính giá và xếp thứ tự manifest. Việc phân biệt
+tỉnh CŨ vẫn làm được ở CẤP TỈNH (không cần xuống xã) vì 18 dòng không gộp; dữ liệu xã/huyện chỉ cần
+cho việc chọn vị trí cụ thể HƠN tỉnh (Bước 2), không phải để giải quyết trùng tên.
+
+- **Nguồn dữ liệu xã/huyện** — `data/tinh-xa-huyen.json` (JSON tĩnh, KHÔNG phải bảng DB — cùng
+  tiền lệ `data/tinh_km_range.json`/`data/tuyen_chuan_bactien.json`, tránh migration/RLS cho dữ
+  liệu tham chiếu chỉ đọc, không đổi thường xuyên) — build 1 LẦN từ file CSV
+  `convert_legacy_2025_with_location_and_default_ward.csv` của repo GitHub
+  **`tranngocminhhieu/vietnamadminunits`** (MIT license, đã trinh sát/kiểm chứng trước khi dùng:
+  10.602 dòng, đủ trường `province`/`district`/`ward` (CŨ) + `newProvince`/`newWard` (MỚI), số
+  liệu khớp thực tế khi lọc theo tỉnh — xem lịch sử trinh sát trong session; `sapnhap.bando.com.vn`
+  có API ẩn thật (`POST /p.co_dvhc`, không cần key) nhưng dataset trên ĐÃ dùng chính nguồn đó làm
+  input nên không cần tự cào lại). **17 tỉnh** (18 dòng `tinh_tuyen` trừ Khánh Hòa — quy ước có sẵn
+  ở `tinhTuyenChoDatVe()`), mỗi tỉnh 1 entry key theo `tinh_tuyen.ma`:
+  ```json
+  { "DLK": { "ten_cu": "Đắk Lắk", "ten_moi": "Đắk Lắk", "huyen_cu": [...], "xa_moi": [...] }, ... }
+  ```
+  `huyen_cu` = tên huyện CŨ đã bỏ tiền tố loại (Thành phố/Thị xã/Huyện/Quận); `xa_moi` = tên xã MỚI
+  GIỮ NGUYÊN tiền tố loại (Phường/Xã, để phân biệt trùng tên hiếm gặp). `ten_moi` GEN SẴN nhãn phân
+  biệt cho dòng KHÔNG PHẢI "chính" — quy tắc mechanical: so `ten_cu` với tên tỉnh mới đã bỏ tiền tố
+  ("Tỉnh"/"Thành phố"), TRÙNG Y HỆT → "chính" → giữ nguyên tên mới; KHÔNG trùng (kể cả chỉ đổi
+  tên, không sáp nhập — vd Thừa Thiên Huế→Huế) → `"<tên mới> (vùng <tên cũ> cũ)"`. Kết quả gen ra
+  khớp đúng bảng đối chiếu tay đã kiểm trước khi build: DLK/PYN đều → "Đắk Lắk" (PYN thêm hậu tố),
+  DNG/QNM đều → "Đà Nẵng" (QNM thêm hậu tố), QTR/QBH đều → "Quảng Trị" (QBH thêm hậu tố), NBH/HNM
+  đều → "Ninh Bình" (HNM thêm hậu tố), BDN → "Gia Lai (vùng Bình Định cũ)", TTH → "Huế (vùng Thừa
+  Thiên Huế cũ)", HDG → "Hải Phòng (vùng Hải Dương cũ)", còn lại (QNG, HTI, NAN, THA, HNI, HYN)
+  giữ nguyên tên không đổi. Script build KHÔNG lưu trong repo (chạy 1 lần thủ công lúc làm tính
+  năng) — cần build lại thì lặp lại đúng logic mechanical trên từ file CSV gốc.
+
+- **Schema `ve`** (migration `ve_dia_diem_len_xuong_nhan`) — **KHÔNG xoá** `diem_len_id`/
+  `diem_xuong_id` (giữ nullable, chỉ ngừng ghi từ ứng dụng — dữ liệu vé CŨ đã có 2 cột này vẫn tra
+  cứu/hiển thị lại được bình thường qua `tenDiemKhach()`, xem bullet `khach.html` bên dưới). Thêm
+  4 cột mới: `dia_diem_len_nhan`/`dia_diem_xuong_nhan` (text, nullable — nhãn địa điểm cụ thể chọn
+  ở Bước 2, vd `"Xã Bản Nguyên"`) và `dia_diem_len_loai`/`dia_diem_xuong_loai` (text, check
+  `in ('xa','huyen')`, nullable — tránh phải suy luận qua tiền tố chữ trong nhãn lúc hiển thị lại).
+  Bảng `diem_khach` **KHÔNG DROP** — giữ nguyên trong DB (dữ liệu ĐL/HD cũ vẫn còn), chỉ ngừng dùng
+  ở tầng ứng dụng, coi như **deprecated**.
+
+- **Middleware/Service Worker** — `middleware.js` (allow-list origin booking) thêm
+  `/point-match.js` + `/data/tinh-xa-huyen.json` (2 dependency mới của `dat-ve.html`, thiếu sẽ
+  404 trên `eakar-booking.vercel.app`). `sw-dat-ve.js` bump `v4` → `v5` (thêm 2 asset trên vào
+  `STATIC_ASSETS`). `sw.js` (crew) bump `v2` → `v3` (thêm `point-match.js` — SÓT từ đợt
+  `manifest-hang.html` dùng trước đó, không phải lỗi mới của đợt này — + `data/tinh-xa-huyen.json`
+  cho `khach.html`).
+
+- **Component picker Tỉnh→Xã/Huyện — VIẾT RIÊNG trong TỪNG file** (`dat-ve.html` và `khach.html`
+  đều có bản implementation riêng của mình, KHÔNG tách ra file JS dùng chung) — khác quyết định ban
+  đầu cân nhắc tách file `dia-diem-picker.js` giống `shared.js`/`idb-queue.js`; chọn giữ tại chỗ vì
+  2 trang có 3+ điểm gọi khác nhau (dải Bước 0, nút sửa vé đã đặt, form đặt-nhiều-vé) với
+  `onChonXong` callback riêng biệt từng nơi, tách file sẽ cần truyền quá nhiều tham số qua lại,
+  không rõ lợi ích hơn giữ tại chỗ ở quy mô 2 file này. Cả 2 bản đều mở rộng CHÍNH modal
+  `#dia-diem-picker` có sẵn (đổi `.dia-diem-picker-card` từ nội dung tĩnh sang `id` rỗng, JS tự
+  build lại toàn bộ nội dung mỗi lần mở/đổi bước) thành **drill-down 2 bước trong CÙNG 1 phiên mở
+  picker**: Bước 1 chọn tỉnh (17 tỉnh, loại tỉnh đang chọn ở ĐẦU KIA nếu có — không cho trùng
+  xuất phát/điểm đến), Bước 2 chọn xã (toggle "Mới") hoặc huyện (toggle "Cũ") CỦA ĐÚNG tỉnh vừa
+  chọn, đọc từ `data/tinh-xa-huyen.json`. Chọn xong Bước 2 mới gọi `onChonXong({tinh, nhan, loai})`
+  rồi đóng picker.
+  - **Search input KHÔNG bị re-render khi gõ** — tách `renderDiaDiemPicker()` (vẽ khung: header/
+    toggle/search input, gọi khi đổi bước/toggle) khỏi `renderDdpList()` (chỉ vẽ lại
+    `#ddp-list`, gọi thêm mỗi lần gõ) — cùng bài học đã áp dụng cho `.item-qty-input` ở
+    `hang.html`: re-render nguyên khối kể cả input đang gõ sẽ làm mất focus/con trỏ giữa chừng.
+  - **Đổi toggle Cũ/Mới GIỮA CHỪNG lúc đang ở Bước 2 → reset về Bước 1, xoá tỉnh đang chọn tạm**
+    (quyết định owner, hỏi qua `AskUserQuestion` trước khi code — tránh kẹt "tỉnh hiện tên cũ
+    nhưng xã bên dưới lại là danh sách xã mới") — cùng nguyên tắc `doiChuyenKhac()` đã áp dụng ở
+    `dat-ve.html`. Đổi toggle lúc còn Bước 1 (chưa chọn tỉnh) chỉ vẽ lại list theo nguồn mới,
+    không cần reset gì.
+  - **Toggle mặc định = tên CŨ** (quyết định owner) — giữ trải nghiệm hiện tại của app (tên cũ làm
+    chuẩn xuyên suốt `tinh_tuyen.ten`/`hang.html`/`dat-ve.html`).
+
+- **`dat-ve.html`** — `moDiaDiemPicker(vaiTro)` (gọi từ bấm `.route-place-value` ở
+  `renderChieuSelector`, xem mục "Đặt vé công khai") giờ mở picker 2 bước thay vì list tỉnh đơn.
+  Chọn xong Bước 2 set CẢ `noiXuatPhatTinh`/`diemDenTinh` (như trước) LẪN state mới
+  `noiXuatPhatDiaDiem`/`diemDenDiaDiem` ({nhan, loai}) — 2 biến mới CÙNG vòng đời với
+  `noiXuatPhatTinh`/`diemDenTinh` (không reset theo `chonNgay`/`doiChuyenKhac`, chỉ đổi khi khách
+  tự chọn lại). `renderChieuSelector` hiện thêm nhãn xã/huyện đã chọn (`.route-place-sub`, chữ nhỏ
+  màu muted) ngay dưới tên tỉnh. `chonChuyen()`/submit `#btn-dat-ve` KHÔNG còn gọi `timDiemChoTinh`
+  (hàm đã XOÁ, cùng biến `diemKhachList` không dùng nữa) — gửi thẳng `dia_diem_len_nhan/loai`,
+  `dia_diem_xuong_nhan/loai` thay cho `diem_len_id`/`diem_xuong_id` trong body POST tới
+  `api/cong-khai-dat-ve.js`.
+  - **`api/cong-khai-dat-ve.js`** — bỏ hẳn nhận/verify `diem_len_id`/`diem_xuong_id` (KHÔNG còn là
+    FK từ client, không cần `xacMinhThuocNhaXe`). Nhận `dia_diem_len_nhan/loai`,
+    `dia_diem_xuong_nhan/loai` — validate NHẸ (chỉ check `loai` nếu có phải đúng `'xa'`/`'huyen'`,
+    thà chặn ở API với thông điệp rõ ràng hơn để insert dưới rớt lỗi DB khó hiểu), KHÔNG cần
+    verify ownership (không phải FK). `diem_len_id`/`diem_xuong_id` KHÔNG còn truyền vào `.insert`
+    (tự `null` vì cột nullable, không có default).
+
+- **`khach.html`** — 3 nơi từng dùng `diem_khach` đều đã chuyển sang picker Tỉnh→Xã/Huyện, **không
+  sót luồng nào**:
+  1. **Dải "Nơi xuất phát/Điểm đến"** (Bước 0 Sơ đồ, `moDiaDiemPickerCrew` — wrapper gọi
+     `moTinhXaHuyenPicker` dùng chung) — y hệt `dat-ve.html`, set `noiXuatPhatDiaDiem`/
+     `diemDenDiaDiem`. Form đặt-nhiều-vé (`#dat-nhieu-modal`) đã BỎ HẲN 2 dropdown "Điểm đón/trả"
+     + 2 nút "+" (`openDiemKhachModal` cũ) — chỉ còn 1 dòng hiển thị LẠI (không chọn lại) nhãn đã
+     chọn sẵn ở dải phía trên, để crew đối chiếu trước khi bấm "Đặt vé". `btn-dn-dat-ve` insert
+     ghi `dia_diem_len_nhan/loai`/`dia_diem_xuong_nhan/loai` thay `diem_len_id`/`diem_xuong_id`.
+  2. **`renderVeRowEdit`** (Danh sách, sửa-1-vé-tại-chỗ) — 2 `<select>` cũ đổi thành 2 nút "📍 Đón:
+     .../📍 Trả: ..." (`.edit-diem-btn`), bấm mở `moTinhXaHuyenPicker` với `tinhHienTai` suy từ
+     `ve.tinh_len_ma`/`tinh_xuong_ma` hiện có (tra ngược qua `tinhList`) và `tinhBenKiaMa` = tỉnh
+     phía CÒN LẠI (đón loại tỉnh đang chọn ở trả, và ngược lại — không cho trùng 1 tỉnh 2 đầu,
+     giống `dat-ve.html`). State `lenChon`/`xuongChon` là biến CỤC BỘ trong closure của lần
+     `renderVeRowEdit` đó (khác `openVeModal`, xem dưới) — lưu xong ghi cả
+     `tinh_len_ma`/`tinh_xuong_ma` LẪN `dia_diem_*_nhan/loai`.
+  3. **`openVeModal`** (Sơ đồ, sửa vé ĐÃ ĐẶT — bấm giường đã có `ve`) — cùng pattern nút "📍",
+     nhưng state `veModalLenChon`/`veModalXuongChon` là **module-level** (KHÔNG dùng closure cục
+     bộ được vì `btn-ve-luu` là listener đăng ký 1 LẦN ở top-level script, không phải mỗi lần mở
+     modal) — reset về `null` trong `closeVeModal()`. Nhánh `insert` (tạo mới) trong save handler
+     vẫn còn code (dead path — `openVeModal` giờ chỉ gọi khi `ve` đã tồn tại, xem bullet
+     `renderMotTang`) nhưng vẫn cập nhật field cho nhất quán, không xoá nhánh đó (ngoài phạm vi
+     đợt này).
+  - **Modal "Thêm điểm đón/trả mới" (`#diemkhach-modal`, `openDiemKhachModal`,
+    `renderDiemKhachTinhOptions`) ĐÃ GỠ BỎ HOÀN TOÀN** (HTML + JS, cả 4 nút "+" trigger) — không
+    còn đường tạo `diem_khach` mới từ app. `renderDiemKhachOptions` (dropdown builder cũ) cũng đã
+    xoá (hết nơi gọi). **`loadDiemKhachList()`/`diemKhachList`/`tenDiemKhach()` VẪN GIỮ** — dùng
+    làm FALLBACK hiển thị cho vé CŨ (`renderVeRowView`'s `tenDiaDiem(ve, vaiTro)`: ưu tiên
+    `dia_diem_*_nhan`, fallback `tenDiemKhach(diem_*_id)` nếu vé chưa có field mới).
+  - **`loadVeChoChuyen`'s `.select(...)`** thêm `tinh_len_ma`/`tinh_xuong_ma`/`dia_diem_len_nhan`/
+    `dia_diem_len_loai`/`dia_diem_xuong_nhan`/`dia_diem_xuong_loai` (giữ `diem_len_id`/
+    `diem_xuong_id` cho fallback) — thiếu field nào thì `tenDiaDiem`/nút "📍"/state khôi phục lúc
+    sửa sẽ sai/thiếu.
+
+- **`manifest-hang.html`** — bullet "Điểm trả khách chen vào cuối mỗi nhóm tỉnh" (2026-09-16) đổi
+  hẳn cách nhóm: TRƯỚC join `ve.diem_xuong_id → diem_khach` rồi nhóm theo `diem_khach.id` (nhiều
+  khách cùng 1 điểm gộp lại), GIỜ nhóm THẲNG theo `ve.tinh_xuong_ma` (không qua join gì) — KHÔNG
+  còn khái niệm "điểm" để nhóm con bên trong 1 tỉnh nữa, mỗi khách hiện thẳng thành 1 dòng trong
+  danh sách chung của tỉnh (`createKhachXuongGroupRow`, đổi tên từ `createDiemXuongRow`), kèm nhãn
+  `dia_diem_xuong_nhan` hoặc `"Chưa rõ vị trí cụ thể"` nếu null. Tiêu đề nhóm tỉnh đổi từ
+  `"+ N điểm trả khách"` sang `"+ N khách cần trả"` (khớp đúng ý nghĩa mới — đếm khách, không phải
+  đếm điểm). Sắp xếp trong tỉnh theo NHÃN xã/huyện (bỏ dấu), khách chưa rõ vị trí cụ thể xuống
+  cuối. Vé CŨ (trước 2026-09-21) không có `tinh_xuong_ma` → bị loại khỏi khối này (`if
+  (!v.tinh_xuong_ma) return`) — chấp nhận được, dữ liệu lịch sử không có gì để nhóm theo tỉnh.
+
+- **Test bắt buộc đã chạy** — xem cuối phần implementation trong lịch sử phiên làm việc: build
+  `data/tinh-xa-huyen.json` đối chiếu đúng bảng tay 17 tỉnh (4 cặp trùng tên: DLK/PYN, DNG/QNM,
+  QTR/QBH, NBH/HNM đều gen đúng hậu tố phân biệt); migration verify qua SQL trực tiếp (đủ 4 cột
+  mới, đúng check constraint); syntax check `node -e` cho cả 3 file HTML + `node --check` cho
+  `api/cong-khai-dat-ve.js` sau MỖI lần sửa lớn.
 
 ### Toạ độ điểm giao + km_moc (`km-moc.js`, `data/*.json`)
 

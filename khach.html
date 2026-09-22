@@ -38,6 +38,7 @@
             font-size: 22px; font-weight: 700; cursor: pointer;
         }
         .route-place-value.route-place-placeholder { font-size: 15px; font-weight: 400; color: var(--text-muted); }
+        .route-place-sub { font-size: 13px; font-weight: 400; color: var(--text-muted); border-bottom: none; }
         .route-swap-btn {
             position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
@@ -64,6 +65,26 @@
         .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
         .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
         .dia-diem-picker-option.dang-chon .check { visibility: visible; }
+        /* Bỏ diem_khach, thay bằng chọn Tỉnh -> Xã/Huyện (2026-09-22) — DÙNG CHUNG picker này cho
+           cả 3 nơi: dải "Nơi xuất phát/Điểm đến", nút "📍" trong renderVeRowEdit (Danh sách), nút
+           "📍" trong openVeModal (Sơ đồ, sửa vé đã đặt) — xem moTinhXaHuyenPicker(). */
+        .ddp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .ddp-header h3 { margin: 0; font-size: 17px; flex: 1; }
+        .ddp-back { border: none; background: none; font-size: 24px; font-weight: 700; color: var(--text); cursor: pointer; padding: 0 4px; line-height: 1; }
+        .ddp-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
+        .ddp-toggle input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+        .ddp-search {
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
+            margin-bottom: 4px;
+        }
+        .ddp-list { max-height: 46vh; overflow-y: auto; }
+        .ddp-empty { padding: 20px 4px; text-align: center; color: var(--text-muted); font-size: 14px; }
+        .edit-diem-btn {
+            width: 100%; text-align: left; padding: 10px 12px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); background: var(--white); font-size: 14px; color: var(--text);
+            cursor: pointer; font-family: inherit;
+        }
         .gia-ve-bar {
             display: none; position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
             width: 100%; max-width: 480px; box-sizing: border-box; z-index: 500;
@@ -369,15 +390,9 @@
                 <label>SĐT khách</label>
                 <input type="tel" id="ve-sdt-khach" placeholder="SĐT khách">
                 <label>Điểm lên</label>
-                <div class="diem-row">
-                    <select id="ve-diem-len"><option value="">— Chọn điểm lên —</option></select>
-                    <button type="button" class="btn-them-diem" id="btn-them-diem-len">+</button>
-                </div>
+                <button type="button" class="edit-diem-btn" id="ve-diem-len-btn">📍 Chưa chọn</button>
                 <label>Điểm xuống</label>
-                <div class="diem-row">
-                    <select id="ve-diem-xuong"><option value="">— Chọn điểm xuống —</option></select>
-                    <button type="button" class="btn-them-diem" id="btn-them-diem-xuong">+</button>
-                </div>
+                <button type="button" class="edit-diem-btn" id="ve-diem-xuong-btn">📍 Chưa chọn</button>
                 <label>Giá vé (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
                 <input type="number" inputmode="numeric" id="ve-gia" placeholder="vd 200">
                 <div class="tien-chu" id="ve-gia-chu"></div>
@@ -397,29 +412,15 @@
         </div>
     </div>
 
-    <div class="diemkhach-modal" id="diemkhach-modal">
-        <div class="diemkhach-modal-backdrop"></div>
-        <div class="diemkhach-modal-card">
-            <h3>Thêm điểm đón/trả mới</h3>
-            <label>Tên điểm</label>
-            <input type="text" id="diemkhach-ten" placeholder="vd Bến xe Hải Dương">
-            <label>Tỉnh</label>
-            <select id="diemkhach-tinh"></select>
-            <div class="diemkhach-modal-actions">
-                <button type="button" class="btn-ve-dong" id="btn-diemkhach-dong">Đóng</button>
-                <button type="button" class="btn-ve-luu" id="btn-diemkhach-luu">Lưu</button>
-            </div>
-        </div>
-    </div>
+    <!-- #diemkhach-modal (Thêm điểm đón/trả mới) ĐÃ BỊ GỠ BỎ (2026-09-22, xem SPEC "Bỏ diem_khach,
+         thay bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md) — mọi luồng chọn điểm đón/trả giờ dùng
+         picker Tỉnh->Xã/Huyện bên dưới, không còn tạo diem_khach mới từ app. -->
 
-    <!-- Modal chọn địa danh cho dải "Nơi xuất phát/Điểm đến" — COPY nguyên cấu trúc từ
-         dat-ve.html's #dia-diem-picker (JS: moDiaDiemPickerCrew). -->
+    <!-- Picker Tỉnh -> Xã/Huyện DÙNG CHUNG (2026-09-22) cho dải "Nơi xuất phát/Điểm đến", nút "📍"
+         trong renderVeRowEdit (Danh sách), nút "📍" trong openVeModal (Sơ đồ) — JS: moTinhXaHuyenPicker(). -->
     <div class="dia-diem-picker" id="dia-diem-picker">
         <div class="dia-diem-picker-backdrop"></div>
-        <div class="dia-diem-picker-card">
-            <h3 id="dia-diem-picker-title">Chọn nơi xuất phát</h3>
-            <div id="dia-diem-picker-options"></div>
-        </div>
+        <div class="dia-diem-picker-card" id="dia-diem-picker-card"></div>
     </div>
 
     <!-- Form đặt vé cho NHIỀU giường đã chọn (giống dat-ve.html) — dùng LẠI class .ve-modal/
@@ -437,16 +438,7 @@
             <label>Giá mỗi giường (nhập theo nghìn đồng, vd 200 = 200.000đ)</label>
             <input type="number" inputmode="numeric" id="dn-gia" placeholder="vd 200">
             <div class="tien-chu" id="dn-gia-chu"></div>
-            <label>Điểm đón (tùy chọn)</label>
-            <div class="diem-row">
-                <select id="dn-diem-len"><option value="">— Chọn điểm đón —</option></select>
-                <button type="button" class="btn-them-diem" id="btn-dn-them-diem-len">+</button>
-            </div>
-            <label>Điểm trả (tùy chọn)</label>
-            <div class="diem-row">
-                <select id="dn-diem-xuong"><option value="">— Chọn điểm trả —</option></select>
-                <button type="button" class="btn-them-diem" id="btn-dn-them-diem-xuong">+</button>
-            </div>
+            <div class="mota" id="dia-diem-da-chon-crew" style="margin-top:8px;color:var(--text-muted);font-size:13px;"></div>
             <div class="ve-modal-actions">
                 <button type="button" class="btn-ve-dong" id="btn-dn-dong">Đóng</button>
                 <button type="button" class="btn-ve-luu" id="btn-dn-dat-ve">Đặt vé</button>
@@ -476,6 +468,7 @@
     <div class="toast" id="toast"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="point-match.js"></script>
     <script src="shared.js"></script>
     <script>
         const sb = createSb()
@@ -489,7 +482,12 @@
         let currentChuyen = null
         let editingVeId = null         // null = đang tạo vé mới; có giá trị = đang sửa vé đó
         let selectedGiuongId = null    // giường đang mở form (dùng cả cho highlight "Đang chọn")
-        let diemKhachTarget = null     // 'len' | 'xuong' — select nào sẽ nhận điểm vừa thêm
+        // Địa điểm len/xuong ĐANG SỬA qua picker trong openVeModal (2026-09-22, thay diem_len_id/
+        // diem_xuong_id) — {tinh, nhan, loai} hoặc null, đọc bởi btn-ve-luu listener (module-level
+        // vì đó là listener đăng ký 1 lần, không phải closure riêng từng lần mở modal như
+        // renderVeRowEdit — xem openVeModal).
+        let veModalLenChon = null
+        let veModalXuongChon = null
         let currentView = 'so_do'      // 'so_do' | 'danh_sach' — toggle 2 khối UI, dùng chung veMap/giuongMap
         // Đặt vé giống dat-ve.html (2026-09-21) — xem SPEC "Đặt vé trên khach.html" CLAUDE.md.
         // noiXuatPhatTinh/diemDenTinh: object THAM CHIẾU trực tiếp tới phần tử trong `tinhList`
@@ -497,6 +495,12 @@
         // tự đúng theo mà không cần đồng bộ tay 2 nơi.
         let noiXuatPhatTinh = null
         let diemDenTinh = null
+        // Địa điểm cụ thể (xã/huyện) chọn ở Bước 2 của picker Tỉnh->Xã/Huyện cho dải phía trên
+        // (2026-09-22, thay diem_khach) — {nhan, loai:'xa'|'huyen'} hoặc null. Riêng cho vé đang
+        // sửa (renderVeRowEdit/openVeModal) dùng biến cục bộ/module riêng, KHÔNG dùng chung 2 biến
+        // này (xem moTinhXaHuyenPicker).
+        let noiXuatPhatDiaDiem = null
+        let diemDenDiaDiem = null
         let tinhMacDinhDaDat = false   // true sau lần đầu set mặc định theo chieu — không tự reset
                                        // nữa khi đổi chuyến (giữ lựa chọn tỉnh crew đã đổi tay)
         let selectedGiuongMap = new Map()  // giường TRỐNG đang multi-select, KHÁC selectedGiuongId
@@ -533,36 +537,13 @@
             tinhList = (data || []).map(r => ({ ma: r.tinh_ma, ten: r.tinh.ten, thu_tu: r.thu_tu, gia_moc: r.gia_moc }))
         }
 
+        // diem_khach KHÔNG còn đường tạo mới từ app (xem SPEC "Bỏ diem_khach" trong CLAUDE.md) —
+        // vẫn tải để tenDiemKhach() hiển thị lại đúng dữ liệu vé CŨ (diem_len_id/diem_xuong_id) tạo
+        // trước 2026-09-22, fallback trong tenDiaDiem().
         async function loadDiemKhachList() {
             const { data, error } = await sb.from('diem_khach').select('id, ten, tinh_ma, thu_tu').eq('nha_xe_id', currentNhaXeId)
             if (error) { showToast('Lỗi tải điểm đón: ' + error.message, 'error'); return }
             diemKhachList = data || []
-        }
-
-        // Sắp điểm đón theo thứ tự tuyến (tinh_tuyen.thu_tu), đảo chiều theo chuyen.chieu — cùng
-        // quy ước với sapXepTrongTinh bên hàng hoá (bac = ASC, nam = DESC).
-        function renderDiemKhachOptions(selectEl, chieu, selectedId) {
-            const thuTuMap = new Map(tinhList.map(t => [t.ma, t.thu_tu]))
-            const sorted = [...diemKhachList].sort((a, b) => {
-                const ta = thuTuMap.get(a.tinh_ma) ?? 0
-                const tb = thuTuMap.get(b.tinh_ma) ?? 0
-                const d = chieu === 'nam' ? tb - ta : ta - tb
-                if (d !== 0) return d
-                return (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi')
-            })
-            selectEl.textContent = ''
-            const optEmpty = document.createElement('option')
-            optEmpty.value = ''
-            optEmpty.textContent = '— Chọn điểm —'
-            selectEl.appendChild(optEmpty)
-            sorted.forEach(d => {
-                const tinh = tinhList.find(t => t.ma === d.tinh_ma)
-                const opt = document.createElement('option')
-                opt.value = d.id
-                opt.textContent = `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
-                selectEl.appendChild(opt)
-            })
-            selectEl.value = selectedId || ''
         }
 
         // Vẽ 1 tầng vào đúng wrap/caption của nó — gọi 2 lần (dưới in tầng 1, trên in tầng 2)
@@ -668,11 +649,12 @@
         // của dat-ve.html (đợt 6-11, không cần vùng "bấm cả dòng để chốt" ở đây).
         function renderChieuSelectorCrew() {
             const wrap = document.getElementById('chieu-select-wrap')
+            // Hiện thêm nhãn xã/huyện đã chọn ở Bước 2 (nếu có) dưới tên tỉnh — thuần hiển thị.
             const xuatPhatHtml = noiXuatPhatTinh
-                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span>`
+                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}${noiXuatPhatDiaDiem ? `<div class="route-place-sub">${noiXuatPhatDiaDiem.nhan}</div>` : ''}</span>`
                 : `<span class="route-place-value route-place-placeholder" data-vai-tro="xuat_phat">Chọn nơi xuất phát</span>`
             const diemDenHtml = diemDenTinh
-                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span>`
+                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}${diemDenDiaDiem ? `<div class="route-place-sub">${diemDenDiaDiem.nhan}</div>` : ''}</span>`
                 : `<span class="route-place-value route-place-placeholder" data-vai-tro="diem_den">Chọn điểm đến</span>`
             wrap.innerHTML = `
                 <div class="route-select-wrap">
@@ -699,36 +681,116 @@
             })
         }
 
-        // Modal chọn địa danh — COPY logic từ dat-ve.html's moDiaDiemPicker (loại tỉnh đang chọn ở
-        // đầu kia khỏi list, chọn xong chỉ đổi hiển thị + giá, không có khái niệm "chốt").
-        function moDiaDiemPickerCrew(vaiTro) {
-            const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
-            const dangChonMa = (vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh)?.ma
-            const list = tinhTuyenChoDatVeCrew().filter(t => t.ma !== tinhBenKia?.ma)
-            document.getElementById('dia-diem-picker-title').textContent =
-                vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
-            const optionsWrap = document.getElementById('dia-diem-picker-options')
-            optionsWrap.innerHTML = list.map(t => `
-                <div class="dia-diem-picker-option${t.ma === dangChonMa ? ' dang-chon' : ''}" data-ma="${t.ma}">
-                    <span>${t.ten}</span><span class="check">✓</span>
-                </div>
-            `).join('')
-            optionsWrap.querySelectorAll('.dia-diem-picker-option').forEach(el => {
-                el.addEventListener('click', () => {
-                    const tinh = list.find(t => t.ma === el.dataset.ma)
-                    if (vaiTro === 'xuat_phat') noiXuatPhatTinh = tinh
-                    else diemDenTinh = tinh
-                    dongDiaDiemPickerCrew()
-                    renderChieuSelectorCrew()
-                    capNhatGiaVeBarCrew()
-                })
-            })
+        // Picker Tỉnh -> Xã/Huyện DÙNG CHUNG (2026-09-22, thay diem_khach — xem SPEC "Bỏ
+        // diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md) cho 3 nơi: dải "Nơi xuất
+        // phát/Điểm đến" phía trên (qua moDiaDiemPickerCrew), nút "📍" trong renderVeRowEdit
+        // (Danh sách), nút "📍" trong openVeModal (Sơ đồ, sửa vé đã đặt) — mỗi nơi tự truyền
+        // `onChonXong` riêng, state/overlay dùng chung KHÔNG lưu gì đặc thù theo nơi gọi.
+        let ddpXaHuyenData = null   // cache fetch data/tinh-xa-huyen.json, tải 1 lần
+        let ddpState = null         // { buoc: 1|2, tenMoi, tinhDangChon, tinhBenKiaMa, tieuDeB1, onChonXong }
+        async function taiDuLieuXaHuyen() {
+            if (ddpXaHuyenData) return ddpXaHuyenData
+            const res = await fetch('data/tinh-xa-huyen.json')
+            ddpXaHuyenData = await res.json()
+            return ddpXaHuyenData
+        }
+        async function moTinhXaHuyenPicker({ tieuDeB1, tinhHienTai, tinhBenKiaMa, onChonXong }) {
+            ddpState = { buoc: 1, tenMoi: false, tinhDangChon: tinhHienTai, tinhBenKiaMa, tieuDeB1, onChonXong }
+            await taiDuLieuXaHuyen()
+            renderDiaDiemPicker()
             document.getElementById('dia-diem-picker').classList.add('open')
         }
         function dongDiaDiemPickerCrew() {
             document.getElementById('dia-diem-picker').classList.remove('open')
+            ddpState = null
         }
         document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPickerCrew)
+        // Đổi toggle Cũ/Mới GIỮA CHỪNG (đã ở Bước 2) -> reset về Bước 1, xoá tỉnh đang chọn tạm
+        // (quyết định owner, tránh kẹt "tỉnh hiện tên cũ nhưng xã bên dưới lại là danh sách xã
+        // mới" — cùng nguyên tắc doiChuyenKhac() ở dat-ve.html). Đổi lúc còn Bước 1 chỉ vẽ lại
+        // list theo nguồn mới.
+        function doiToggleDiaDiemCrew() {
+            ddpState.tenMoi = !ddpState.tenMoi
+            if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null }
+            renderDiaDiemPicker()
+        }
+        // Chỉ render lại KHUNG (header/toggle/search input) khi đổi bước/toggle — search input giữ
+        // nguyên DOM node xuyên suốt lúc gõ (renderDdpList() riêng, không đụng lại input) để không
+        // mất focus/con trỏ giữa chừng, cùng bài học đã áp dụng cho .item-qty-input ở hang.html.
+        function renderDiaDiemPicker() {
+            const card = document.getElementById('dia-diem-picker-card')
+            const tieuDe = ddpState.buoc === 1 ? ddpState.tieuDeB1 : `Xã/huyện — ${ddpState.tinhDangChon.ten}`
+            card.innerHTML = `
+                <div class="ddp-header">
+                    ${ddpState.buoc === 2 ? '<button type="button" class="ddp-back" id="ddp-back">‹</button>' : ''}
+                    <h3>${tieuDe}</h3>
+                    <label class="ddp-toggle"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}> Địa chỉ mới</label>
+                </div>
+                <input type="text" class="ddp-search" id="ddp-search" placeholder="Gõ để tìm...">
+                <div class="ddp-list" id="ddp-list"></div>
+            `
+            document.getElementById('ddp-toggle-cb').addEventListener('change', doiToggleDiaDiemCrew)
+            if (ddpState.buoc === 2) {
+                document.getElementById('ddp-back').addEventListener('click', () => {
+                    ddpState.buoc = 1; ddpState.tinhDangChon = null
+                    renderDiaDiemPicker()
+                })
+            }
+            document.getElementById('ddp-search').addEventListener('input', renderDdpList)
+            renderDdpList()
+        }
+        function renderDdpList() {
+            const tuKhoa = boDau(document.getElementById('ddp-search').value)
+            let items
+            if (ddpState.buoc === 1) {
+                items = tinhTuyenChoDatVeCrew().filter(t => t.ma !== ddpState.tinhBenKiaMa).map(t => ({
+                    key: t.ma,
+                    label: ddpState.tenMoi ? (ddpXaHuyenData[t.ma]?.ten_moi || t.ten) : t.ten,
+                    raw: t
+                }))
+            } else {
+                const d = ddpXaHuyenData[ddpState.tinhDangChon.ma]
+                const src = ddpState.tenMoi ? (d?.xa_moi || []) : (d?.huyen_cu || [])
+                items = src.map(label => ({ key: label, label, raw: label }))
+            }
+            if (tuKhoa) items = items.filter(it => boDau(it.label).includes(tuKhoa))
+            const list = document.getElementById('ddp-list')
+            list.innerHTML = items.length
+                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}"><span>${it.label}</span></div>`).join('')
+                : '<div class="ddp-empty">Không tìm thấy</div>'
+            list.querySelectorAll('.dia-diem-picker-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    const item = items.find(it => it.key === el.dataset.key)
+                    if (ddpState.buoc === 1) {
+                        ddpState.tinhDangChon = item.raw
+                        ddpState.buoc = 2
+                        renderDiaDiemPicker()
+                        return
+                    }
+                    const onChonXong = ddpState.onChonXong
+                    const tinh = ddpState.tinhDangChon
+                    const loai = ddpState.tenMoi ? 'xa' : 'huyen'
+                    dongDiaDiemPickerCrew()
+                    onChonXong({ tinh, nhan: item.label, loai })
+                })
+            })
+        }
+        // Wrapper cho dải "Nơi xuất phát/Điểm đến" phía trên (Bước 0 Sơ đồ) — set thẳng
+        // noiXuatPhatTinh/DiaDiem hoặc diemDenTinh/DiaDiem rồi vẽ lại dải + giá.
+        function moDiaDiemPickerCrew(vaiTro) {
+            const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
+            const tinhHienTai = vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh
+            moTinhXaHuyenPicker({
+                tieuDeB1: vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến',
+                tinhHienTai, tinhBenKiaMa: tinhBenKia?.ma,
+                onChonXong: ({ tinh, nhan, loai }) => {
+                    if (vaiTro === 'xuat_phat') { noiXuatPhatTinh = tinh; noiXuatPhatDiaDiem = { nhan, loai } }
+                    else { diemDenTinh = tinh; diemDenDiaDiem = { nhan, loai } }
+                    renderChieuSelectorCrew()
+                    capNhatGiaVeBarCrew()
+                }
+            })
+        }
 
         // Bấm giường TRỐNG = bật/tắt multi-select (KHÔNG mở modal — khác hành vi cũ của giường đã
         // đặt). Giống hệt dat-ve.html's toggleChonGiuong.
@@ -758,27 +820,6 @@
             document.body.classList.add('co-gia-ve-bar')
         }
 
-        // renderDiemKhachOptions (đã có sẵn, dùng cho modal sửa-1-vé cũ) sắp theo TUYẾN + không
-        // lọc gì — giữ NGUYÊN cho hành vi cũ (điểm đón/trả TRƯỚC đây không gắn với tỉnh cụ thể của
-        // lượt đặt). Hàm MỚI này lọc đúng tỉnh đã chọn ở dải phía trên — "Điểm đón/trả cụ thể trở
-        // thành tùy chọn, lọc theo tỉnh đã chọn" (SPEC).
-        function renderDiemKhachOptionsTheoTinh(selectEl, tinhMa, selectedId) {
-            const list = diemKhachList.filter(d => d.tinh_ma === tinhMa)
-                .sort((a, b) => (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi'))
-            selectEl.textContent = ''
-            const optEmpty = document.createElement('option')
-            optEmpty.value = ''
-            optEmpty.textContent = '— Chọn điểm —'
-            selectEl.appendChild(optEmpty)
-            list.forEach(d => {
-                const opt = document.createElement('option')
-                opt.value = d.id
-                opt.textContent = d.ten
-                selectEl.appendChild(opt)
-            })
-            selectEl.value = selectedId || ''
-        }
-
         function capNhatGiaChuDatNhieu() {
             const raw = document.getElementById('dn-gia').value.trim()
             const el = document.getElementById('dn-gia-chu')
@@ -799,8 +840,10 @@
             const giaMacDinh = tinhGiaVeCrew()
             document.getElementById('dn-gia').value = giaMacDinh != null ? giaMacDinh / 1000 : ''
             capNhatGiaChuDatNhieu()
-            renderDiemKhachOptionsTheoTinh(document.getElementById('dn-diem-len'), noiXuatPhatTinh?.ma, null)
-            renderDiemKhachOptionsTheoTinh(document.getElementById('dn-diem-xuong'), diemDenTinh?.ma, null)
+            // Điểm đón/trả đã chọn SẴN ở dải "Nơi xuất phát/Điểm đến" phía trên (Bước 0) — chỉ
+            // hiện lại đây để crew đối chiếu trước khi bấm "Đặt vé", KHÔNG chọn lại (2026-09-22).
+            document.getElementById('dia-diem-da-chon-crew').textContent =
+                `${noiXuatPhatTinh?.ten || '?'}${noiXuatPhatDiaDiem ? ' — ' + noiXuatPhatDiaDiem.nhan : ''} → ${diemDenTinh?.ten || '?'}${diemDenDiaDiem ? ' — ' + diemDenDiaDiem.nhan : ''}`
             document.getElementById('dat-nhieu-modal').classList.add('open')
         }
         document.getElementById('btn-gia-ve-tiep-tuc-crew').addEventListener('click', moFormDatNhieu)
@@ -822,8 +865,6 @@
             if (!list.length) { showToast('Chưa chọn giường nào', 'error'); return }
             const tenKhach = document.getElementById('dn-ten-khach').value.trim() || null
             const sdtKhach = document.getElementById('dn-sdt-khach').value.trim() || null
-            const diemLenId = document.getElementById('dn-diem-len').value || null
-            const diemXuongId = document.getElementById('dn-diem-xuong').value || null
             const giaRaw = document.getElementById('dn-gia').value.trim()
             const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
             if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
@@ -831,7 +872,8 @@
             const rows = list.map(g => ({
                 chuyen_id: currentChuyen.id, giuong_id: g.id, nha_xe_id: currentNhaXeId,
                 tinh_len_ma: noiXuatPhatTinh?.ma || null, tinh_xuong_ma: diemDenTinh?.ma || null,
-                diem_len_id: diemLenId, diem_xuong_id: diemXuongId,
+                dia_diem_len_nhan: noiXuatPhatDiaDiem?.nhan || null, dia_diem_len_loai: noiXuatPhatDiaDiem?.loai || null,
+                dia_diem_xuong_nhan: diemDenDiaDiem?.nhan || null, dia_diem_xuong_loai: diemDenDiaDiem?.loai || null,
                 ten_khach: tenKhach, sdt_khach: sdtKhach, gia,
                 trang_thai: 'da_dat', nguon: 'crew', hinh_thuc_thanh_toan: null
             }))
@@ -874,8 +916,11 @@
             // tuyen_tinh không phụ thuộc chuyến nào nên luôn hợp lệ, không cần validate lại).
             if (!tinhMacDinhDaDat && tinhList.length) { datMacDinhTinhTheoChieu(chuyen.chieu); tinhMacDinhDaDat = true }
             renderChieuSelectorCrew()
+            // diem_len_id/diem_xuong_id VẪN đọc (KHÔNG xoá cột, xem CLAUDE.md) — chỉ để hiển thị
+            // lại đúng dữ liệu vé CŨ tạo trước 2026-09-22 (chưa có dia_diem_*_nhan), tenDiaDiem()
+            // ưu tiên dia_diem_*_nhan, fallback về tenDiemKhach(diem_*_id) nếu thiếu.
             const { data, error } = await sb.from('ve')
-                .select('id, chuyen_id, giuong_id, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
+                .select('id, chuyen_id, giuong_id, tinh_len_ma, tinh_xuong_ma, dia_diem_len_nhan, dia_diem_len_loai, dia_diem_xuong_nhan, dia_diem_xuong_loai, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
             if (error) { showToast('Lỗi tải vé: ' + error.message, 'error'); return }
@@ -951,6 +996,18 @@
             const tinh = tinhList.find(t => t.ma === d.tinh_ma)
             return `${d.ten}${tinh ? ' — ' + tinh.ten : ''}`
         }
+        // Nhãn địa điểm len/xuong của 1 `ve` — ƯU TIÊN dia_diem_*_nhan (vé mới, thay diem_khach,
+        // 2026-09-22), FALLBACK tenDiemKhach(diem_*_id) cho vé CŨ chưa có field mới. vaiTro:
+        // 'len'|'xuong'.
+        function tenDiaDiem(ve, vaiTro) {
+            const nhan = vaiTro === 'len' ? ve.dia_diem_len_nhan : ve.dia_diem_xuong_nhan
+            const tinhMa = vaiTro === 'len' ? ve.tinh_len_ma : ve.tinh_xuong_ma
+            if (nhan) {
+                const tinh = tinhList.find(t => t.ma === tinhMa)
+                return `${nhan}${tinh ? ' — ' + tinh.ten : ''}`
+            }
+            return tenDiemKhach(vaiTro === 'len' ? ve.diem_len_id : ve.diem_xuong_id)
+        }
 
         // Chỉ hiện vé 'da_dat' — veMap vốn chỉ chứa vé 'da_dat' (query nguồn ở loadVeChoChuyen
         // đã .neq('trang_thai', 'huy')) nhưng lọc lại ở đây cho rõ ý, phòng sau này veMap đổi
@@ -989,7 +1046,7 @@
                     <span class="ve-row-giuong">${nhanGiuong(giuong)}</span>
                 </div>
                 <div class="mota">${ve.sdt_khach || '(chưa có SĐT)'}</div>
-                <div class="mota">${tenDiemKhach(ve.diem_len_id)} → ${tenDiemKhach(ve.diem_xuong_id)}</div>
+                <div class="mota">${tenDiaDiem(ve, 'len')} → ${tenDiaDiem(ve, 'xuong')}</div>
                 <div class="mota">${ve.gia != null ? formatMoney(ve.gia) : '(chưa có giá)'}</div>
                 ${ve.nguon === 'khach_tu_dat' ? `<div class="mota">🌐 Đặt online${ve.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc' ? ' — Chuyển khoản trước (cần đối chiếu)' : ve.hinh_thuc_thanh_toan === 'tien_mat_len_xe' ? ' — Tiền mặt lúc lên xe' : ''}</div>` : ''}
                 <div class="ve-row-actions">
@@ -1003,12 +1060,18 @@
 
         function renderVeRowEdit(row, ve) {
             const giuong = giuongMap.get(ve.giuong_id)
+            // Địa điểm len/xuong ĐANG SỬA — biến CỤC BỘ trong closure của lần render này (khác
+            // openVeModal, nơi cần module-level vì save handler đăng ký 1 lần bên ngoài) — khởi
+            // tạo từ dữ liệu HIỆN CÓ trên `ve` (dia_diem_*_nhan nếu vé mới, hoặc null nếu vé cũ
+            // chưa có — KHÔNG tự suy từ diem_len_id/diem_xuong_id, crew tự chọn lại nếu cần).
+            let lenChon = ve.dia_diem_len_nhan ? { tinh: tinhList.find(t => t.ma === ve.tinh_len_ma) || null, nhan: ve.dia_diem_len_nhan, loai: ve.dia_diem_len_loai } : null
+            let xuongChon = ve.dia_diem_xuong_nhan ? { tinh: tinhList.find(t => t.ma === ve.tinh_xuong_ma) || null, nhan: ve.dia_diem_xuong_nhan, loai: ve.dia_diem_xuong_loai } : null
             row.innerHTML = `
                 <div class="ve-row-edit-label">${nhanGiuong(giuong)}</div>
                 <input type="text" class="edit-ten" placeholder="Tên khách" value="${ve.ten_khach || ''}">
                 <input type="tel" class="edit-sdt" placeholder="SĐT khách" value="${ve.sdt_khach || ''}">
-                <select class="edit-diem-len"></select>
-                <select class="edit-diem-xuong"></select>
+                <button type="button" class="edit-diem-btn edit-diem-len-btn"></button>
+                <button type="button" class="edit-diem-btn edit-diem-xuong-btn"></button>
                 <input type="number" inputmode="numeric" class="edit-gia" placeholder="vd 200 = 200.000đ" value="${ve.gia != null ? ve.gia / 1000 : ''}">
                 <div class="tien-chu edit-gia-chu"></div>
                 <div class="ve-row-actions">
@@ -1016,8 +1079,25 @@
                     <button type="button" class="ve-row-btn primary ve-row-luu">Lưu</button>
                 </div>
             `
-            renderDiemKhachOptions(row.querySelector('.edit-diem-len'), currentChuyen?.chieu, ve.diem_len_id)
-            renderDiemKhachOptions(row.querySelector('.edit-diem-xuong'), currentChuyen?.chieu, ve.diem_xuong_id)
+            const btnLen = row.querySelector('.edit-diem-len-btn')
+            const btnXuong = row.querySelector('.edit-diem-xuong-btn')
+            function capNhatNutDiaDiem() {
+                btnLen.textContent = '📍 Đón: ' + (lenChon ? `${lenChon.tinh?.ten || '?'} — ${lenChon.nhan}` : 'Chưa chọn')
+                btnXuong.textContent = '📍 Trả: ' + (xuongChon ? `${xuongChon.tinh?.ten || '?'} — ${xuongChon.nhan}` : 'Chưa chọn')
+            }
+            capNhatNutDiaDiem()
+            btnLen.addEventListener('click', () => {
+                moTinhXaHuyenPicker({
+                    tieuDeB1: 'Điểm đón — chọn tỉnh', tinhHienTai: lenChon?.tinh || null, tinhBenKiaMa: xuongChon?.tinh?.ma,
+                    onChonXong: ({ tinh, nhan, loai }) => { lenChon = { tinh, nhan, loai }; capNhatNutDiaDiem() }
+                })
+            })
+            btnXuong.addEventListener('click', () => {
+                moTinhXaHuyenPicker({
+                    tieuDeB1: 'Điểm trả — chọn tỉnh', tinhHienTai: xuongChon?.tinh || null, tinhBenKiaMa: lenChon?.tinh?.ma,
+                    onChonXong: ({ tinh, nhan, loai }) => { xuongChon = { tinh, nhan, loai }; capNhatNutDiaDiem() }
+                })
+            })
             const giaInput = row.querySelector('.edit-gia')
             const giaChuEl = row.querySelector('.edit-gia-chu')
             function capNhatGiaChuRow() {
@@ -1031,17 +1111,18 @@
             row.querySelector('.ve-row-luu').addEventListener('click', async () => {
                 const tenKhach = row.querySelector('.edit-ten').value.trim() || null
                 const sdtKhach = row.querySelector('.edit-sdt').value.trim() || null
-                const diemLenId = row.querySelector('.edit-diem-len').value || null
-                const diemXuongId = row.querySelector('.edit-diem-xuong').value || null
                 const giaRaw = giaInput.value.trim()
                 const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
                 if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
-                const { error } = await sb.from('ve').update({
+                const capNhat = {
                     ten_khach: tenKhach, sdt_khach: sdtKhach,
-                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
-                }).eq('id', ve.id)
+                    tinh_len_ma: lenChon?.tinh?.ma || null, dia_diem_len_nhan: lenChon?.nhan || null, dia_diem_len_loai: lenChon?.loai || null,
+                    tinh_xuong_ma: xuongChon?.tinh?.ma || null, dia_diem_xuong_nhan: xuongChon?.nhan || null, dia_diem_xuong_loai: xuongChon?.loai || null,
+                    gia
+                }
+                const { error } = await sb.from('ve').update(capNhat).eq('id', ve.id)
                 if (error) { showToast('Lỗi lưu vé: ' + error.message, 'error'); return }
-                Object.assign(ve, { ten_khach: tenKhach, sdt_khach: sdtKhach, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia })
+                Object.assign(ve, capNhat)
                 veMap.set(ve.giuong_id, ve)
                 renderVeRowView(row, ve)
                 renderDoanhThuVe([...veMap.values()])
@@ -1104,8 +1185,13 @@
             document.getElementById('ve-gia').value = ve?.gia != null ? ve.gia / 1000 : ''
             capNhatGiaChu()
             capNhatTrangThaiNutLuu()
-            renderDiemKhachOptions(document.getElementById('ve-diem-len'), currentChuyen.chieu, ve?.diem_len_id)
-            renderDiemKhachOptions(document.getElementById('ve-diem-xuong'), currentChuyen.chieu, ve?.diem_xuong_id)
+            // Địa điểm len/xuong (2026-09-22, thay diem_len_id/diem_xuong_id) — module-level vì
+            // btn-ve-luu listener đăng ký 1 LẦN bên ngoài hàm này, không phải closure riêng từng
+            // lần mở modal (khác renderVeRowEdit, dùng biến cục bộ được vì save handler nằm CÙNG
+            // hàm tạo ra nó).
+            veModalLenChon = ve?.dia_diem_len_nhan ? { tinh: tinhList.find(t => t.ma === ve.tinh_len_ma) || null, nhan: ve.dia_diem_len_nhan, loai: ve.dia_diem_len_loai } : null
+            veModalXuongChon = ve?.dia_diem_xuong_nhan ? { tinh: tinhList.find(t => t.ma === ve.tinh_xuong_ma) || null, nhan: ve.dia_diem_xuong_nhan, loai: ve.dia_diem_xuong_loai } : null
+            capNhatNutDiaDiemVeModal()
             document.getElementById('btn-ve-huy-ve').style.display = ve ? 'block' : 'none'
             document.getElementById('ve-form-section').style.display = 'block'
             document.getElementById('ve-cancel-section').style.display = 'none'
@@ -1116,31 +1202,52 @@
             document.getElementById('ve-modal').classList.remove('open')
             editingVeId = null
             selectedGiuongId = null
+            veModalLenChon = null
+            veModalXuongChon = null
             renderGiuongGrid()   // bỏ highlight "Đang chọn"
         }
         document.querySelector('#ve-modal .ve-modal-backdrop').addEventListener('click', closeVeModal)
         document.getElementById('btn-ve-dong').addEventListener('click', closeVeModal)
 
+        function capNhatNutDiaDiemVeModal() {
+            document.getElementById('ve-diem-len-btn').textContent = '📍 Đón: ' + (veModalLenChon ? `${veModalLenChon.tinh?.ten || '?'} — ${veModalLenChon.nhan}` : 'Chưa chọn')
+            document.getElementById('ve-diem-xuong-btn').textContent = '📍 Trả: ' + (veModalXuongChon ? `${veModalXuongChon.tinh?.ten || '?'} — ${veModalXuongChon.nhan}` : 'Chưa chọn')
+        }
+        document.getElementById('ve-diem-len-btn').addEventListener('click', () => {
+            moTinhXaHuyenPicker({
+                tieuDeB1: 'Điểm đón — chọn tỉnh', tinhHienTai: veModalLenChon?.tinh || null, tinhBenKiaMa: veModalXuongChon?.tinh?.ma,
+                onChonXong: ({ tinh, nhan, loai }) => { veModalLenChon = { tinh, nhan, loai }; capNhatNutDiaDiemVeModal() }
+            })
+        })
+        document.getElementById('ve-diem-xuong-btn').addEventListener('click', () => {
+            moTinhXaHuyenPicker({
+                tieuDeB1: 'Điểm trả — chọn tỉnh', tinhHienTai: veModalXuongChon?.tinh || null, tinhBenKiaMa: veModalLenChon?.tinh?.ma,
+                onChonXong: ({ tinh, nhan, loai }) => { veModalXuongChon = { tinh, nhan, loai }; capNhatNutDiaDiemVeModal() }
+            })
+        })
+
         document.getElementById('btn-ve-luu').addEventListener('click', async () => {
             const tenKhach = document.getElementById('ve-ten-khach').value.trim() || null
             const sdtKhach = document.getElementById('ve-sdt-khach').value.trim() || null
-            const diemLenId = document.getElementById('ve-diem-len').value || null
-            const diemXuongId = document.getElementById('ve-diem-xuong').value || null
             const giaRaw = document.getElementById('ve-gia').value.trim()
             const gia = giaRaw === '' ? null : Number(giaRaw) * 1000
             if (gia !== null && (!Number.isFinite(gia) || gia < 0)) { showToast('Giá vé không hợp lệ', 'error'); return }
+            const diaDiemFields = {
+                tinh_len_ma: veModalLenChon?.tinh?.ma || null, dia_diem_len_nhan: veModalLenChon?.nhan || null, dia_diem_len_loai: veModalLenChon?.loai || null,
+                tinh_xuong_ma: veModalXuongChon?.tinh?.ma || null, dia_diem_xuong_nhan: veModalXuongChon?.nhan || null, dia_diem_xuong_loai: veModalXuongChon?.loai || null
+            }
 
             if (editingVeId) {
                 const { error } = await sb.from('ve').update({
                     ten_khach: tenKhach, sdt_khach: sdtKhach,
-                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia
+                    ...diaDiemFields, gia
                 }).eq('id', editingVeId)
                 if (error) { showToast('Lỗi lưu vé: ' + error.message, 'error'); return }
             } else {
                 const { error } = await sb.from('ve').insert({
                     chuyen_id: currentChuyen.id, giuong_id: selectedGiuongId,
                     ten_khach: tenKhach, sdt_khach: sdtKhach,
-                    diem_len_id: diemLenId, diem_xuong_id: diemXuongId, gia,
+                    ...diaDiemFields, gia,
                     nha_xe_id: currentNhaXeId
                 })
                 if (error) {
@@ -1179,57 +1286,9 @@
             loadVeChoChuyen(currentChuyen)
         })
 
-        // === Modal thêm điểm đón/trả mới ===
-        function renderDiemKhachTinhOptions() {
-            const sel = document.getElementById('diemkhach-tinh')
-            sel.textContent = ''
-            tinhList.forEach(t => {
-                const opt = document.createElement('option')
-                opt.value = t.ma
-                opt.textContent = t.ten
-                sel.appendChild(opt)
-            })
-        }
-        // `target` giờ là ID CỦA SELECT ĐÍCH trực tiếp (không phải 'len'/'xuong' như trước) — tổng
-        // quát hoá (2026-09-21) để dùng chung cho CẢ modal sửa-1-vé cũ ('ve-diem-len'/
-        // 've-diem-xuong') LẪN form đặt-nhiều-vé mới ('dn-diem-len'/'dn-diem-xuong'), tránh viết
-        // lại modal thêm điểm 2 lần. Prefill sẵn tỉnh liên quan (nếu đang đặt nhiều vé) — vẫn sửa
-        // được, chỉ là gợi ý để điểm mới thêm khớp ngay với dropdown lọc theo tỉnh phía dưới.
-        function openDiemKhachModal(target) {
-            diemKhachTarget = target
-            document.getElementById('diemkhach-ten').value = ''
-            renderDiemKhachTinhOptions()
-            const tinhGoiY = target === 'dn-diem-len' ? noiXuatPhatTinh?.ma : target === 'dn-diem-xuong' ? diemDenTinh?.ma : null
-            if (tinhGoiY) document.getElementById('diemkhach-tinh').value = tinhGoiY
-            document.getElementById('diemkhach-modal').classList.add('open')
-        }
-        function closeDiemKhachModal() {
-            document.getElementById('diemkhach-modal').classList.remove('open')
-            diemKhachTarget = null
-        }
-        document.getElementById('btn-them-diem-len').addEventListener('click', () => openDiemKhachModal('ve-diem-len'))
-        document.getElementById('btn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('ve-diem-xuong'))
-        document.getElementById('btn-dn-them-diem-len').addEventListener('click', () => openDiemKhachModal('dn-diem-len'))
-        document.getElementById('btn-dn-them-diem-xuong').addEventListener('click', () => openDiemKhachModal('dn-diem-xuong'))
-        document.querySelector('#diemkhach-modal .diemkhach-modal-backdrop').addEventListener('click', closeDiemKhachModal)
-        document.getElementById('btn-diemkhach-dong').addEventListener('click', closeDiemKhachModal)
-
-        document.getElementById('btn-diemkhach-luu').addEventListener('click', async () => {
-            const ten = document.getElementById('diemkhach-ten').value.trim()
-            const tinhMa = document.getElementById('diemkhach-tinh').value
-            if (!ten) { showToast('Nhập tên điểm', 'error'); return }
-            const { data, error } = await sb.from('diem_khach').insert({ ten, tinh_ma: tinhMa, nha_xe_id: currentNhaXeId }).select('id, ten, tinh_ma, thu_tu').single()
-            if (error) { showToast('Lỗi thêm điểm: ' + error.message, 'error'); return }
-            diemKhachList.push(data)
-            if (diemKhachTarget === 've-diem-len' || diemKhachTarget === 've-diem-xuong') {
-                renderDiemKhachOptions(document.getElementById(diemKhachTarget), currentChuyen.chieu, data.id)
-            } else if (diemKhachTarget === 'dn-diem-len' || diemKhachTarget === 'dn-diem-xuong') {
-                const tinhCanKhop = diemKhachTarget === 'dn-diem-len' ? noiXuatPhatTinh?.ma : diemDenTinh?.ma
-                renderDiemKhachOptionsTheoTinh(document.getElementById(diemKhachTarget), tinhCanKhop, data.id)
-            }
-            showToast('Đã thêm điểm', 'success')
-            closeDiemKhachModal()
-        })
+        // Modal "Thêm điểm đón/trả mới" (diemkhach-modal) ĐÃ BỊ GỠ BỎ HOÀN TOÀN (2026-09-22) — xem
+        // SPEC "Bỏ diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md. `diem_khach` KHÔNG
+        // còn đường tạo mới từ app (bảng vẫn giữ trong DB, chỉ ngừng dùng ở tầng ứng dụng).
 
         // === Modal "Giá vé theo tỉnh" ===
         // 17 tỉnh (loại Khánh Hòa, xe không qua — cùng filter đã dùng ở hang.html's loadTinh()),

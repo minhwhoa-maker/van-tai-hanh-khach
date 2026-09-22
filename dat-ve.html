@@ -138,6 +138,9 @@
         .route-place-value.route-place-placeholder {
             font-size: 16px; font-weight: 400; color: var(--text-muted);
         }
+        /* Nhãn xã/huyện đã chọn ở Bước 2 picker (2026-09-22), hiện dưới tên tỉnh — chữ nhỏ, không
+           ảnh hưởng border-bottom chấm mờ của .route-place-value cha (block riêng, không inline). */
+        .route-place-sub { font-size: 13px; font-weight: 400; color: var(--text-muted); border-bottom: none; }
         .route-swap-btn {
             position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--border);
@@ -189,6 +192,22 @@
         .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
         .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
         .dia-diem-picker-option.dang-chon .check { visibility: visible; }
+        /* Bỏ diem_khach, thay bằng chọn Tỉnh -> Xã/Huyện (2026-09-22) — mở rộng chính khung
+           .dia-diem-picker-card có sẵn thành 2 bước (drill-down), không thêm overlay riêng.
+           #ddp-back chỉ hiện ở Bước 2 (quay lại Bước 1 mà không đóng hẳn picker). #ddp-toggle-cb
+           đổi Cũ/Mới — đổi giữa chừng lúc đang ở Bước 2 thì reset về Bước 1 (xem doiToggleDiaDiem). */
+        .ddp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .ddp-header h3 { margin: 0; font-size: 17px; flex: 1; }
+        .ddp-back { border: none; background: none; font-size: 24px; font-weight: 700; color: var(--text); cursor: pointer; padding: 0 4px; line-height: 1; }
+        .ddp-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
+        .ddp-toggle input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+        .ddp-search {
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
+            margin-bottom: 4px;
+        }
+        .ddp-list { max-height: 46vh; overflow-y: auto; }
+        .ddp-empty { padding: 20px 4px; text-align: center; color: var(--text-muted); font-size: 14px; }
         .chuyen-da-chon-bar {
             margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
@@ -458,10 +477,7 @@
 
     <div class="dia-diem-picker" id="dia-diem-picker">
         <div class="dia-diem-picker-backdrop"></div>
-        <div class="dia-diem-picker-card">
-            <h3 id="dia-diem-picker-title">Chọn nơi xuất phát</h3>
-            <div id="dia-diem-picker-options"></div>
-        </div>
+        <div class="dia-diem-picker-card" id="dia-diem-picker-card"></div>
     </div>
 
     <div class="gia-ve-bar" id="gia-ve-bar">
@@ -471,6 +487,7 @@
 
     <div class="toast" id="toast"></div>
 
+    <script src="point-match.js"></script>
     <script src="shared.js"></script>
     <script>
         // KHÔNG dùng sb/Supabase client trực tiếp — mọi thao tác qua API route riêng (service key
@@ -501,13 +518,17 @@
         // lượt trước; giờ `chonNgay` reset về `null`/`null`, bắt khách tự chọn LẠI cả 2 mỗi lần).
         let noiXuatPhatTinh = null
         let diemDenTinh = null
+        // Địa điểm cụ thể (xã/huyện) chọn ở Bước 2 của picker Tỉnh->Xã/Huyện (2026-09-22, thay
+        // diem_khach) — {nhan, loai:'xa'|'huyen'} hoặc null. Cùng vòng đời với noiXuatPhatTinh/
+        // diemDenTinh (không reset theo chonNgay/doiChuyenKhac, chỉ đổi khi khách tự chọn lại).
+        let noiXuatPhatDiaDiem = null
+        let diemDenDiaDiem = null
         // currentChuyen: {ngay, lunarDay, lunarMonth, chieu, chuyen_id} — chuyen_id CÓ THỂ
         // null (ngày/chiều chưa ai đặt, hệ thống CHƯA tạo `chuyen` thật trong DB) cho tới khi có
         // lượt đặt vé đầu tiên thành công (api/cong-khai-dat-ve.js tự tạo rồi trả lại chuyen_id,
         // xem btn-dat-ve).
         let currentChuyen = null   // null cho tới khi khách chọn xong ở Bước 0
         let soDoData = []          // [{id, tang, hang, vi_tri, ma, hoat_dong, trong}] — của ĐÚNG currentChuyen
-        let diemKhachList = []
         let tinhList = []
         // Chọn NHIỀU giường cùng lúc (vd nhóm khách đi chung) — Map<giuong.id, giuong>, bấm lại
         // 1 giường đang chọn thì bỏ chọn (toggle). Cùng 1 bộ tên/SĐT/điểm lên-xuống/thanh toán áp
@@ -521,19 +542,6 @@
             toast.textContent = msg
             toast.className = 'toast show ' + type
             setTimeout(() => toast.className = 'toast', 3000)
-        }
-
-        // Bỏ hẳn Bước "Chọn điểm lên/xuống" (dropdown diem_khach, đợt 10, 2026-09-19, theo yêu
-        // cầu) — thay bằng tự suy ĐIỂM ĐẦU TIÊN (theo thu_tu, null xuống cuối) của đúng tỉnh vừa
-        // chọn ở Bước 0 (`noiXuatPhatTinh`/`diemDenTinh`), không hỏi lại khách. Tỉnh chưa có
-        // `diem_khach` nào (đa số 17 tỉnh hiện chỉ Đắk Lắk/Hải Dương có điểm, xem CLAUDE.md) →
-        // trả `null`, `chonChuyen` vẫn cho đặt vé bình thường với `diem_len_id`/`diem_xuong_id`
-        // để trống (2 cột đã nullable sẵn trong schema) — crew tự điền điểm chính xác sau qua
-        // `khach.html` nếu cần.
-        function timDiemChoTinh(tinhMa) {
-            const list = diemKhachList.filter(d => d.tinh_ma === tinhMa)
-                .sort((a, b) => (a.thu_tu ?? 999) - (b.thu_tu ?? 999) || a.ten.localeCompare(b.ten, 'vi'))
-            return list[0] || null
         }
 
         // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé/giường = |gia_moc(tỉnh đến) −
@@ -726,12 +734,6 @@
             if (!currentChuyen || !dsGiuong.length) return
             const ten = document.getElementById('f-ten').value.trim()
             const sdt = document.getElementById('f-sdt').value.trim()
-            // diem_len_id/diem_xuong_id tự suy từ tỉnh đã chọn ở Bước 0 (xem timDiemChoTinh, gán
-            // vào currentChuyen lúc chonChuyen) — CÓ THỂ null nếu tỉnh đó chưa có diem_khach nào,
-            // KHÔNG còn chặn đặt vé vì thiếu điểm (đợt 10, 2026-09-19, theo yêu cầu bỏ hẳn Bước
-            // "Chọn điểm lên/xuống").
-            const diemLenId = currentChuyen.diemLenId
-            const diemXuongId = currentChuyen.diemXuongId
             const hinhThuc = document.querySelector('input[name="thanh-toan"]:checked').value
             if (!ten) { showToast('Vui lòng nhập họ tên', 'error'); return }
             if (!sdt) { showToast('Vui lòng nhập số điện thoại', 'error'); return }
@@ -754,9 +756,20 @@
                     // tinh_len_ma/tinh_xuong_ma — server tự tính lại giá từ đây (không tin `gia`
                     // tính ở client), xem api/cong-khai-dat-ve.js. `noiXuatPhatTinh`/`diemDenTinh`
                     // vẫn giữ đúng cặp tỉnh đã xác nhận ở Bước 0 (không bị reset sau confirm).
+                    // dia_diem_len_nhan/loai, dia_diem_xuong_nhan/loai — nhãn xã/huyện chọn ở
+                    // Bước 2 picker Tỉnh->Xã/Huyện (2026-09-22, thay diem_len_id/diem_xuong_id,
+                    // xem SPEC "Bỏ diem_khach" trong CLAUDE.md) — có thể null nếu khách chưa mở
+                    // picker lần nào (không nên xảy ra vì Bước 0 bắt buộc chọn đủ mới xác nhận
+                    // được chuyến, nhưng vẫn optional ở tầng API phòng dữ liệu cũ/race hiếm gặp).
+                    const diaDiemFields = {
+                        dia_diem_len_nhan: noiXuatPhatDiaDiem?.nhan || null,
+                        dia_diem_len_loai: noiXuatPhatDiaDiem?.loai || null,
+                        dia_diem_xuong_nhan: diemDenDiaDiem?.nhan || null,
+                        dia_diem_xuong_loai: diemDenDiaDiem?.loai || null
+                    }
                     const body = currentChuyen.chuyen_id
-                        ? { nx, chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
-                        : { nx, ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, diem_len_id: diemLenId, diem_xuong_id: diemXuongId, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
+                        ? { nx, chuyen_id: currentChuyen.chuyen_id, giuong_id: g.id, ten, sdt, ...diaDiemFields, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
+                        : { nx, ngay: currentChuyen.ngay, chieu: currentChuyen.chieu, giuong_id: g.id, ten, sdt, ...diaDiemFields, hinh_thuc_thanh_toan: hinhThuc, tinh_len_ma: noiXuatPhatTinh.ma, tinh_xuong_ma: diemDenTinh.ma }
                     const res = await fetch('/api/cong-khai-dat-ve', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -964,9 +977,8 @@
         }
 
         // 17 tỉnh dọc tuyến cho picker địa danh — loại Khánh Hòa (xe không qua, cùng lý do filter
-        // đã có ở hang.html's loadTinh()). Tái dùng `tinhList` đã tải sẵn từ api/cong-khai-diem-khach.js
-        // (dùng chung với `timDiemChoTinh` để tự suy điểm lên/xuống — xem đợt 10), KHÔNG gọi thêm
-        // API riêng. Đã sắp `thu_tu` tăng dần từ server, không cần sort lại.
+        // đã có ở hang.html's loadTinh()). Tái dùng `tinhList` đã tải sẵn từ api/cong-khai-diem-khach.js,
+        // KHÔNG gọi thêm API riêng. Đã sắp `thu_tu` tăng dần từ server, không cần sort lại.
         function tinhTuyenChoDatVe() {
             return tinhList.filter(t => t.ma !== 'KHH')
         }
@@ -989,11 +1001,13 @@
             // `noiXuatPhatTinh`/`diemDenTinh` CÓ THỂ `null` (chưa chọn, xem `chonNgay`) — hiện
             // placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" thay vì tên tỉnh, và khoá nút xác
             // nhận cho tới khi khách chọn đủ cả 2 (xem `xacNhanChonChieu`).
+            // Hiện thêm nhãn xã/huyện đã chọn ở Bước 2 (nếu có) ngay dưới tên tỉnh, chữ nhỏ màu
+            // muted — thuần hiển thị, không ảnh hưởng logic chọn/xác nhận.
             const xuatPhatHtml = noiXuatPhatTinh
-                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}</span>`
+                ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}${noiXuatPhatDiaDiem ? `<div class="route-place-sub">${noiXuatPhatDiaDiem.nhan}</div>` : ''}</span>`
                 : `<span class="route-place-value route-place-placeholder" data-vai-tro="xuat_phat">Chọn nơi xuất phát</span>`
             const diemDenHtml = diemDenTinh
-                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}</span>`
+                ? `<span class="route-place-value" data-vai-tro="diem_den">${diemDenTinh.ten}${diemDenDiaDiem ? `<div class="route-place-sub">${diemDenDiaDiem.nhan}</div>` : ''}</span>`
                 : `<span class="route-place-value route-place-placeholder" data-vai-tro="diem_den">Chọn điểm đến</span>`
             wrap.innerHTML = `
                 <div class="route-select-wrap">
@@ -1060,40 +1074,110 @@
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
 
-        // Modal chọn địa danh (đợt 9: 17 tỉnh dọc tuyến thay cho 2 lựa chọn cố định) khi bấm vào
-        // tên tỉnh — KHÔNG phải ô tìm kiếm tự do kiểu Vexere (list cố định từ `tinh_tuyen`, không
-        // gõ được). Loại thêm tỉnh đang chọn ở BÊN KIA khỏi list — không cho chọn trùng 1 tỉnh cho
-        // cả xuất phát lẫn điểm đến (nếu bên kia chưa chọn thì không loại gì thêm). Chọn xong chỉ
-        // ĐỔI HIỂN THỊ (set lại biến tỉnh tương ứng rồi vẽ lại `renderChieuSelector`), KHÔNG gọi
-        // `chonChuyen` — giống hệt cách nút "⇅" hoạt động.
-        function moDiaDiemPicker(vaiTro) {
-            const tinhBenKia = vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
-            const dangChonMa = (vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh)?.ma
-            const list = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia?.ma)
-            document.getElementById('dia-diem-picker-title').textContent =
-                vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến'
-            const optionsWrap = document.getElementById('dia-diem-picker-options')
-            optionsWrap.innerHTML = list.map(t => `
-                <div class="dia-diem-picker-option${t.ma === dangChonMa ? ' dang-chon' : ''}" data-ma="${t.ma}">
-                    <span>${t.ten}</span><span class="check">✓</span>
+        // Picker Tỉnh -> Xã/Huyện (2026-09-22, thay diem_khach — xem SPEC "Bỏ diem_khach, thay
+        // bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md) — mở khi bấm vào tên tỉnh ở
+        // `renderChieuSelector`. 2 bước trong CÙNG 1 phiên mở picker: Bước 1 chọn tỉnh (17 tỉnh
+        // dọc tuyến, loại tỉnh đang chọn ở BÊN KIA — không cho trùng xuất phát/điểm đến), Bước 2
+        // chọn xã (toggle "Mới") hoặc huyện (toggle "Cũ") CỦA ĐÚNG tỉnh vừa chọn ở Bước 1, đọc từ
+        // `data/tinh-xa-huyen.json` (build sẵn từ nguồn tranngocminhhieu/vietnamadminunits, xem
+        // CLAUDE.md). Chọn xong Bước 2 mới thật sự set `noiXuatPhatTinh`/`diemDenTinh` +
+        // `noiXuatPhatDiaDiem`/`diemDenDiaDiem` rồi đóng picker — KHÔNG gọi `chonChuyen` (giống
+        // hệt hành vi cũ, chỉ đổi hiển thị/state, xác nhận chuyến vẫn qua nút riêng).
+        let ddpXaHuyenData = null   // cache fetch data/tinh-xa-huyen.json, tải 1 lần
+        let ddpState = null         // { vaiTro, buoc: 1|2, tenMoi, tinhDangChon }
+        async function taiDuLieuXaHuyen() {
+            if (ddpXaHuyenData) return ddpXaHuyenData
+            const res = await fetch('data/tinh-xa-huyen.json')
+            ddpXaHuyenData = await res.json()
+            return ddpXaHuyenData
+        }
+        async function moDiaDiemPicker(vaiTro) {
+            const tinhHienTai = vaiTro === 'xuat_phat' ? noiXuatPhatTinh : diemDenTinh
+            ddpState = { vaiTro, buoc: 1, tenMoi: false, tinhDangChon: tinhHienTai }
+            await taiDuLieuXaHuyen()
+            renderDiaDiemPicker()
+            document.getElementById('dia-diem-picker').classList.add('open')
+        }
+        function dongDiaDiemPicker() {
+            document.getElementById('dia-diem-picker').classList.remove('open')
+            ddpState = null
+        }
+        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPicker)
+        // Đổi toggle Cũ/Mới GIỮA CHỪNG (đã ở Bước 2) -> reset về Bước 1, xoá tỉnh đang chọn tạm
+        // trong picker (quyết định owner, tránh kẹt "tỉnh hiện tên cũ nhưng xã bên dưới lại là
+        // danh sách xã mới" — cùng nguyên tắc doiChuyenKhac() đã áp dụng cho cả trang). Đổi toggle
+        // lúc còn ở Bước 1 (chưa chọn tỉnh gì) thì chỉ vẽ lại list theo nguồn mới, không cần reset.
+        function doiToggleDiaDiem() {
+            ddpState.tenMoi = !ddpState.tenMoi
+            if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null }
+            renderDiaDiemPicker()
+        }
+        // Chỉ render lại KHUNG (header/toggle/search input) khi đổi bước/toggle — search input
+        // giữ nguyên DOM node xuyên suốt lúc gõ (renderDdpList() riêng, không đụng lại input) để
+        // không mất focus/con trỏ giữa chừng, cùng bài học đã áp dụng cho .item-qty-input ở
+        // hang.html.
+        function renderDiaDiemPicker() {
+            const card = document.getElementById('dia-diem-picker-card')
+            const tieuDe = ddpState.buoc === 1
+                ? (ddpState.vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến')
+                : `Xã/huyện — ${ddpState.tinhDangChon.ten}`
+            card.innerHTML = `
+                <div class="ddp-header">
+                    ${ddpState.buoc === 2 ? '<button type="button" class="ddp-back" id="ddp-back">‹</button>' : ''}
+                    <h3>${tieuDe}</h3>
+                    <label class="ddp-toggle"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}> Địa chỉ mới</label>
                 </div>
-            `).join('')
-            optionsWrap.querySelectorAll('.dia-diem-picker-option').forEach(el => {
+                <input type="text" class="ddp-search" id="ddp-search" placeholder="Gõ để tìm...">
+                <div class="ddp-list" id="ddp-list"></div>
+            `
+            document.getElementById('ddp-toggle-cb').addEventListener('change', doiToggleDiaDiem)
+            if (ddpState.buoc === 2) {
+                document.getElementById('ddp-back').addEventListener('click', () => {
+                    ddpState.buoc = 1; ddpState.tinhDangChon = null
+                    renderDiaDiemPicker()
+                })
+            }
+            document.getElementById('ddp-search').addEventListener('input', renderDdpList)
+            renderDdpList()
+        }
+        function renderDdpList() {
+            const tuKhoa = boDau(document.getElementById('ddp-search').value)
+            let items
+            if (ddpState.buoc === 1) {
+                const tinhBenKia = ddpState.vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
+                items = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia?.ma).map(t => ({
+                    key: t.ma,
+                    label: ddpState.tenMoi ? (ddpXaHuyenData[t.ma]?.ten_moi || t.ten) : t.ten,
+                    raw: t
+                }))
+            } else {
+                const d = ddpXaHuyenData[ddpState.tinhDangChon.ma]
+                const src = ddpState.tenMoi ? (d?.xa_moi || []) : (d?.huyen_cu || [])
+                items = src.map(label => ({ key: label, label, raw: label }))
+            }
+            if (tuKhoa) items = items.filter(it => boDau(it.label).includes(tuKhoa))
+            const list = document.getElementById('ddp-list')
+            list.innerHTML = items.length
+                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}"><span>${it.label}</span></div>`).join('')
+                : '<div class="ddp-empty">Không tìm thấy</div>'
+            list.querySelectorAll('.dia-diem-picker-option').forEach(el => {
                 el.addEventListener('click', () => {
-                    const tinh = list.find(t => t.ma === el.dataset.ma)
-                    if (vaiTro === 'xuat_phat') noiXuatPhatTinh = tinh
-                    else diemDenTinh = tinh
+                    const item = items.find(it => it.key === el.dataset.key)
+                    if (ddpState.buoc === 1) {
+                        ddpState.tinhDangChon = item.raw
+                        ddpState.buoc = 2
+                        renderDiaDiemPicker()
+                        return
+                    }
+                    const diaDiem = { nhan: item.label, loai: ddpState.tenMoi ? 'xa' : 'huyen' }
+                    if (ddpState.vaiTro === 'xuat_phat') { noiXuatPhatTinh = ddpState.tinhDangChon; noiXuatPhatDiaDiem = diaDiem }
+                    else { diemDenTinh = ddpState.tinhDangChon; diemDenDiaDiem = diaDiem }
                     dongDiaDiemPicker()
                     renderChieuSelector(entryDangChonChieu)
                     capNhatGiaVeBar()
                 })
             })
-            document.getElementById('dia-diem-picker').classList.add('open')
         }
-        function dongDiaDiemPicker() {
-            document.getElementById('dia-diem-picker').classList.remove('open')
-        }
-        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPicker)
 
         // Sau khi đã chọn — thanh xác nhận + nút đổi lại, thay cho lịch ở Bước 0. Nhãn tuyến ghép
         // từ `noiXuatPhatTinh`/`diemDenTinh` (biến vẫn giữ đúng cặp tỉnh vừa xác nhận — không bị
@@ -1143,13 +1227,11 @@
         // Chọn 1 ngày+chiều (bấm nút ở chonNgay) → tải sơ đồ giường CỦA ĐÚNG ngày/chiều đó
         // (chuyen_id có thể null nếu chưa ai đặt — xem taiSoDo), reset lựa chọn giường vì gắn với
         // lựa chọn cũ (đổi ngày đi thì giường của chuyến trước không còn ý nghĩa). KHÔNG còn Bước
-        // "Chọn điểm lên/xuống" riêng (bỏ hẳn 2026-09-19, đợt 10, theo yêu cầu) — đi thẳng từ chọn
-        // tỉnh (Bước 0) sang sơ đồ giường, `diemLenId`/`diemXuongId` tự suy từ tỉnh vừa chọn qua
-        // `timDiemChoTinh` (có thể null nếu tỉnh chưa có `diem_khach`, vẫn cho đặt bình thường).
+        // "Chọn điểm lên/xuống" riêng (bỏ hẳn 2026-09-19, đợt 10) — địa điểm cụ thể giờ đã chọn
+        // SẴN ở Bước 0 qua picker Tỉnh->Xã/Huyện (`noiXuatPhatDiaDiem`/`diemDenDiaDiem`, xem
+        // moDiaDiemPicker), không cần suy diễn gì thêm ở đây (2026-09-22).
         async function chonChuyen(c) {
             currentChuyen = c
-            currentChuyen.diemLenId = timDiemChoTinh(noiXuatPhatTinh.ma)?.id || null
-            currentChuyen.diemXuongId = timDiemChoTinh(diemDenTinh.ma)?.id || null
             selectedGiuongMap.clear()
             capNhatGiaVeBar()
             document.getElementById('dat-ve-form').style.display = 'none'
@@ -1207,7 +1289,8 @@
             // ngầm" — trang KHÔNG được phép âm thầm coi như thành công).
             if (!lichRes.ok) { document.getElementById('chuyen-info-wrap').innerHTML = `<div class="khong-co-chuyen">${lichData.error || 'Lỗi tải lịch chạy'}</div>`; return }
             if (!diemRes.ok) { showToast(diemJson.error || 'Lỗi tải điểm đón', 'error') }
-            diemKhachList = diemJson.diemKhach || []
+            // KHÔNG còn đọc diemJson.diemKhach (đợt "Bỏ diem_khach" 2026-09-22) — endpoint vẫn
+            // trả field đó cho khách/crew cũ chưa cập nhật cache, chỉ ngừng dùng ở tầng này.
             tinhList = diemJson.tinh || []
 
             // Tên nhà xe ở header/title thay cho nhãn cố định (chỉ có ở response lich-chay, xem

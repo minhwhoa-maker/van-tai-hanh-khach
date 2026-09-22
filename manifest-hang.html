@@ -380,25 +380,29 @@
             currentKienList = kienList
             updateEndTripButton(chuyen, kienList)
 
-            // Điểm trả khách (module hành khách, bảng `ve`/`diem_khach` — TÁCH RIÊNG khỏi kiện
-            // hàng, chỉ chung chuyen_id) chen vào cuối mỗi nhóm tỉnh, để crew thấy luôn còn
-            // khách nào cần trả dọc tuyến khi đang xem danh sách giao hàng, không phải mở riêng
-            // khach.html. CHỈ lấy điểm XUỐNG (trả khách) — không lấy điểm lên, vì trang này là
-            // "Danh sách kiện hàng", không phải toàn bộ hành trình khách. Join diem_khach qua
-            // alias PostgREST (điểm lên/xuống cùng trỏ 1 bảng qua 2 cột FK khác nhau).
+            // Khách cần trả (module hành khách, bảng `ve` — TÁCH RIÊNG khỏi kiện hàng, chỉ chung
+            // chuyen_id) chen vào cuối mỗi nhóm tỉnh, để crew thấy luôn còn khách nào cần trả dọc
+            // tuyến khi đang xem danh sách giao hàng, không phải mở riêng khach.html. CHỈ lấy
+            // ĐIỂM XUỐNG (trả khách) — không lấy điểm lên, vì trang này là "Danh sách kiện hàng",
+            // không phải toàn bộ hành trình khách.
+            //
+            // Nhóm theo `ve.tinh_xuong_ma` trực tiếp (2026-09-22, thay join `diem_khach` — xem
+            // SPEC "Bỏ diem_khach, thay bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md) — GIẢI QUYẾT
+            // ĐÚNG gốc vấn đề: vé đặt vào tỉnh CHƯA có `diem_khach` (đa số 17 tỉnh, trước đây
+            // `diem_xuong_id = null` bị guard `if (!v.diem_xuong) return` loại thẳng, khách biến
+            // mất khỏi manifest) giờ luôn có `tinh_xuong_ma` (bắt buộc chọn ở Bước 0 picker) nên
+            // luôn nhóm được, không phụ thuộc `diem_khach` có tồn tại hay không.
             const { data: veList, error: veErr } = await sb
                 .from('ve')
-                .select('id, ten_khach, sdt_khach, diem_xuong:diem_khach!diem_xuong_id(id, ten, tinh_ma)')
+                .select('id, ten_khach, sdt_khach, tinh_xuong_ma, dia_diem_xuong_nhan')
                 .eq('chuyen_id', chuyen.id)
                 .eq('trang_thai', 'da_dat')
             if (veErr) { showToast('Lỗi tải vé: ' + veErr.message, 'error'); return }
-            const diemXuongInfoMap = new Map()   // diem_khach.id -> { ten, tinh_ma, khach: [] }
+            const khachXuongTheoTinh = new Map()   // tinh_ma -> [ve, ...]
             veList.forEach(v => {
-                if (!v.diem_xuong) return
-                if (!diemXuongInfoMap.has(v.diem_xuong.id)) {
-                    diemXuongInfoMap.set(v.diem_xuong.id, { ten: v.diem_xuong.ten, tinh_ma: v.diem_xuong.tinh_ma, khach: [] })
-                }
-                diemXuongInfoMap.get(v.diem_xuong.id).khach.push(v)
+                if (!v.tinh_xuong_ma) return   // vé cũ trước 2026-09-21 có thể chưa có tinh_xuong_ma
+                if (!khachXuongTheoTinh.has(v.tinh_xuong_ma)) khachXuongTheoTinh.set(v.tinh_xuong_ma, [])
+                khachXuongTheoTinh.get(v.tinh_xuong_ma).push(v)
             })
 
             // Dùng chung 1 object diem cho mọi kiện cùng diem_id — cập nhật 1 lần (vd sau khi
@@ -417,62 +421,71 @@
             let any = false
             tinhList.forEach(tinh => {
                 const kiensCuaTinh = sapXepTrongTinh(kienList.filter(k => k.diem?.tinh_ma === tinh.ma), chuyen.chieu)
-                // diem_khach không có km_moc để so trực tiếp với kiện hàng, nên chỉ xếp gần đúng
-                // theo TÊN (bỏ dấu), luôn đặt SAU kiện hàng trong cùng nhóm tỉnh.
-                const diemXuongCuaTinh = [...diemXuongInfoMap.values()]
-                    .filter(d => d.tinh_ma === tinh.ma)
-                    .sort((a, b) => boDau(a.ten).localeCompare(boDau(b.ten)))
-                if (!kiensCuaTinh.length && !diemXuongCuaTinh.length) return
+                // Không có km_moc để so trực tiếp với kiện hàng (khách chỉ chọn tỉnh + xã/huyện,
+                // không phải điểm giao cụ thể như kiện hàng) — sắp gần đúng theo NHÃN xã/huyện đã
+                // chọn (bỏ dấu), khách chưa rõ vị trí cụ thể (dia_diem_xuong_nhan null) xuống cuối.
+                const khachXuongCuaTinh = (khachXuongTheoTinh.get(tinh.ma) || [])
+                    .slice()
+                    .sort((a, b) => {
+                        if (!a.dia_diem_xuong_nhan && !b.dia_diem_xuong_nhan) return 0
+                        if (!a.dia_diem_xuong_nhan) return 1
+                        if (!b.dia_diem_xuong_nhan) return -1
+                        return boDau(a.dia_diem_xuong_nhan).localeCompare(boDau(b.dia_diem_xuong_nhan))
+                    })
+                if (!kiensCuaTinh.length && !khachXuongCuaTinh.length) return
                 any = true
 
                 const group = document.createElement('div')
                 group.className = 'tinh-group'
                 const h3 = document.createElement('h3')
-                h3.textContent = `${tinh.ten} (${kiensCuaTinh.length}${diemXuongCuaTinh.length ? ` + ${diemXuongCuaTinh.length} điểm trả khách` : ''})`
+                h3.textContent = `${tinh.ten} (${kiensCuaTinh.length}${khachXuongCuaTinh.length ? ` + ${khachXuongCuaTinh.length} khách cần trả` : ''})`
                 group.appendChild(h3)
 
                 kiensCuaTinh.forEach(k => {
                     group.appendChild(createKienRow(k))
                 })
-                diemXuongCuaTinh.forEach(d => {
-                    group.appendChild(createDiemXuongRow(d, chuyen))
-                })
+                if (khachXuongCuaTinh.length) {
+                    group.appendChild(createKhachXuongGroupRow(khachXuongCuaTinh, tinh, chuyen))
+                }
                 wrap.appendChild(group)
             })
 
             if (!any) wrap.innerHTML = '<div class="empty">Chuyến này chưa có kiện hàng nào</div>'
         }
 
-        // Dòng điểm trả khách (khác kiện hàng) — mỗi khách có nút "✅ Trả khách" để đánh dấu
-        // ngay tại đây, không phải mở khach.html mới thao tác được. `ve` KHÔNG có trạng thái
-        // riêng "đã lên/đã xuống xe" (chỉ 'da_dat'|'huy', xem mục Database ở CLAUDE.md) — "Trả
-        // khách" dùng chung UPDATE trang_thai = 'huy' giống hệt "Huỷ vé" ở khach.html, vì đây
-        // vốn là cách DUY NHẤT để giường trống lại trong schema hiện tại. Xong 1 khách thì gọi
-        // lại loadManifest(chuyen) để tỉnh/đếm/nhóm tự cập nhật đồng bộ — đơn giản hơn tự vá DOM
-        // tại chỗ, cùng pattern huyDon/traHang bên kiện hàng đã dùng.
-        function createDiemXuongRow(d, chuyen) {
+        // Dòng khách cần trả trong 1 tỉnh (khác kiện hàng, gộp CHUNG 1 row/tỉnh — không còn nhóm
+        // theo điểm cụ thể, xem SPEC "Bỏ diem_khach" trong CLAUDE.md, 2026-09-22) — mỗi khách hiện
+        // tên/SĐT + nhãn xã/huyện đã chọn (hoặc "Chưa rõ vị trí cụ thể" nếu null, để crew biết cần
+        // hỏi lại lúc gần tới), kèm nút "✅ Trả khách" đánh dấu ngay tại đây, không phải mở
+        // khach.html mới thao tác được. `ve` KHÔNG có trạng thái riêng "đã lên/đã xuống xe" (chỉ
+        // 'da_dat'|'huy', xem mục Database ở CLAUDE.md) — "Trả khách" dùng chung UPDATE
+        // trang_thai = 'huy' giống hệt "Huỷ vé" ở khach.html, vì đây vốn là cách DUY NHẤT để
+        // giường trống lại trong schema hiện tại. Xong 1 khách thì gọi lại loadManifest(chuyen) để
+        // tỉnh/đếm/nhóm tự cập nhật đồng bộ — đơn giản hơn tự vá DOM tại chỗ, cùng pattern
+        // huyDon/traHang bên kiện hàng đã dùng.
+        function createKhachXuongGroupRow(khachList, tinh, chuyen) {
             const row = document.createElement('div')
             row.className = 'kien-row diem-xuong-row'
             row.innerHTML = `
                 <div class="info">
                     <div class="diem">
-                        🧍 ${d.ten} <span class="so-luong">${d.khach.length} khách</span>
+                        🧍 Khách cần trả — ${tinh.ten}
                         <a class="diem-xuong-xem" href="khach.html?chuyen_id=${chuyen.id}&view=danh_sach">Xem trong Danh sách →</a>
                     </div>
                     <div class="diem-xuong-khach-list"></div>
                 </div>
             `
             const listEl = row.querySelector('.diem-xuong-khach-list')
-            d.khach.forEach(v => {
+            khachList.forEach(v => {
                 const item = document.createElement('div')
                 item.className = 'khach-xuong-item'
                 item.innerHTML = `
-                    <span class="mota">${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''}</span>
+                    <span class="mota">${v.ten_khach || '(chưa có tên)'}${v.sdt_khach ? ' — ' + v.sdt_khach : ''} — ${v.dia_diem_xuong_nhan || 'Chưa rõ vị trí cụ thể'}</span>
                     <button type="button" class="btn-sm btn-tra-khach">✅ Trả khách</button>
                 `
                 item.querySelector('.btn-tra-khach').addEventListener('click', async () => {
                     const ok = await confirmDialog(
-                        `Xác nhận đã trả khách ${v.ten_khach || '(chưa có tên)'} tại ${d.ten}? Giường sẽ trống lại để đặt cho khách khác.`,
+                        `Xác nhận đã trả khách ${v.ten_khach || '(chưa có tên)'} tại ${tinh.ten}? Giường sẽ trống lại để đặt cho khách khác.`,
                         { okText: 'Xác nhận' }
                     )
                     if (!ok) return

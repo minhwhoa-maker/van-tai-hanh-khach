@@ -16,9 +16,13 @@
 // DevTools trước khi gửi request) — xem SPEC "Bảng giá theo tỉnh" trong CLAUDE.md.
 //
 // Multi-tenant Giai đoạn 5 (2026-09-20) — resolve nhà xe từ `?nx=<slug>` (BLOCKER hardcode 'eakar'
-// đã gỡ). MỌI id client gửi lên (chuyen_id, giuong_id, diem_len_id, diem_xuong_id, tinh_len_ma,
-// tinh_xuong_ma) được verify thuộc đúng nhà xe TRƯỚC khi insert — route dùng service key nên RLS
-// KHÔNG cứu được nếu bỏ qua bước này. Xem SPEC "Multi-tenant Giai đoạn 5" trong CLAUDE.md.
+// đã gỡ). MỌI id client gửi lên (chuyen_id, giuong_id, tinh_len_ma, tinh_xuong_ma) được verify
+// thuộc đúng nhà xe TRƯỚC khi insert — route dùng service key nên RLS KHÔNG cứu được nếu bỏ qua
+// bước này. Xem SPEC "Multi-tenant Giai đoạn 5" trong CLAUDE.md.
+//
+// diem_len_id/diem_xuong_id KHÔNG còn nhận từ client (2026-09-22, xem SPEC "Bỏ diem_khach, thay
+// bằng chọn Tỉnh + Xã/Huyện") — thay bằng dia_diem_len_nhan/loai, dia_diem_xuong_nhan/loai (nhãn
+// tự do + 'xa'|'huyen', không phải FK nên không cần verify ownership).
 import { createClient } from '@supabase/supabase-js'
 import { docNx, layNhaXe, xacMinhThuocNhaXe, guiLoiNhaXe } from './_lib/nha-xe.js'
 
@@ -68,7 +72,11 @@ export default async function handler(req, res) {
         res.status(500).json({ error: err.message }); return
     }
 
-    const { chuyen_id, ngay, chieu, giuong_id, ten, sdt, diem_len_id, diem_xuong_id, hinh_thuc_thanh_toan, tinh_len_ma, tinh_xuong_ma } = req.body || {}
+    const {
+        chuyen_id, ngay, chieu, giuong_id, ten, sdt,
+        dia_diem_len_nhan, dia_diem_len_loai, dia_diem_xuong_nhan, dia_diem_xuong_loai,
+        hinh_thuc_thanh_toan, tinh_len_ma, tinh_xuong_ma
+    } = req.body || {}
 
     if (!giuong_id) { res.status(400).json({ error: 'Thiếu giuong_id' }); return }
     if (!chuyen_id && !(ngay && chieu)) { res.status(400).json({ error: 'Thiếu chuyen_id hoặc ngay/chieu' }); return }
@@ -76,12 +84,16 @@ export default async function handler(req, res) {
     if (!tenSach) { res.status(400).json({ error: 'Vui lòng nhập tên' }); return }
     const sdtChuan = chuanHoaSdt(sdt)
     if (!laSdtHopLe(sdtChuan)) { res.status(400).json({ error: 'Số điện thoại không hợp lệ' }); return }
-    // diem_len_id/diem_xuong_id KHÔNG còn bắt buộc (đợt 10, 2026-09-19) — dat-ve.html bỏ hẳn Bước
-    // "Chọn điểm lên/xuống" (dropdown diem_khach cụ thể), tự suy ra điểm ĐẦU TIÊN của tỉnh đã chọn
-    // ở Bước 0 (client-side, xem CLAUDE.md) hoặc để null nếu tỉnh đó chưa có diem_khach nào — cả 2
-    // cột đã nullable sẵn trong schema, không cần migration.
     if (hinh_thuc_thanh_toan !== 'tien_mat_len_xe' && hinh_thuc_thanh_toan !== 'chuyen_khoan_truoc') {
         res.status(400).json({ error: 'Vui lòng chọn phương thức thanh toán' }); return
+    }
+    // dia_diem_*_nhan/loai: nhãn tự do (không phải FK, xem migration ve_dia_diem_len_xuong_nhan)
+    // — optional, nhưng nếu có `loai` thì PHẢI đúng 1 trong 2 giá trị check constraint cho phép
+    // (thà chặn ở đây với thông điệp rõ ràng, hơn để insert dưới rớt lỗi DB khó hiểu cho client).
+    for (const loai of [dia_diem_len_loai, dia_diem_xuong_loai]) {
+        if (loai && loai !== 'xa' && loai !== 'huyen') {
+            res.status(400).json({ error: 'Loại địa điểm không hợp lệ' }); return
+        }
     }
 
     // OTP bắt buộc (2026-09-19) — SERVER TỰ KIỂM TRA đã xác thực qua api/cong-khai-xac-thuc-otp.js
@@ -126,19 +138,8 @@ export default async function handler(req, res) {
         if (!giuongFull.hoat_dong) { res.status(400).json({ error: 'Giường ngưng phục vụ' }); return }
     }
 
-    if (diem_len_id) {
-        try { await xacMinhThuocNhaXe(sbAdmin, 'diem_khach', diem_len_id, nhaXe.id) }
-        catch (err) { if (guiLoiNhaXe(res, err)) return; res.status(500).json({ error: err.message }); return }
-    }
-    if (diem_xuong_id) {
-        try { await xacMinhThuocNhaXe(sbAdmin, 'diem_khach', diem_xuong_id, nhaXe.id) }
-        catch (err) { if (guiLoiNhaXe(res, err)) return; res.status(500).json({ error: err.message }); return }
-    }
-
     // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)|,
-    // tính LẠI HOÀN TOÀN Ở SERVER từ `tinh_len_ma`/`tinh_xuong_ma` client gửi kèm (không phải từ
-    // `diem_len_id`/`diem_xuong_id` — 2 field đó chỉ là điểm CỤ THỂ, có thể null, không đủ để suy
-    // ra tỉnh nếu chưa có `diem_khach` nào).
+    // tính LẠI HOÀN TOÀN Ở SERVER từ `tinh_len_ma`/`tinh_xuong_ma` client gửi kèm.
     //
     // KHÔNG dùng xacMinhThuocNhaXe (mã tỉnh không phải PK `id` của tuyen_tinh) — query riêng theo
     // tinh_ma. Mỗi mã ĐƯỢC GỬI (khác rỗng) validate ĐỘC LẬP, không phụ thuộc mã kia có mặt hay
@@ -223,7 +224,10 @@ export default async function handler(req, res) {
     const { error } = await sbAdmin.from('ve').insert({
         chuyen_id: chuyenId, giuong_id,
         ten_khach: tenSach, sdt_khach: sdtChuan,
-        diem_len_id, diem_xuong_id,
+        // diem_len_id/diem_xuong_id KHÔNG còn ghi từ đây (2026-09-22) — cột giữ nullable, tự
+        // null vì không truyền, xem SPEC "Bỏ diem_khach" trong CLAUDE.md. Thay bằng nhãn tự do:
+        dia_diem_len_nhan: dia_diem_len_nhan || null, dia_diem_len_loai: dia_diem_len_loai || null,
+        dia_diem_xuong_nhan: dia_diem_xuong_nhan || null, dia_diem_xuong_loai: dia_diem_xuong_loai || null,
         // tinh_len_ma/tinh_xuong_ma: ĐÃ validate thuộc đúng tuyen_tinh của nhaXe ở trên (xem
         // maTinhGuiLen) trước khi dùng để tính giá — ghi thêm vào đây để trả nợ "vé không biết
         // khách xuống đâu" khi tỉnh chưa có diem_khach cụ thể (spec "Đặt vé trên khach.html",

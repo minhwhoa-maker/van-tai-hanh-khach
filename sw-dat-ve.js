@@ -11,12 +11,17 @@
 // v4 (2026-09-20, tách origin riêng eakar-booking.vercel.app): đăng ký lại với scope '/' (trước là
 // '/dat-ve.html', xem dat-ve.html) — bump để dọn cache/registration cũ, tránh SW đời trước (scope
 // hẹp) đứng chắn SW mới ở cùng origin.
-const CACHE_NAME = 'eakar-dat-ve-v4';
+// v5 (2026-09-22, Bỏ diem_khach): dat-ve.html thêm phụ thuộc point-match.js (boDau, lọc picker
+// Tỉnh->Xã/Huyện) + data/tinh-xa-huyen.json (dữ liệu xã/huyện) — thêm vào STATIC_ASSETS để precache
+// dùng offline được, bump để cache cũ (chưa có 2 file này) không kẹt.
+const CACHE_NAME = 'eakar-dat-ve-v5';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',
+    './point-match.js',
     './style.css',
     './manifest-dat-ve.json',
+    './data/tinh-xa-huyen.json',
     './icons/icon-192-booking.png',
     './icons/icon-512-booking.png'
 ];
