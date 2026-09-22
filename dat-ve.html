@@ -2,7 +2,14 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- interactive-widget=resizes-content (2026-09-22, sửa bug thật): thiếu cờ này khiến bàn phím
+         ảo Android che khuất phần dưới các modal/bottom-sheet position:fixed (vd #ddp-list trong
+         picker Tỉnh→Xã/Huyện — gõ tìm kiếm xong danh sách kết quả bị bàn phím che mất hoàn toàn,
+         chỉ còn thấy tiêu đề + ô nhập) vì mặc định Chrome Android không co lại layout viewport khi
+         bàn phím mở, chỉ co "visual viewport", nên `vh`/`inset:0` không tự thu nhỏ theo. Cờ này
+         (Chrome 108+) buộc layout viewport co lại đúng theo bàn phím, mọi modal fixed hiện có tự
+         khớp lại mà không cần sửa CSS riêng từng modal. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="theme-color" content="#1565c0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -53,32 +60,52 @@
         .public-header h1 { margin: 0 0 4px; font-size: 19px; }
         .public-header .sub { font-size: 13px; opacity: 0.9; }
         /* Bước 0 — chọn NGÀY ĐI trước tất cả, dùng lịch chạy cố định theo ngày chẵn âm lịch
-           (api/cong-khai-lich-chay.js). Đổi 2026-09-19 sang GIAO DIỆN LỊCH DẠNG LƯỚI (giống
-           Vexere) — trước đó là danh sách phẳng từng nhóm ngày. Chuyến có thể CHƯA tồn tại trong
-           DB (hệ thống tự tạo lúc khách thật sự đặt vé, xem api/cong-khai-dat-ve.js) — xem SPEC
-           "Lịch chạy cố định" CLAUDE.md. */
+           (api/cong-khai-lich-chay.js). LỊCH CUỘN DỌC LIÊN TỤC (2026-09-23, thay hẳn bản "1 khối
+           tháng/màn hình + ‹/›" trước đó — xem SPEC "Lịch chọn ngày đặt vé" CLAUDE.md) — số tháng
+           render = đủ phủ hết khoảng ngày `lichMap` đã tải (KHÔNG hardcode), cuộn theo trang bình
+           thường (không phải scroll container lồng riêng). Hỗ trợ ĐẶT KHỨ HỒI (toggle sticky phía
+           trên lịch) — tap chọn "Ngày đi"/"Ngày về" kiểu date-range-picker chuẩn. Chuyến có thể
+           CHƯA tồn tại trong DB (hệ thống tự tạo lúc khách thật sự đặt vé) — xem SPEC "Lịch chạy
+           cố định" CLAUDE.md. */
         .chuyen-chon-wrap { margin: 16px; }
         .chuyen-chon-wrap h3 { margin: 0 0 10px; font-size: 16px; }
-        /* CHỈ 1 khối tháng/màn hình (đổi 2026-09-19, đợt 2 — bản đầu "2 khối cạnh nhau" theo spec
-           gốc phải thu nhỏ chữ/ô quá mức để vừa màn hình điện thoại 480px, owner xem ảnh chụp thật
-           thấy khó đọc, yêu cầu quay lại 1 tháng/màn hình, dùng ‹ › để lùi/tới tháng khác). */
-        .lich-thang-wrap { display: flex; }
-        .lich-thang-block {
-            flex: 1 1 auto; width: 100%; background: var(--white); border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm); padding: 10px 8px;
+        /* Hàng tóm tắt "Ngày đi/Ngày về + toggle Khứ hồi" (2026-09-23, đổi từ "sticky luôn hiện
+           lịch bên dưới" sang HÀNG GỌN, bấm vào mở popup toàn màn hình #ngay-picker — theo mẫu
+           hình owner gửi, giống Vexere ẩn lịch mặc định). Bấm bất kỳ đâu trong hàng (trừ toggle,
+           tự `stopPropagation`) mở popup qua `moNgayPicker()`. */
+        .ngay-chon-row {
+            cursor: pointer; background: var(--white);
+            border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            padding: 10px 12px; margin-bottom: 10px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
         }
+        .ngay-chon-info { display: flex; gap: 18px; min-width: 0; }
+        .ngay-chon-item { display: flex; flex-direction: column; min-width: 0; }
+        .ngay-chon-item .nhan { font-size: 11px; color: var(--text-muted); }
+        .ngay-chon-item .gia-tri { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .khu-hoi-wrap { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); white-space: nowrap; cursor: pointer; flex-shrink: 0; }
+        /* Toggle switch dùng chung pattern với .ddp-switch (picker Tỉnh->Xã/Huyện) nhưng tông màu
+           khác (nền trắng thường, không phải header xanh) — track xám khi tắt, primary khi bật.
+           pointer-events:none trên track/thumb (bài học từ bug thật ở .ddp-switch — 2 lớp trang
+           trí che mất input checkbox, bấm không ăn kể cả người dùng thật, không chỉ Playwright). */
+        .kh-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+        .kh-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+        .kh-switch .track { position: absolute; inset: 0; background: #ccc; border-radius: 999px; transition: background .15s; pointer-events: none; }
+        .kh-switch input:checked + .track { background: var(--primary); }
+        .kh-switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; pointer-events: none; }
+        .kh-switch input:checked ~ .thumb { left: 20px; }
+        .lich-thang-wrap { display: flex; flex-direction: column; gap: 16px; }
+        /* KHÔNG còn khung card riêng từng tháng (bỏ border/background/padding, đợt popup 2026-09-23
+           — khớp mẫu hình: chỉ 1 weekday header CỐ ĐỊNH phía trên toàn bộ danh sách tháng, không
+           lặp lại mỗi khối, xem `.np-tuan-header`/renderNgayPickerContent). */
+        .lich-thang-block { width: 100%; }
         .lich-thang-header {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 8px; font-weight: 700; font-size: 14px;
+            text-align: center; margin: 4px 0 8px; font-weight: 700; font-size: 14px;
         }
-        .lich-thang-header button {
-            background: none; border: none; font-size: 20px; line-height: 1; cursor: pointer;
-            color: var(--primary); padding: 4px 10px; font-family: inherit;
-        }
-        .lich-thang-header button:disabled { color: #ccc; cursor: not-allowed; }
         .lich-tuan-header {
             display: grid; grid-template-columns: repeat(7, 1fr); font-size: 11px;
-            color: var(--text-muted); text-align: center; margin-bottom: 4px;
+            color: var(--text-muted); text-align: center; padding: 8px 16px 6px;
+            flex-shrink: 0; background: var(--white); border-bottom: 1px solid var(--border);
         }
         .lich-ngay-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
         .lich-ngay-o {
@@ -88,7 +115,9 @@
         }
         .lich-ngay-o.trong { visibility: hidden; cursor: default; }
         .lich-ngay-o .duong { font-size: 15px; font-weight: 700; color: var(--text); }
-        .lich-ngay-o .am { font-size: 9.5px; color: #c62828; margin-top: 1px; }
+        /* Âm lịch mặc định XÁM (đổi từ đỏ cố định trước đó) — CHỈ mùng 1/15 mới tô đỏ, xem
+           `.am-dac-biet` bên dưới (khớp SPEC "Lịch chọn ngày đặt vé"). */
+        .lich-ngay-o .am { font-size: 9.5px; color: var(--text-muted); margin-top: 1px; }
         .lich-ngay-o { position: relative; }
         .lich-ngay-o .check-chon {
             display: none; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px;
@@ -99,9 +128,21 @@
         .lich-ngay-o.hop-le { border-color: var(--border); }
         .lich-ngay-o.hop-le:hover { background: var(--bg); }
         .lich-ngay-o.khong-hop-le { opacity: 0.35; pointer-events: none; }
+        /* Mùng 1/15 âm lịch tô đỏ đậm (đặt TRƯỚC .dang-chon để nhường ưu tiên trắng khi cùng lúc
+           là ngày đang chọn — thắng theo thứ tự khai báo CSS vì cùng độ đặc hiệu, xem SPEC). */
+        .lich-ngay-o.am-dac-biet .am { color: #c62828; font-weight: 700; }
+        /* Hôm nay — số dương lịch xanh nổi bật (cũng đặt trước .dang-chon vì cùng lý do trên). */
+        .lich-ngay-o.hom-nay .duong { color: var(--primary); }
+        /* Range đã chọn (đặt vé khứ hồi) — ngày ở GIỮA nền vàng nhạt, KHÁC điểm đầu/cuối (nền cam
+           đặc, tái dùng .dang-chon có sẵn — không đổi tên vì đã gắn với check-chon ✓ + nhiều chỗ
+           khác trong file). */
+        .lich-ngay-o.trong-khoang { background: #fff3cd; border-color: #ffe58a; }
         .lich-ngay-o.dang-chon { background: #fb8c00; border-color: #fb8c00; }
         .lich-ngay-o.dang-chon .duong, .lich-ngay-o.dang-chon .am { color: #fff; }
-        .lich-chieu-wrap { margin: 14px 16px 0; }
+        /* Đưa lên TRÊN lịch (2026-09-23, giống thứ tự Vexere) — là khối ĐẦU TIÊN trong
+           .chuyen-chon-wrap giờ, nên bỏ margin-top/margin left-right thừa (16px) của bản cũ
+           (nằm dưới lịch), chỉ còn margin-bottom để tách khỏi tiêu đề "Chọn ngày đi" bên dưới. */
+        .lich-chieu-wrap { margin: 0 0 16px; }
         /* Chọn chiều kiểu "Nơi xuất phát / Điểm đến" giống Vexere (2026-09-19, đợt 4, theo yêu
            cầu) — thay cho 2 nút rời rạc "Đắk Lắk → Hải Dương"/"Hải Dương → Đắk Lắk" trước đó. Vì
            app chỉ có ĐÚNG 2 hướng cố định (không phải chọn tự do như Vexere): nút tròn "⇅" CHỈ
@@ -131,10 +172,17 @@
         .route-place-value {
             border-bottom: 1.5px dotted var(--border); display: inline-block;
             font-size: 28px; font-weight: 700;
+            /* Vùng chạm thật (2026-09-22, theo phản ánh thật — trước đó vùng chạm chỉ bằng đúng
+               kích thước chữ, dễ bấm trượt ra ngoài rơi vào vùng "xác nhận" của .route-select-wrap
+               cha, gây toast "Vui lòng chọn..." liên tục dù đang cố bấm mở picker). padding + margin
+               âm để KHÔNG đổi layout hiển thị, chỉ nới rộng vùng bắt click, cùng chuẩn 44px tối
+               thiểu đã áp dụng cho .btn-icon (xem mục "Tối ưu mobile / PWA"). */
+            padding: 12px 10px; margin: -12px -10px; border-radius: 8px;
         }
         /* Placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" khi chưa chọn tỉnh (đợt 14, 2026-09-18)
            — cỡ chữ nhỏ hơn tên tỉnh thật (28px quá to cho 1 câu gợi ý dài) + màu nhạt, vẫn giữ
-           border-bottom chấm để gợi ý "bấm được" giống hệt state đã chọn. */
+           border-bottom chấm để gợi ý "bấm được" giống hệt state đã chọn. Padding vùng chạm (trên)
+           tính RIÊNG theo font 16px nên đủ 44px dù chữ nhỏ hơn nhiều so với tên tỉnh 28px. */
         .route-place-value.route-place-placeholder {
             font-size: 16px; font-weight: 400; color: var(--text-muted);
         }
@@ -160,60 +208,96 @@
            .route-select-wrap (đợt 6), không hiện rõ "bấm gì để đi tiếp" nên khách không biết cách
            qua bước kế. Đặt NGOÀI .route-select-wrap (không lồng trong khối có user-select:none để
            tránh phải nghĩ lại vùng bắt click) nhưng cùng gọi 1 hàm xác nhận (`xacNhanChonChieu`). */
+        /* Nút "Xác nhận" — FIXED ĐÁY MÀN HÌNH, navy (SPEC "Lịch chọn ngày đặt vé", 2026-09-23) —
+           thay bản cũ (button thường, primary, nằm trong dòng chảy trang) để luôn trong tầm tay dù
+           đang cuộn xem lịch nhiều tháng. Cùng kỹ thuật căn giữa `left:50%+translateX(-50%)` với
+           `.gia-ve-bar` (bar khác, dùng ở bước chọn giường — 2 bar KHÔNG BAO GIỜ cùng hiện 1 lúc:
+           bar này chỉ tồn tại trong DOM lúc còn ở Bước 0, biến mất ngay khi `chonChuyen` thay hẳn
+           nội dung `#chuyen-info-wrap`). `body.co-xac-nhan-ngay-bar` (toggle trong
+           renderChonChuyenStep/chonChuyen) chừa chỗ đáy trang để lịch không bị bar che mất. */
+        body.co-xac-nhan-ngay-bar { padding-bottom: 76px; }
         .btn-chon-vi-tri-giuong {
-            display: block; width: calc(100% - 32px); margin: 0 16px 14px; padding: 14px;
-            border: none; border-radius: var(--radius-sm); background: var(--primary); color: #fff;
+            display: block; position: fixed; left: 50%; bottom: 0; transform: translateX(-50%);
+            width: 100%; max-width: 480px; box-sizing: border-box; z-index: 400;
+            padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+            border: none; background: #0d1b4c; color: #fff;
             font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
         }
         .btn-chon-vi-tri-giuong:disabled {
-            background: #b0bec5; cursor: not-allowed;
+            background: #90a4ae; cursor: not-allowed;
         }
-        /* Modal chọn địa danh — cùng pattern bottom-sheet với .ve-modal/.diemkhach-modal ở
-           khach.html (không phải search page tự do kiểu Vexere — list cố định từ `tinh_tuyen`,
-           không gõ được). Đợt 9: list 17 tỉnh dọc tuyến (trước đó chỉ 2 dòng cố định) nên thêm
-           max-height/overflow-y để cuộn được trong màn hình nhỏ, giống `.ve-modal-card`. */
-        .dia-diem-picker {
-            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+        /* Overlay toàn màn hình DÙNG CHUNG (2026-09-22/23, theo mẫu hình owner gửi) — CẢ picker
+           chọn Tỉnh/Xã-Huyện (#dia-diem-picker) LẪN picker chọn ngày (#ngay-picker, thêm 2026-09-23)
+           đều dùng chung 2 class `.fullscreen-picker`/`.fullscreen-picker-card` này (2 element DOM
+           riêng, cùng style) — trước đó chỉ có picker Tỉnh/Xã-Huyện nên class trùng tên, đổi tên
+           chung để không nhầm khi có thêm picker thứ 2. KHÔNG còn backdrop mờ trên mobile — full-
+           bleed đúng như mẫu; ≥768px (tablet) thu lại thành hộp giữa màn hình có backdrop, xem
+           media query cuối file (giữ đúng quy ước "modal → hộp giữa màn hình từ 768px" đã áp dụng
+           cho các modal khác). */
+        .fullscreen-picker {
+            display: none; position: fixed; inset: 0; z-index: 1000; background: var(--white);
         }
-        .dia-diem-picker.open { display: flex; }
-        .dia-diem-picker-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
-        .dia-diem-picker-card {
-            position: relative; width: 100%; max-width: 480px; background: var(--white);
-            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
-            max-height: 75vh; overflow-y: auto; box-shadow: var(--shadow);
+        .fullscreen-picker.open { display: flex; flex-direction: column; }
+        .dia-diem-picker-backdrop { display: none; }
+        .fullscreen-picker-card {
+            display: flex; flex-direction: column; flex: 1; min-height: 0;
             user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
         }
-        .dia-diem-picker-card h3 { margin: 0 0 6px; font-size: 17px; }
-        .dia-diem-picker-option {
-            display: flex; align-items: center; justify-content: space-between; padding: 14px 4px;
-            font-size: 16px; cursor: pointer; border-bottom: 1px solid var(--border);
+        /* Thanh header xanh (đợt redesign) — nút back/đóng bên trái, tiêu đề giữa, toggle kiểu
+           switch iOS bên phải (thay checkbox vuông cũ). #ddp-header-back dùng CHUNG 1 nút cho cả
+           2 hành vi: Bước 1 = đóng hẳn picker, Bước 2 = lùi về Bước 1 (khác ký tự ‹/← để gợi ý
+           đúng hành vi, xem renderDiaDiemPicker). */
+        .ddp-header-bar {
+            background: var(--primary); color: #fff; flex-shrink: 0;
+            display: flex; align-items: center; gap: 12px;
+            padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
         }
-        .dia-diem-picker-option:last-of-type { border-bottom: none; }
-        .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
-        .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
-        .dia-diem-picker-option.dang-chon .check { visibility: visible; }
-        /* Bỏ diem_khach, thay bằng chọn Tỉnh -> Xã/Huyện (2026-09-22) — mở rộng chính khung
-           .dia-diem-picker-card có sẵn thành 2 bước (drill-down), không thêm overlay riêng.
-           #ddp-back chỉ hiện ở Bước 2 (quay lại Bước 1 mà không đóng hẳn picker). #ddp-toggle-cb
-           đổi Cũ/Mới — đổi giữa chừng lúc đang ở Bước 2 thì reset về Bước 1 (xem doiToggleDiaDiem). */
-        .ddp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .ddp-header h3 { margin: 0; font-size: 17px; flex: 1; }
-        .ddp-back { border: none; background: none; font-size: 24px; font-weight: 700; color: var(--text); cursor: pointer; padding: 0 4px; line-height: 1; }
-        .ddp-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
-        .ddp-toggle input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+        .ddp-header-back { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 2px; line-height: 1; font-family: inherit; }
+        .ddp-header-bar h3 { flex: 1; margin: 0; font-size: 18px; font-weight: 700; }
+        .ddp-switch-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .ddp-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+        .ddp-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+        .ddp-switch .track { position: absolute; inset: 0; background: rgba(255,255,255,.35); border-radius: 999px; transition: background .15s; pointer-events: none; }
+        .ddp-switch input:checked + .track { background: #fff; }
+        .ddp-switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s, background .15s; pointer-events: none; }
+        .ddp-switch input:checked ~ .thumb { left: 20px; background: var(--primary); }
+        .ddp-search-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .ddp-search-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
         .ddp-search {
-            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
-            margin-bottom: 4px;
+            flex: 1; min-width: 0; border: none; font-size: 17px; font-family: inherit; padding: 4px 0; background: transparent;
         }
-        .ddp-list { max-height: 46vh; overflow-y: auto; }
+        .ddp-search:focus { outline: none; }
+        /* Banner "*Lưu ý" (đợt redesign) — chỉ hiện ở Bước 1 (chọn tỉnh), đổi chữ theo toggle
+           đang Cũ/Mới thay vì cố định "trước sáp nhập" như mẫu hình (mẫu chỉ có 1 chiều tìm). */
+        .ddp-luu-y { flex-shrink: 0; background: #fff8e1; color: #6d4c00; font-size: 13px; padding: 10px 16px; line-height: 1.5; }
+        .ddp-luu-y b { color: #e53935; }
+        .ddp-section-label { flex-shrink: 0; padding: 14px 16px 4px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .ddp-list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+        .ddp-empty { padding: 24px 16px; text-align: center; color: var(--text-muted); }
+        .dia-diem-picker-option {
+            display: flex; align-items: center; gap: 14px; padding: 16px;
+            font-size: 17px; cursor: pointer; border-bottom: 1px solid var(--border);
+        }
+        .dia-diem-picker-option .ddp-pin { flex-shrink: 0; color: var(--text-muted); }
+        /* Nhãn tên tỉnh trong dòng gợi ý xã/huyện ở Bước 1 (2026-09-22, tìm xuyên tỉnh) — nhạt hơn
+           tên xã/huyện chính để không lẫn với các dòng tên tỉnh thường phía trên. */
+        .ddp-goi-y-tinh { font-weight: 400; color: var(--text-muted); font-size: 14px; }
         .ddp-empty { padding: 20px 4px; text-align: center; color: var(--text-muted); font-size: 14px; }
+        /* Popup chọn ngày #ngay-picker (2026-09-23) — DÙNG CHUNG `.fullscreen-picker*`/
+           `.ddp-header-bar`/`.ddp-switch*` với picker Tỉnh/Xã-Huyện phía trên (cùng bố cục: header
+           xanh cố định + phần thân cuộn riêng). Chỉ thêm 2 phần đặc thù: info bar hiện Ngày đi/
+           Ngày về (tái dùng `.ngay-chon-info`/`.ngay-chon-item` đã có, không cần CSS mới) và vùng
+           lịch cuộn riêng (`.np-lich-scroll`) — `.lich-tuan-header` (weekday) đứng CỐ ĐỊNH ngay
+           trên, KHÔNG cuộn theo, để khớp mẫu hình. */
+        .np-info-bar { flex-shrink: 0; padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 18px; }
+        .np-lich-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
         .chuyen-da-chon-bar {
             margin: 14px 16px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: var(--white); border: 1.5px solid var(--border); font-size: 14px;
             display: flex; justify-content: space-between; align-items: center; gap: 10px;
         }
         .chuyen-da-chon-bar b { color: var(--primary); }
+        .chang-label { font-size: 12px; font-weight: 700; color: #ef6c00; margin-bottom: 2px; }
         .btn-doi-chuyen {
             background: none; border: none; color: var(--primary); font-size: 13px; font-weight: 600;
             cursor: pointer; font-family: inherit; text-decoration: underline; flex-shrink: 0; padding: 0;
@@ -317,22 +401,28 @@
         .xac-nhan-box .icon { font-size: 40px; }
         .xac-nhan-box h3 { color: var(--success); margin: 8px 0 4px; }
         .xac-nhan-box p { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
+        /* Div (không phải <p>) vì khứ hồi hiện 2 dòng tóm tắt (đi + về) qua innerHTML nhiều <div>
+           con — lồng <div> trong <p> là HTML không hợp lệ, browser tự đóng thẻ <p> sớm. */
+        .xac-nhan-chi-tiet { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
+        .xac-nhan-chi-tiet div { margin: 4px 0; }
 
         /* Tablet (2026-09-21) — nới cột 480px (khoá cứng ở đầu file) lên 640px, CHỈ thêm rule
            mới, không sửa rule 480px gốc (vẫn áp dụng cho mobile/phone-landscape dưới breakpoint
-           này). `.gia-ve-bar` (position:fixed, tự căn giữa qua left:50%+translateX) phải nới CÙNG
-           giá trị — nếu không sẽ hẹp hơn hẳn phần nội dung phía trên, nhìn lệch. Lịch dạng lưới
-           (#lich-thang-wrap) từ 1024px hiện 2 tháng cạnh nhau — xem rule riêng cuối file. */
+           này). `.gia-ve-bar`/`.btn-chon-vi-tri-giuong` (đều position:fixed, tự căn giữa qua
+           left:50%+translateX) phải nới CÙNG giá trị — nếu không sẽ hẹp hơn hẳn phần nội dung phía
+           trên, nhìn lệch. Lịch giờ LUÔN 1 cột cuộn dọc ở MỌI kích thước màn hình (2026-09-23, bỏ
+           hẳn layout "2 tháng cạnh nhau" ở 1024px trước đó — không còn ý nghĩa với lịch cuộn liên
+           tục, xem SPEC "Lịch chọn ngày đặt vé" CLAUDE.md) — không cần override riêng gì thêm. */
         @media (min-width: 768px) and (min-height: 480px) {
             body { max-width: 640px; }
             .gia-ve-bar { max-width: 640px; }
+            .btn-chon-vi-tri-giuong { max-width: 640px; }
 
-            /* Modal -> hộp giữa màn hình (2026-09-21), cùng lý do/đổi y hệt khach.html —
-               #dia-diem-picker vốn bottom-sheet (align-items:flex-end, bo góc trên) chỉ hợp trên
-               màn hẹp. Giữ nguyên max-height/overflow-y (cuộn nội bộ) + user-select:none +
-               mọi hành vi đóng hiện có (bấm ra ngoài/nút Back qua history) — chỉ đổi CSS. */
-            .dia-diem-picker { align-items: center; }
-            .dia-diem-picker-card { max-width: 520px; border-radius: var(--radius); }
+            /* Picker toàn màn hình -> hộp giữa màn hình có backdrop từ 768px (2026-09-22, cùng
+               quy ước "modal → hộp giữa màn hình từ 768px" áp dụng cho các modal khác) — full-
+               bleed chỉ hợp trên màn hẹp. */
+            .fullscreen-picker.open { flex-direction: row; align-items: center; justify-content: center; background: rgba(0,0,0,.4); }
+            .fullscreen-picker-card { flex: none; width: 100%; max-width: 480px; max-height: 80vh; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 
             /* Sơ đồ giường to hơn (2026-09-21) — cùng cơ chế/lý do như khach.html (xem comment ở
                đó): `--seat-cell` set trên .giuong-hang, kế thừa xuống .giuong-icon qua CSS custom
@@ -341,14 +431,6 @@
         }
         @media (min-width: 1024px) and (min-height: 480px) {
             .giuong-hang { --seat-cell: 52px; }
-            /* 2 tháng cạnh nhau (2026-09-21) — 640px (breakpoint 768px) quá hẹp để đặt 2 khối
-               tháng đọc thoải mái (đúng vấn đề gặp phải lúc thử ở 480px trước đây, chỉ đỡ hơn chứ
-               chưa hết) — nới thêm cho riêng khối lịch, vẫn theo nguyên tắc "giới hạn max-width,
-               không phóng to chữ": 880px đủ chỗ cho 2 cột lịch ~7 ô/hàng dễ đọc mà không cần tăng
-               font. `.gia-ve-bar` (chỉ xuất hiện SAU khi đã qua bước lịch, ở bước chọn giường) vẫn
-               giữ 640px — không cần nới, tránh nút "Đặt vé" bị kéo dài quá mức ở bước đó. */
-            body { max-width: 880px; }
-            .lich-thang-wrap { gap: 16px; }
         }
     </style>
 </head>
@@ -471,13 +553,19 @@
     <div class="xac-nhan-box" id="xac-nhan-box">
         <div class="icon">✅</div>
         <h3>Đặt vé thành công!</h3>
-        <p id="xac-nhan-chi-tiet"></p>
+        <div id="xac-nhan-chi-tiet" class="xac-nhan-chi-tiet"></div>
         <p>Vui lòng lưu lại thông tin này — hệ thống chưa hỗ trợ tra cứu lại vé. Cần hỗ trợ, gọi cho nhà xe.</p>
     </div>
 
-    <div class="dia-diem-picker" id="dia-diem-picker">
+    <div class="fullscreen-picker" id="dia-diem-picker">
         <div class="dia-diem-picker-backdrop"></div>
-        <div class="dia-diem-picker-card" id="dia-diem-picker-card"></div>
+        <div class="fullscreen-picker-card" id="dia-diem-picker-card"></div>
+    </div>
+
+    <!-- Popup chọn ngày (2026-09-23) — ẩn lịch mặc định, chỉ hiện hàng tóm tắt #ngay-chon-row,
+         bấm vào mở popup toàn màn hình này (xem SPEC "Lịch chọn ngày đặt vé" CLAUDE.md). -->
+    <div class="fullscreen-picker" id="ngay-picker">
+        <div class="fullscreen-picker-card" id="ngay-picker-card"></div>
     </div>
 
     <div class="gia-ve-bar" id="gia-ve-bar">
@@ -507,13 +595,18 @@
         let lichList = []
         let lichMap = new Map()    // ngay (YYYY-MM-DD) -> entry, tra nhanh khi vẽ từng ô lịch
         let homNayStr = ''         // = lichList[0].ngay (server LUÔN trả hôm nay là phần tử đầu)
-        let baseMonthOffset = 0    // 0 = khối lịch trái đang hiện đúng THÁNG HIỆN TẠI, khối phải = +1 tháng
-        let ngayDangChonTam = null // ngày đang tô cam trên lịch (đã chọn ngày, CHƯA bấm chiều)
+        // Lịch cuộn dọc liên tục (2026-09-23) — KHÔNG còn `baseMonthOffset`/‹›, số tháng vẽ =
+        // đủ phủ hết `lichMap` (xem `soThangCanVe`). Hỗ trợ đặt KHỨ HỒI — `ngayDiChon`/`ngayVeChon`
+        // (chuỗi 'YYYY-MM-DD' hoặc null) thay cho `ngayDangChonTam` đơn — xem `chonNgay` (state
+        // machine date-range-picker) và SPEC "Lịch chọn ngày đặt vé" trong CLAUDE.md.
+        let khuHoi = false         // toggle khứ hồi, mặc định TẮT
+        let ngayDiChon = null      // ngày đi đang chọn (tô cam) — CHƯA bấm "Xác nhận"
+        let ngayVeChon = null      // ngày về đang chọn (chỉ có ý nghĩa khi khuHoi=true)
         // Khối "Nơi xuất phát/Điểm đến" (2026-09-19, đợt 4) — đợt 9 tổng quát hoá từ 2 hướng cố
         // định (`chieuDangChonTrongLich: 'bac'|'nam'`) sang CHỌN TỰ DO trong 17 tỉnh dọc tuyến.
         // `chieu` (giá trị BE cần, 'bac'|'nam') giờ LUÔN SUY RA từ so `thu_tu` của 2 tỉnh, không
         // còn lưu sẵn — tránh lệch nếu đâu đó quên cập nhật khi đổi tỉnh (xem `chonChuyen`/
-        // `renderChieuSelector`). `null` = CHƯA chọn (đợt 2026-09-18, theo yêu cầu — trước đó mỗi
+        // `renderTuyenPickerBlock`). `null` = CHƯA chọn (đợt 2026-09-18, theo yêu cầu — trước đó mỗi
         // lần chọn ngày mới TỰ ĐỘNG preset về Đắk Lắk/Hải Dương, ăn mất lựa chọn khách vừa đổi ở
         // lượt trước; giờ `chonNgay` reset về `null`/`null`, bắt khách tự chọn LẠI cả 2 mỗi lần).
         let noiXuatPhatTinh = null
@@ -798,22 +891,46 @@
                 return
             }
 
-            // Có ÍT NHẤT 1 giường đặt thành công — hiện xác nhận cho phần thành công, giường lỗi
-            // (nếu có, vd bị người khác đặt trước ngay lúc đang xử lý) chỉ báo toast, KHÔNG mất
-            // trắng cả lượt đặt chỉ vì 1 giường trong nhóm bị trùng.
-            document.getElementById('so-do-wrap').style.display = 'none'
-            document.getElementById('dat-ve-form').style.display = 'none'
+            // Có ÍT NHẤT 1 giường đặt thành công cho CHẶNG NÀY — gom dòng tóm tắt vào
+            // `ketQuaCacChang` (khứ hồi: hiện tổng hợp CẢ 2 chặng ở màn xác nhận CUỐI CÙNG, không
+            // hiện riêng từng chặng — SPEC mục 1.3/5). Giường lỗi (nếu có, vd bị người khác đặt
+            // trước ngay lúc đang xử lý) chỉ báo toast, KHÔNG mất trắng cả lượt đặt chỉ vì 1 giường
+            // trong nhóm bị trùng.
             selectedGiuongMap.clear()
             capNhatGiaVeBar()
             const maThanhCong = thanhCong.map(g => g.ma).join(', ')
-            document.getElementById('xac-nhan-chi-tiet').textContent =
-                `Giường ${maThanhCong} — ${ten} — ${sdt}` +
+            const nhanChang = dsChangDat.length > 1 ? (dsChangDat[changHienTaiIdx].vaiTro === 'di' ? 'Chiều đi' : 'Chiều về') + ' — ' : ''
+            ketQuaCacChang.push(
+                `${nhanChang}${nhanNgayLabel(currentChuyen.ngay, currentChuyen.lunarDay, currentChuyen.lunarMonth)}: Giường ${maThanhCong} — ${ten} — ${sdt}` +
                 (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe')
-            document.getElementById('xac-nhan-box').style.display = 'block'
-            document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
+            )
             if (thatBai.length) {
                 showToast(`${thatBai.length} giường không đặt được: ${thatBai.map(x => x.g.ma).join(', ')}`, 'error')
             }
+
+            // Còn chặng kế tiếp (khứ hồi, vừa xong chặng đi) — TỰ ĐỘNG lặp lại luồng đặt vé cho
+            // chặng về: route đã đảo ngược sẵn trong `dsChangDat` (SPEC mục 1.2), tên/SĐT/xác thực
+            // OTP giữ nguyên (KHÔNG xoá `#f-ten`/`#f-sdt`/`sdtDaXacThucOtp` — cùng SĐT vẫn còn hiệu
+            // lực xác thực, server tự kiểm tra lại, xem `batDauChang`), chỉ giường/sơ đồ reset vì
+            // gắn với chuyến khác.
+            if (changHienTaiIdx < dsChangDat.length - 1) {
+                changHienTaiIdx++
+                document.getElementById('so-do-wrap').style.display = 'none'
+                document.getElementById('dat-ve-form').style.display = 'none'
+                btn.disabled = false
+                btn.textContent = 'Đặt vé'
+                showToast('Đặt vé chiều đi thành công — tiếp tục chọn giường chiều về', 'success')
+                await batDauChang(changHienTaiIdx)
+                return
+            }
+
+            // Đã xong CHẶNG CUỐI (1 chặng bình thường, hoặc chặng về của khứ hồi) — hiện xác nhận
+            // tổng hợp tất cả các chặng đã đặt.
+            document.getElementById('so-do-wrap').style.display = 'none'
+            document.getElementById('dat-ve-form').style.display = 'none'
+            document.getElementById('xac-nhan-chi-tiet').innerHTML = ketQuaCacChang.map(s => `<div>${s}</div>`).join('')
+            document.getElementById('xac-nhan-box').style.display = 'block'
+            document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
         })
 
         // Tải/làm mới sơ đồ giường của currentChuyen — chuyen_id CÓ THỂ chưa tồn tại (ngày/chiều
@@ -849,67 +966,154 @@
             return { y: yy, m: mm + 1 }
         }
 
-        // Bước 0 — LỊCH DẠNG LƯỚI (giống Vexere, 2026-09-19), thay cho danh sách phẳng trước đó —
-        // 2 khối tháng cạnh nhau (tháng hiện tại + tháng sau), khách bấm 1 ô ngày hợp lệ để tô cam,
-        // rồi bấm 1 trong 2 nút chiều hiện ra bên dưới lịch mới thật sự "chọn xong".
+        // Bước 0 — LỊCH ẨN MẶC ĐỊNH, chỉ hiện HÀNG TÓM TẮT "Ngày đi/Ngày về + Khứ hồi"
+        // (`#ngay-chon-row`) — bấm vào mở POPUP TOÀN MÀN HÌNH `#ngay-picker` mới thấy lịch
+        // (2026-09-23, theo mẫu hình owner gửi — xem SPEC "Lịch chọn ngày đặt vé" CLAUDE.md, đổi từ
+        // bản trước đó lịch hiện thẳng trong trang). Khối "Nơi xuất phát / Điểm đến" vẫn ở TRÊN
+        // hàng này (giữ nguyên từ đợt trước, route luôn hiện sẵn, độc lập ngày).
         function renderChonChuyenStep() {
             const wrap = document.getElementById('chuyen-info-wrap')
-            wrap.innerHTML = '<div class="chuyen-chon-wrap"><h3>0. Chọn ngày đi</h3>' +
-                '<div class="lich-thang-wrap" id="lich-thang-wrap"></div>' +
-                '<div class="lich-chieu-wrap" id="lich-chieu-wrap" style="display:none;"></div></div>'
+            wrap.innerHTML = '<div class="chuyen-chon-wrap">' +
+                '<div class="lich-chieu-wrap" id="lich-chieu-wrap"></div>' +
+                '<div class="ngay-chon-row" id="ngay-chon-row"></div>' +
+                '<button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong">Xác nhận</button>' +
+                '</div>'
+            document.body.classList.add('co-xac-nhan-ngay-bar')
+            renderTuyenPickerBlock()
+            // Listener mở popup gắn DUY NHẤT 1 LẦN lên chính `#ngay-chon-row` (element này KHÔNG bị
+            // tạo lại giữa các lần `renderNgayChonRow()` sau đó, chỉ đổi innerHTML con — cùng
+            // convention "chrome đăng ký 1 lần" đã áp dụng cho .kien-menu ở manifest-hang.html).
+            document.getElementById('ngay-chon-row').addEventListener('click', moNgayPicker)
+            renderNgayChonRow()
+            document.getElementById('btn-chon-vi-tri-giuong').addEventListener('click', xacNhanChonChieu)
+            capNhatNutTimChuyen()
+        }
+
+        // Vẽ lại NỘI DUNG hàng tóm tắt (gọi lại mỗi khi ngày/khứ hồi đổi) — KHÔNG đụng lại
+        // listener mở popup đã gắn 1 lần ở trên. Toggle Khứ hồi bấm được NGAY TẠI HÀNG này
+        // (`stopPropagation`, không mở popup) — giống mẫu hình Vexere.
+        function renderNgayChonRow() {
+            const wrap = document.getElementById('ngay-chon-row')
+            if (!wrap) return
+            wrap.innerHTML = `
+                <div class="ngay-chon-info">
+                    <div class="ngay-chon-item"><span class="nhan">Ngày đi</span><span class="gia-tri">${ngayDiChon ? nhanNgayLabel2(ngayDiChon) : 'Chọn ngày'}</span></div>
+                    <div class="ngay-chon-item" style="display:${khuHoi ? 'flex' : 'none'}"><span class="nhan">Ngày về</span><span class="gia-tri">${ngayVeChon ? nhanNgayLabel2(ngayVeChon) : 'Chọn ngày'}</span></div>
+                </div>
+                <label class="khu-hoi-wrap" id="row-khu-hoi-label"><span>Khứ hồi</span><span class="kh-switch"><input type="checkbox" id="khu-hoi-toggle"${khuHoi ? ' checked' : ''}><span class="track"></span><span class="thumb"></span></span></label>
+            `
+            document.getElementById('row-khu-hoi-label').addEventListener('click', e => e.stopPropagation())
+            document.getElementById('khu-hoi-toggle').addEventListener('change', onToggleKhuHoi)
+        }
+
+        // Mở/đóng popup lịch toàn màn hình. Đóng KHÔNG "huỷ" gì — mọi tap ngày đã commit thẳng
+        // vào `ngayDiChon`/`ngayVeChon` (module-level) ngay lúc bấm, popup chỉ là nơi HIỂN THỊ.
+        // Đóng xong luôn làm mới hàng tóm tắt + hint "đã có khách" (phụ thuộc `ngayDiChon`) + nút
+        // "Xác nhận" ngoài trang — bất kể đóng bằng cách nào (nút ‹ back, nút "Xác nhận" trong
+        // popup, hay Back Android qua popstate).
+        function moNgayPicker() {
+            renderNgayPickerContent()
+            document.getElementById('ngay-picker').classList.add('open')
+        }
+        function dongNgayPicker() {
+            document.getElementById('ngay-picker').classList.remove('open')
+            renderNgayChonRow()
+            renderTuyenPickerBlock()
+            capNhatNutTimChuyen()
+        }
+        // Nút "Xác nhận" TRONG popup — validate đủ ngày cần rồi đóng; nếu tuyến ĐÃ chọn sẵn (thường
+        // gặp nhất — route luôn hiện trước, xem renderChonChuyenStep) thì tiếp luôn sang chọn
+        // giường (`xacNhanChonChieu`, y hệt hành vi nút "Xác nhận" ngoài trang) — nếu tuyến CHƯA
+        // chọn thì chỉ đóng popup, khách tự bấm tuyến rồi bấm nút "Xác nhận" ngoài trang sau.
+        function xacNhanNgayTrongPicker() {
+            if (!ngayDiChon) { showToast('Vui lòng chọn ngày đi', 'error'); return }
+            if (khuHoi && !ngayVeChon) { showToast('Vui lòng chọn ngày về', 'error'); return }
+            dongNgayPicker()
+            if (noiXuatPhatTinh && diemDenTinh) xacNhanChonChieu()
+        }
+        // Vẽ TOÀN BỘ nội dung popup (header xanh + info bar Ngày đi/Ngày về + weekday header cố
+        // định + lịch cuộn riêng + nút "Xác nhận") — rebuild lại mỗi lần mở/mỗi lần tap ngày, đơn
+        // giản hơn cập nhật từng phần (không có ô input nào bên trong cần giữ focus, khác picker
+        // Tỉnh/Xã-Huyện có ô tìm kiếm — không cần tách chrome/list ở đây).
+        function renderNgayPickerContent() {
+            const card = document.getElementById('ngay-picker-card')
+            const duDieuKien = !!(ngayDiChon && (!khuHoi || ngayVeChon))
+            card.innerHTML = `
+                <div class="ddp-header-bar">
+                    <button type="button" class="ddp-header-back" id="np-close">←</button>
+                    <h3>Chọn ngày</h3>
+                    <label class="ddp-switch-wrap">
+                        <span class="ddp-switch"><input type="checkbox" id="np-khu-hoi-toggle"${khuHoi ? ' checked' : ''}><span class="track"></span><span class="thumb"></span></span>
+                        Khứ hồi
+                    </label>
+                </div>
+                <div class="np-info-bar">
+                    <div class="ngay-chon-item"><span class="nhan">Ngày đi</span><span class="gia-tri">${ngayDiChon ? nhanNgayLabel2(ngayDiChon) : 'Chọn ngày'}</span></div>
+                    ${khuHoi ? `<div class="ngay-chon-item"><span class="nhan">Ngày về</span><span class="gia-tri">${ngayVeChon ? nhanNgayLabel2(ngayVeChon) : 'Chọn ngày'}</span></div>` : ''}
+                </div>
+                <div class="lich-tuan-header">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(t => `<span>${t}</span>`).join('')}</div>
+                <div class="np-lich-scroll"><div class="lich-thang-wrap" id="lich-thang-wrap"></div></div>
+                <button type="button" class="btn-chon-vi-tri-giuong" id="np-btn-xac-nhan"${duDieuKien ? '' : ' disabled'}>Xác nhận</button>
+            `
+            document.getElementById('np-close').addEventListener('click', dongNgayPicker)
+            document.getElementById('np-khu-hoi-toggle').addEventListener('change', onToggleKhuHoi)
+            document.getElementById('np-btn-xac-nhan').addEventListener('click', xacNhanNgayTrongPicker)
             renderLichThang()
         }
 
-        // Vẽ lại lịch theo baseMonthOffset hiện tại — gọi lại mỗi khi đổi tháng HOẶC khi tô/bỏ tô
-        // cam 1 ngày. 1 KHỐI THÁNG dưới 1024px (đổi 2026-09-19, đợt 2 — bản 2 khối cạnh nhau theo
-        // spec gốc trên thực tế phải thu nhỏ chữ/ô tới mức khó đọc trên điện thoại để vừa 480px,
-        // owner xem ảnh chụp thật xong yêu cầu quay lại 1 tháng/màn hình cho dễ nhìn, đổi ‹› để
-        // lùi/tới). **2 KHỐI cạnh nhau từ 1024px (tablet, 2026-09-21)** — đủ chỗ ngang để không
-        // lặp lại vấn đề chữ bị bóp như trên điện thoại; chỉ khối ĐẦU TIÊN có nút ‹›, khối thứ 2
-        // (tháng kế tiếp) chỉ hiện tiêu đề — tránh 2 cặp nút cùng chỉnh 1 biến `baseMonthOffset`
-        // dùng chung gây cảm giác "bấm 1 nút mà cả 2 khối cùng nhảy" khó hiểu. `matchMedia` listener
-        // (đăng ký 1 lần, xem cuối hàm renderChonChuyenStep) gọi lại đúng hàm này khi xoay màn hình
-        // qua lại ngưỡng 1024px — KHÔNG cần xử lý riêng gì để "giữ ngày đang chọn tạm"
-        // (`ngayDangChonTam`) vì đó là biến JS module-level, render lại chỉ đọc lại giá trị cũ,
-        // tự động tô đúng ô (xem renderNgayO).
+        // Bật/tắt khứ hồi — tắt thì xoá luôn ngày về đã chọn (nếu có), giữ nguyên ngày đi. Gọi
+        // được từ CẢ 2 nơi (toggle ở hàng tóm tắt LẪN toggle trong popup, xem `renderNgayChonRow`/
+        // `renderNgayPickerContent`) — luôn làm mới hàng tóm tắt, chỉ vẽ lại popup nếu đang mở.
+        function onToggleKhuHoi() {
+            khuHoi = !khuHoi
+            if (!khuHoi) ngayVeChon = null
+            renderNgayChonRow()
+            capNhatNutTimChuyen()
+            if (document.getElementById('ngay-picker').classList.contains('open')) renderNgayPickerContent()
+        }
+
+        function nhanNgayLabel2(ngayStr) {
+            const entry = lichMap.get(ngayStr)
+            return entry ? nhanNgayLabel(entry.ngay, entry.lunar_day, entry.lunar_month) : ngayStr
+        }
+
+        // Số tháng cần vẽ = đủ phủ hết khoảng ngày `lichList` đã tải (KHÔNG hardcode "1"/"3" —
+        // phụ thuộc THẬT vào `SO_NGAY_MO_BAN_TRUOC` phía server, xem SPEC mục 1.1). Chặn an toàn
+        // ở 8 tháng phòng dữ liệu server bất thường (không phải giới hạn nghiệp vụ).
+        function soThangCanVe() {
+            if (!lichList.length) return []
+            const gocDau = thangCuaNgay(homNayStr)
+            const gocCuoi = thangCuaNgay(lichList[lichList.length - 1].ngay)
+            const months = [gocDau]
+            let cur = gocDau
+            while (!(cur.y === gocCuoi.y && cur.m === gocCuoi.m) && months.length < 8) {
+                cur = themThang(cur, 1)
+                months.push(cur)
+            }
+            return months
+        }
+
+        // Vẽ TOÀN BỘ khối tháng xếp dọc (không còn phân trang/‹›) — gọi lại mỗi khi đổi
+        // ngày/khứ hồi để cập nhật tô màu range, KHÔNG gọi thêm API (dữ liệu `lichList` tải 1 lần
+        // ở initPage() là đủ cho toàn bộ khoảng mở bán).
         function renderLichThang() {
             const wrapEl = document.getElementById('lich-thang-wrap')
             wrapEl.textContent = ''
-            const goc = thangCuaNgay(homNayStr)
-            const thang1 = themThang(goc, baseMonthOffset)
-            wrapEl.appendChild(renderThangBlock(thang1, baseMonthOffset <= 0, true))
-            if (window.matchMedia('(min-width: 1024px) and (min-height: 480px)').matches) {
-                const thang2 = themThang(goc, baseMonthOffset + 1)
-                wrapEl.appendChild(renderThangBlock(thang2, true, false))
-            }
+            soThangCanVe().forEach(m => wrapEl.appendChild(renderThangBlock(m)))
         }
 
-        function renderThangBlock({ y, m }, khoaLui, hienDieuHuong) {
+        function renderThangBlock({ y, m }) {
             const block = document.createElement('div')
             block.className = 'lich-thang-block'
             const header = document.createElement('div')
             header.className = 'lich-thang-header'
-            if (hienDieuHuong) {
-                header.innerHTML = `<button type="button" class="btn-lui"${khoaLui ? ' disabled' : ''}>‹</button>` +
-                    `<span>Tháng ${m}/${y}</span><button type="button" class="btn-toi">›</button>`
-                header.querySelector('.btn-lui').addEventListener('click', () => { baseMonthOffset--; renderLichThang() })
-                header.querySelector('.btn-toi').addEventListener('click', () => { baseMonthOffset++; renderLichThang() })
-            } else {
-                header.innerHTML = `<span>Tháng ${m}/${y}</span>`
-                header.style.justifyContent = 'center'
-            }
+            header.textContent = `Tháng ${m}/${y}`
             block.appendChild(header)
 
-            const tuanHeader = document.createElement('div')
-            tuanHeader.className = 'lich-tuan-header'
-            // Tuần bắt đầu Thứ Hai (KHÔNG phải Chủ Nhật) — đúng theo mẫu Vexere.
-            ;['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].forEach(t => {
-                const s = document.createElement('span')
-                s.textContent = t
-                tuanHeader.appendChild(s)
-            })
-            block.appendChild(tuanHeader)
-
+            // KHÔNG còn weekday header (T2..CN) lặp lại mỗi khối tháng (2026-09-23, đợt popup) —
+            // giờ có ĐÚNG 1 hàng weekday CỐ ĐỊNH ở đầu popup (`.lich-tuan-header`, xem
+            // `renderNgayPickerContent`), tuần vẫn bắt đầu Thứ Hai (KHÔNG phải Chủ Nhật, theo mẫu
+            // Vexere) — chỉ cần khớp `colDauTien` bên dưới, không cần vẽ lại header riêng.
             const grid = document.createElement('div')
             grid.className = 'lich-ngay-grid'
             const soNgayTrongThang = new Date(Date.UTC(y, m, 0)).getUTCDate()
@@ -926,54 +1130,64 @@
             return block
         }
 
-        // Đăng ký DUY NHẤT 1 LẦN ở top-level (cùng convention với listener document click của
-        // .kien-menu ở manifest-hang.html — đặt trong renderChonChuyenStep sẽ chồng listener mỗi
-        // lần hàm đó chạy lại, vd sau "Đổi chuyến khác"). Guard `#lich-thang-wrap` tồn tại: sau khi
-        // khách đã chọn xong ngày/chiều, khối lịch bị thay bằng renderChuyenDaChonBar (thu gọn) —
-        // lúc đó xoay màn hình không có gì để vẽ lại, bỏ qua an toàn.
-        window.matchMedia('(min-width: 1024px) and (min-height: 480px)').addEventListener('change', () => {
-            if (document.getElementById('lich-thang-wrap')) renderLichThang()
-        })
-
         // Âm lịch tính LẠI Ở CLIENT (convertSolar2Lunar, dùng chung hàm global từ shared.js) cho
-        // MỌI ô — kể cả ngày ngoài khoảng server trả về (quá khứ, hoặc quá xa tương lai nếu khách
-        // bấm "›" vượt khoảng mở bán) — chỉ để HIỂN THỊ số âm lịch đúng vị trí, KHÔNG dùng để tự
-        // quyết định "hợp lệ hay không": hop_le LUÔN đọc từ lichMap (server), ô không có entry
-        // (ngoài khoảng server trả) mặc định coi là KHÔNG hợp lệ, không suy diễn ở client.
+        // MỌI ô — kể cả ngày ngoài khoảng server trả về — chỉ để HIỂN THỊ số âm lịch đúng vị trí,
+        // KHÔNG dùng để tự quyết định "hợp lệ hay không": hop_le LUÔN đọc từ lichMap (server), ô
+        // không có entry (ngoài khoảng server trả) mặc định coi là KHÔNG hợp lệ, không suy diễn ở
+        // client. Mùng 1/15 âm lịch tô đỏ (`.am-dac-biet`); hôm nay tô xanh (`.hom-nay`); range đã
+        // chọn: điểm đầu/cuối cam đặc (`.dang-chon`, tái dùng class có sẵn), ở giữa vàng nhạt
+        // (`.trong-khoang`) — xem SPEC "Lịch chọn ngày đặt vé".
         function renderNgayO(ngayStr, dd) {
             const entry = lichMap.get(ngayStr)
             const hopLe = !!(entry && entry.hop_le)
             const [yy, mm] = ngayStr.split('-').map(Number)
             const am = convertSolar2Lunar(dd, mm, yy, 7)
             const amLabel = am.day === 1 ? `${am.day}/${am.month}` : `${am.day}`
+            const daDacBiet = am.day === 1 || am.day === 15
+            const laDauCuoi = ngayStr === ngayDiChon || (khuHoi && ngayStr === ngayVeChon)
+            const laTrongKhoang = khuHoi && ngayDiChon && ngayVeChon && ngayStr > ngayDiChon && ngayStr < ngayVeChon
+            let cls = 'lich-ngay-o ' + (hopLe ? 'hop-le' : 'khong-hop-le')
+            if (daDacBiet) cls += ' am-dac-biet'
+            if (ngayStr === homNayStr) cls += ' hom-nay'
+            if (laDauCuoi) cls += ' dang-chon'
+            else if (laTrongKhoang) cls += ' trong-khoang'
             const btn = document.createElement('button')
             btn.type = 'button'
-            btn.className = 'lich-ngay-o ' + (hopLe ? 'hop-le' : 'khong-hop-le') + (ngayStr === ngayDangChonTam ? ' dang-chon' : '')
+            btn.className = cls
             btn.innerHTML = `<div class="duong">${dd}</div><div class="am">${amLabel}</div><span class="check-chon">✓</span>`
             if (hopLe) btn.addEventListener('click', () => chonNgay(entry))
             return btn
         }
 
-        // Bấm 1 ô ngày hợp lệ → tô cam (bỏ tô ô cũ nếu có, chỉ chọn 1 ngày/lúc), hiện khối
-        // "Nơi xuất phát / Điểm đến" NGAY BÊN DƯỚI lịch (giống Vexere) — lịch vẫn hiện nguyên, CHƯA
-        // coi là "đã chọn xong" cho tới khi bấm vào phần xác nhận (`chonChuyen`). Đổi sang ngày khác
-        // thì gọi lại đúng hàm này, khối cũ tự bị thay bằng khối của ngày mới, 2 tỉnh reset về mặc
-        // định 2 đầu tuyến (Đắk Lắk/Hải Dương) — không giữ cặp tỉnh đã chọn tạm của ngày trước. Lấy
-        // lại object thật từ `tinhList` (đã tải xong từ trước khi có thể bấm ngày) thay vì dùng
-        // thẳng hằng số mặc định — đảm bảo `ten`/`thu_tu` luôn khớp đúng dữ liệu server.
-        // KHÔNG còn reset noiXuatPhatTinh/diemDenTinh mỗi lần bấm ngày (đổi 2026-09-19, đợt 16,
-        // theo yêu cầu — trước đó chonNgay LUÔN đưa 2 biến này về null, bắt khách chọn lại từ đầu
-        // mỗi lần bấm ngày MỚI, kể cả khi quay lại đúng luồng cũ qua nút Back/"Đổi chuyến khác":
-        // doiChuyenKhac() không đụng 2 biến này, nhưng bấm lại 1 ngày bất kỳ để tiếp tục thì
-        // chonNgay xoá sạch lựa chọn tỉnh khách vừa chọn trước đó — cảm giác "bấm Back là mất hết
-        // điểm đi/điểm đến"). Giờ 2 biến này GIỮ NGUYÊN giá trị hiện có qua mọi lần chọn ngày —
-        // chỉ `null` ở lần ĐẦU TIÊN (giá trị khởi tạo ban đầu) cho tới khi khách chọn qua
-        // `moDiaDiemPicker`, sau đó giữ nguyên xuyên suốt cả phiên (đổi ngày khác, bấm Back, "Đổi
-        // chuyến khác"...) — khách chỉ cần chọn lại nếu THẬT SỰ muốn đổi qua `moDiaDiemPicker`/"⇅".
+        // Tap chọn ngày — state machine date-range-picker chuẩn (SPEC mục 1.4):
+        // - khuHoi=false: tap 1 lần là xong (hành vi cũ, y hệt trước — regression bắt buộc).
+        // - khuHoi=true: tap 1 (chưa có ngày đi) → set ngày đi. Tap 2 (đã có ngày đi, chưa ngày
+        //   về): tap SỚM HƠN/BẰNG ngày đi → đổi ngày đi (chưa có ngày về); tap SAU ngày đi → set
+        //   ngày về, xong range (push back-guard riêng, xem mục "Guard Back" ở dưới). Tap tiếp
+        //   theo (CẢ 2 đã có, chưa bấm "Xác nhận") → tap sớm hơn/bằng ngày đi hiện tại: đổi ngày
+        //   đi + XOÁ ngày về (chọn lại range từ đầu); tap sau đó (kể cả giữa 2 ngày hoặc sau ngày
+        //   về): đổi ngày về.
+        // KHÔNG còn reset noiXuatPhatTinh/diemDenTinh khi đổi ngày (giữ nguyên hành vi đã có từ
+        // đợt 16 — 2 biến tỉnh độc lập với việc chọn ngày, xem renderTuyenPickerBlock).
         function chonNgay(entry) {
-            ngayDangChonTam = entry.ngay
-            renderLichThang()
-            renderChieuSelector(entry)
+            const ngay = entry.ngay
+            if (!khuHoi) {
+                ngayDiChon = ngay
+            } else if (!ngayDiChon) {
+                ngayDiChon = ngay
+            } else if (!ngayVeChon) {
+                if (ngay <= ngayDiChon) ngayDiChon = ngay
+                else { ngayVeChon = ngay; pushBackGuard() }
+            } else if (ngay <= ngayDiChon) {
+                ngayDiChon = ngay
+                ngayVeChon = null
+            } else {
+                ngayVeChon = ngay
+            }
+            // Chỉ vẽ lại NỘI DUNG POPUP (đang mở — ô ngày chỉ tồn tại bên trong popup, xem
+            // `renderNgayPickerContent`) — hàng tóm tắt/hint "đã có khách"/nút "Xác nhận" ngoài
+            // trang chỉ cần làm mới lúc ĐÓNG popup (`dongNgayPicker`), không phải mỗi lần tap.
+            renderNgayPickerContent()
         }
 
         // 17 tỉnh dọc tuyến cho picker địa danh — loại Khánh Hòa (xe không qua, cùng lý do filter
@@ -986,23 +1200,23 @@
         // Khối chọn "Nơi xuất phát / Điểm đến" — đợt 9 tổng quát hoá từ 2 hướng cố định sang CHỌN
         // TỰ DO trong 17 tỉnh (xem picker `moDiaDiemPicker` bên dưới). Nút "⇅" vẫn chỉ TOGGLE hiển
         // thị (swap 2 biến tỉnh) rồi vẽ lại đúng khối này, KHÔNG tự chọn xong.
-        // entry của lần renderChieuSelector gần nhất — picker địa danh (mở từ vùng bấm riêng trong
-        // .route-select-wrap) cần lại entry này để vẽ lại đúng khối sau khi khách đổi địa danh,
-        // không tự đóng/mở lại toàn bộ Bước 0.
-        let entryDangChonChieu = null
-
-        function renderChieuSelector(entry) {
-            entryDangChonChieu = entry
+        // ĐƯA LÊN TRÊN lịch (2026-09-23) — khối này giờ KHÔNG còn gắn với 1 lượt bấm ngày cụ thể
+        // nào nữa (trước đó nhận `entry` qua tham số, gọi là `renderChieuSelector(entry)`), nên
+        // KHÔNG còn `entryDangChonChieu`/tham số `entry` — tự đọc `ngayDiChon` (module-level, luôn
+        // là NGÀY ĐI — hint "đã có khách" chỉ có ý nghĩa cho chặng đi, chặng về xem lại ở
+        // `renderChuyenDaChonBar`/banner chặng riêng) + `lichMap` mỗi lần render. Đồng thời BỎ HẲN
+        // hành vi "bấm vào nền/nhãn .route-select-wrap = xác nhận luôn" (đợt 6/11 cũ) — order mới
+        // không còn đảm bảo đã có ngày để xác nhận lúc khách vừa chọn xong tuyến, xác nhận giờ CHỈ
+        // qua đúng 1 nút "Xác nhận" cố định ở cuối Bước 0 (`xacNhanChonChieu`).
+        function renderTuyenPickerBlock() {
+            const entry = ngayDiChon ? lichMap.get(ngayDiChon) : null
             const daDuDiem = !!(noiXuatPhatTinh && diemDenTinh)
             const chieu = daDuDiem ? (noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam') : null
-            const info = chieu ? entry[chieu] : null
+            const info = (entry && chieu) ? entry[chieu] : null
             const wrap = document.getElementById('lich-chieu-wrap')
-            wrap.style.display = 'block'
-            // `noiXuatPhatTinh`/`diemDenTinh` CÓ THỂ `null` (chưa chọn, xem `chonNgay`) — hiện
-            // placeholder "Chọn nơi xuất phát"/"Chọn điểm đến" thay vì tên tỉnh, và khoá nút xác
-            // nhận cho tới khi khách chọn đủ cả 2 (xem `xacNhanChonChieu`).
-            // Hiện thêm nhãn xã/huyện đã chọn ở Bước 2 (nếu có) ngay dưới tên tỉnh, chữ nhỏ màu
-            // muted — thuần hiển thị, không ảnh hưởng logic chọn/xác nhận.
+            // `noiXuatPhatTinh`/`diemDenTinh` CÓ THỂ `null` (chưa chọn) — hiện placeholder "Chọn
+            // nơi xuất phát"/"Chọn điểm đến" thay vì tên tỉnh. Hiện thêm nhãn xã/huyện đã chọn ở
+            // Bước 2 (nếu có) ngay dưới tên tỉnh, chữ nhỏ màu muted — thuần hiển thị.
             const xuatPhatHtml = noiXuatPhatTinh
                 ? `<span class="route-place-value" data-vai-tro="xuat_phat">${noiXuatPhatTinh.ten}${noiXuatPhatDiaDiem ? `<div class="route-place-sub">${noiXuatPhatDiaDiem.nhan}</div>` : ''}</span>`
                 : `<span class="route-place-value route-place-placeholder" data-vai-tro="xuat_phat">Chọn nơi xuất phát</span>`
@@ -1020,45 +1234,19 @@
                     <button type="button" class="route-swap-btn" id="route-swap-btn" title="Đổi chiều">⇅</button>
                 </div>
                 ${info?.chuyen_id ? '<div class="route-da-co-khach">Đã có khách đặt chuyến này</div>' : ''}
-                <button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong"${daDuDiem ? '' : ' disabled'}>🪑 Chọn vị trí giường</button>
             `
-            // 4 vùng bắt click/hành động trong khối (đợt 11, thêm nút xác nhận riêng — trước đó đợt
-            // 6-8 chỉ có 3 vùng, xác nhận hoàn toàn ngầm định qua bấm vào nhãn/nền .route-select-wrap,
-            // không có gì hiện rõ ràng là "bấm để đi tiếp" nên khách không biết cách qua bước kế —
-            // theo phản ánh thật, thêm hẳn 1 nút xác nhận tường minh):
-            // (1) #route-swap-btn — stopPropagation, chỉ đổi chiều hiển thị, không mở/không confirm.
-            // (2) .route-place-value (tên địa danh HOẶC placeholder "Chọn...") — stopPropagation,
-            //     mở #dia-diem-picker đúng vai trò (xuất phát/đến) của dòng vừa bấm — KHÔNG
-            //     confirm, chỉ đổi hiển thị. Đây LUÔN là cách DUY NHẤT chọn tỉnh khi đang trống.
-            // (3) phần còn lại của .route-select-wrap (nhãn/đường kẻ/nền) — GIỮ NGUYÊN hành vi
-            //     confirm ngầm của đợt 6 (bấm là chọn xong ngay) — không tháo bỏ, chỉ THÊM (4).
-            //     Bấm khi CHƯA chọn đủ 2 tỉnh → báo toast, không tiến hành (xem `xacNhanChonChieu`).
-            // (4) #btn-chon-vi-tri-giuong — nút xác nhận TƯỜNG MINH, cùng logic xác nhận với (3),
-            //     tự `disabled` (mờ, không bấm được) cho tới khi chọn đủ cả 2 tỉnh.
-            // `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên toàn khối — vẫn cần chặn Android
-            // Chrome hiểu nhầm bấm chữ thành chọn text/bật popup "Tìm kiếm trên Google".
-            function xacNhanChonChieu() {
-                if (!noiXuatPhatTinh || !diemDenTinh) {
-                    showToast('Vui lòng chọn cả nơi xuất phát và điểm đến', 'error')
-                    return
-                }
-                // Tính lại `chieu` trực tiếp từ so sánh thu_tu ngay lúc confirm (không đọc biến
-                // `chieu` đóng gói ở trên qua closure) — phòng lệch nếu sau này có chỗ khác đổi
-                // `noiXuatPhatTinh`/`diemDenTinh` mà quên gọi lại renderChieuSelector.
-                const chieuXacNhan = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
-                const infoXacNhan = entry[chieuXacNhan]
-                chonChuyen({
-                    ngay: entry.ngay, lunarDay: entry.lunar_day, lunarMonth: entry.lunar_month,
-                    chieu: chieuXacNhan, chuyen_id: infoXacNhan.chuyen_id
-                })
-            }
+            // 2 vùng bắt click trong khối: (1) #route-swap-btn — stopPropagation, chỉ đổi chiều
+            // hiển thị; (2) .route-place-value (tên địa danh HOẶC placeholder) — stopPropagation,
+            // mở #dia-diem-picker đúng vai trò. `user-select:none` (CSS, đợt 5) vẫn giữ nguyên trên
+            // toàn khối — vẫn cần chặn Android Chrome hiểu nhầm bấm chữ thành chọn text.
             document.getElementById('route-swap-btn').addEventListener('click', (e) => {
                 e.stopPropagation()
                 const tam = noiXuatPhatTinh
                 noiXuatPhatTinh = diemDenTinh
                 diemDenTinh = tam
-                renderChieuSelector(entry)
+                renderTuyenPickerBlock()
                 capNhatGiaVeBar()
+                capNhatNutTimChuyen()
             })
             wrap.querySelectorAll('.route-place-value').forEach(el => {
                 el.addEventListener('click', (e) => {
@@ -1066,17 +1254,82 @@
                     moDiaDiemPicker(el.dataset.vaiTro)
                 })
             })
-            document.querySelector('.route-select-wrap').addEventListener('click', xacNhanChonChieu)
-            document.getElementById('btn-chon-vi-tri-giuong').addEventListener('click', (e) => {
-                e.stopPropagation()
-                xacNhanChonChieu()
+        }
+        // Bật/tắt nút "Xác nhận" — chỉ bấm được khi ĐÃ chọn đủ tuyến + NGÀY CẦN (đi luôn cần; về
+        // chỉ cần thêm nếu khuHoi=true, xem SPEC mục 2 "Footer"). Gọi lại ở mọi điểm đổi 1 trong
+        // các điều kiện: `chonNgay`, `onToggleKhuHoi`, swap tuyến, chọn xong tuyến trong picker.
+        function capNhatNutTimChuyen() {
+            const btn = document.getElementById('btn-chon-vi-tri-giuong')
+            if (btn) btn.disabled = !(ngayDiChon && (!khuHoi || ngayVeChon) && noiXuatPhatTinh && diemDenTinh)
+        }
+
+        // Xác nhận Bước 0 — build DANH SÁCH CHẶNG cần đặt (1 chặng bình thường, 2 chặng nếu khứ
+        // hồi: đi + về) rồi bắt đầu chặng đầu tiên qua `chonChuyen` (giữ nguyên cơ chế cũ, không
+        // đổi gì ở `chonChuyen`/sơ đồ giường/form). Route chặng VỀ đảo ngược tự động theo cặp tỉnh
+        // đã chọn cho chặng ĐI (SPEC mục 1.2 — không bắt khách chọn lại route riêng cho chiều về).
+        // KHÔNG thêm bảng/cột DB nào cho "vé khứ hồi" (SPEC mục 1.3) — 2 chặng là 2 lượt đặt độc
+        // lập nối tiếp nhau trong CÙNG 1 phiên UI, ra đúng 2 `ve` gắn 2 `chuyen` khác nhau, không
+        // liên kết gì ở tầng DB.
+        let dsChangDat = []        // [{vaiTro:'di'|'ve', ngay, lunarDay, lunarMonth, chieu, chuyen_id, tinhXuatPhat, tinhDiemDen, diaDiemXuatPhat, diaDiemDiemDen}]
+        let changHienTaiIdx = 0
+        let ketQuaCacChang = []    // dòng tóm tắt từng chặng đã đặt xong, gộp lại hiện ở xac-nhan-box cuối cùng
+        function xacNhanChonChieu() {
+            if (!noiXuatPhatTinh || !diemDenTinh) {
+                showToast('Vui lòng chọn cả nơi xuất phát và điểm đến', 'error')
+                return
+            }
+            if (!ngayDiChon) {
+                showToast('Vui lòng chọn ngày đi', 'error')
+                return
+            }
+            if (khuHoi && !ngayVeChon) {
+                showToast('Vui lòng chọn ngày về', 'error')
+                return
+            }
+            const entryDi = lichMap.get(ngayDiChon)
+            if (!entryDi) return
+            const chieuDi = noiXuatPhatTinh.thu_tu < diemDenTinh.thu_tu ? 'bac' : 'nam'
+            dsChangDat = [{
+                vaiTro: 'di', ngay: entryDi.ngay, lunarDay: entryDi.lunar_day, lunarMonth: entryDi.lunar_month,
+                chieu: chieuDi, chuyen_id: entryDi[chieuDi]?.chuyen_id,
+                tinhXuatPhat: noiXuatPhatTinh, tinhDiemDen: diemDenTinh,
+                diaDiemXuatPhat: noiXuatPhatDiaDiem, diaDiemDiemDen: diemDenDiaDiem
+            }]
+            if (khuHoi) {
+                const entryVe = lichMap.get(ngayVeChon)
+                if (!entryVe) return
+                const chieuVe = chieuDi === 'bac' ? 'nam' : 'bac'
+                dsChangDat.push({
+                    vaiTro: 've', ngay: entryVe.ngay, lunarDay: entryVe.lunar_day, lunarMonth: entryVe.lunar_month,
+                    chieu: chieuVe, chuyen_id: entryVe[chieuVe]?.chuyen_id,
+                    tinhXuatPhat: diemDenTinh, tinhDiemDen: noiXuatPhatTinh,
+                    diaDiemXuatPhat: diemDenDiaDiem, diaDiemDiemDen: noiXuatPhatDiaDiem
+                })
+            }
+            changHienTaiIdx = 0
+            ketQuaCacChang = []
+            batDauChang(0)
+        }
+
+        // Bắt đầu 1 chặng — gán lại route (đảo ngược nếu chặng về) rồi tái dùng ĐÚNG luồng
+        // `chonChuyen` hiện có (sơ đồ giường, form liên hệ, OTP...) không đổi gì. `sdtDaXacThucOtp`
+        // KHÔNG bị reset giữa 2 chặng — cùng SĐT thì vẫn còn hiệu lực xác thực (server tự kiểm tra
+        // trong 30 phút gần nhất, xem api/cong-khai-dat-ve.js), khách không phải xác thực lại.
+        async function batDauChang(idx) {
+            const chang = dsChangDat[idx]
+            noiXuatPhatTinh = chang.tinhXuatPhat
+            diemDenTinh = chang.tinhDiemDen
+            noiXuatPhatDiaDiem = chang.diaDiemXuatPhat
+            diemDenDiaDiem = chang.diaDiemDiemDen
+            await chonChuyen({
+                ngay: chang.ngay, lunarDay: chang.lunarDay, lunarMonth: chang.lunarMonth,
+                chieu: chang.chieu, chuyen_id: chang.chuyen_id
             })
-            wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
         }
 
         // Picker Tỉnh -> Xã/Huyện (2026-09-22, thay diem_khach — xem SPEC "Bỏ diem_khach, thay
         // bằng chọn Tỉnh + Xã/Huyện" trong CLAUDE.md) — mở khi bấm vào tên tỉnh ở
-        // `renderChieuSelector`. 2 bước trong CÙNG 1 phiên mở picker: Bước 1 chọn tỉnh (17 tỉnh
+        // `renderTuyenPickerBlock`. 2 bước trong CÙNG 1 phiên mở picker: Bước 1 chọn tỉnh (17 tỉnh
         // dọc tuyến, loại tỉnh đang chọn ở BÊN KIA — không cho trùng xuất phát/điểm đến), Bước 2
         // chọn xã (toggle "Mới") hoặc huyện (toggle "Cũ") CỦA ĐÚNG tỉnh vừa chọn ở Bước 1, đọc từ
         // `data/tinh-xa-huyen.json` (build sẵn từ nguồn tranngocminhhieu/vietnamadminunits, xem
@@ -1102,7 +1355,6 @@
             document.getElementById('dia-diem-picker').classList.remove('open')
             ddpState = null
         }
-        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPicker)
         // Đổi toggle Cũ/Mới GIỮA CHỪNG (đã ở Bước 2) -> reset về Bước 1, xoá tỉnh đang chọn tạm
         // trong picker (quyết định owner, tránh kẹt "tỉnh hiện tên cũ nhưng xã bên dưới lại là
         // danh sách xã mới" — cùng nguyên tắc doiChuyenKhac() đã áp dụng cho cả trang). Đổi toggle
@@ -1112,58 +1364,117 @@
             if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null }
             renderDiaDiemPicker()
         }
+        // Icon ghim địa điểm (SVG, đợt redesign 2026-09-22) — dùng thẳng chuỗi cố định, không cần
+        // build lại theo dữ liệu nên đặt hằng số ngoài hàm render.
+        const DDP_PIN_SVG = '<svg class="ddp-pin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>'
         // Chỉ render lại KHUNG (header/toggle/search input) khi đổi bước/toggle — search input
         // giữ nguyên DOM node xuyên suốt lúc gõ (renderDdpList() riêng, không đụng lại input) để
         // không mất focus/con trỏ giữa chừng, cùng bài học đã áp dụng cho .item-qty-input ở
-        // hang.html.
+        // hang.html. Trang toàn màn hình kiểu Vexere (đợt redesign, theo mẫu hình owner gửi) —
+        // nút #ddp-header-back dùng CHUNG cho cả đóng hẳn (Bước 1, ký tự ←) lẫn lùi về Bước 1
+        // (Bước 2, ký tự ‹) — 1 nút, 2 hành vi tuỳ bước hiện tại.
         function renderDiaDiemPicker() {
             const card = document.getElementById('dia-diem-picker-card')
             const tieuDe = ddpState.buoc === 1
                 ? (ddpState.vaiTro === 'xuat_phat' ? 'Chọn nơi xuất phát' : 'Chọn điểm đến')
                 : `Xã/huyện — ${ddpState.tinhDangChon.ten}`
+            const placeholder = ddpState.buoc === 1 ? 'Tên tỉnh/thành phố, quận/huyện' : 'Tên xã/phường, thị trấn'
             card.innerHTML = `
-                <div class="ddp-header">
-                    ${ddpState.buoc === 2 ? '<button type="button" class="ddp-back" id="ddp-back">‹</button>' : ''}
+                <div class="ddp-header-bar">
+                    <button type="button" class="ddp-header-back" id="ddp-header-back">${ddpState.buoc === 2 ? '‹' : '←'}</button>
                     <h3>${tieuDe}</h3>
-                    <label class="ddp-toggle"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}> Địa chỉ mới</label>
+                    <label class="ddp-switch-wrap">
+                        <span class="ddp-switch"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}><span class="track"></span><span class="thumb"></span></span>
+                        Địa chỉ mới
+                    </label>
                 </div>
-                <input type="text" class="ddp-search" id="ddp-search" placeholder="Gõ để tìm...">
+                <div class="ddp-search-row">
+                    <span class="ddp-search-dot"></span>
+                    <input type="text" class="ddp-search" id="ddp-search" placeholder="${placeholder}">
+                </div>
+                ${ddpState.buoc === 1 ? `<div class="ddp-luu-y"><b>*Lưu ý:</b> Sử dụng tên địa phương ${ddpState.tenMoi ? 'sau' : 'trước'} sáp nhập</div>` : ''}
                 <div class="ddp-list" id="ddp-list"></div>
             `
             document.getElementById('ddp-toggle-cb').addEventListener('change', doiToggleDiaDiem)
-            if (ddpState.buoc === 2) {
-                document.getElementById('ddp-back').addEventListener('click', () => {
-                    ddpState.buoc = 1; ddpState.tinhDangChon = null
-                    renderDiaDiemPicker()
-                })
-            }
-            document.getElementById('ddp-search').addEventListener('input', renderDdpList)
+            document.getElementById('ddp-header-back').addEventListener('click', () => {
+                if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null; renderDiaDiemPicker() }
+                else dongDiaDiemPicker()
+            })
+            const searchEl = document.getElementById('ddp-search')
+            searchEl.addEventListener('input', renderDdpList)
             renderDdpList()
+            searchEl.focus()
         }
+        // Bỏ khoảng trắng khỏi cả từ khoá lẫn nhãn khi so khớp (2026-09-22, theo phản ánh thật) —
+        // nhiều tên huyện/xã có dấu cách (vd "Ea Kar"), khách gõ liền không dấu cách (vd "Eakar")
+        // trước đó KHÔNG khớp được vì chỉ bỏ dấu qua `boDau`, chưa bỏ khoảng trắng.
+        function chuanHoaTimKiem(s) { return boDau(s).replace(/\s+/g, '') }
         function renderDdpList() {
-            const tuKhoa = boDau(document.getElementById('ddp-search').value)
+            const tuKhoa = chuanHoaTimKiem(document.getElementById('ddp-search').value)
             let items
             if (ddpState.buoc === 1) {
                 const tinhBenKia = ddpState.vaiTro === 'xuat_phat' ? diemDenTinh : noiXuatPhatTinh
-                items = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia?.ma).map(t => ({
+                const dsTinh = tinhTuyenChoDatVe().filter(t => t.ma !== tinhBenKia?.ma)
+                items = dsTinh.map(t => ({
                     key: t.ma,
                     label: ddpState.tenMoi ? (ddpXaHuyenData[t.ma]?.ten_moi || t.ten) : t.ten,
                     raw: t
                 }))
+                if (tuKhoa) {
+                    items = items.filter(it => chuanHoaTimKiem(it.label).includes(tuKhoa))
+                    // Gợi ý theo tên xã/huyện cụ thể (2026-09-22, theo phản ánh thật — khách gõ
+                    // thẳng tên xã/huyện (vd "Eakar") mà KHÔNG biết trước thuộc tỉnh nào, trước đó
+                    // Bước 1 chỉ tìm được trong 17 TÊN TỈNH nên luôn ra "Không tìm thấy"). Quét
+                    // TOÀN BỘ xã/huyện của mọi tỉnh còn lại (cùng nguồn `ddpXaHuyenData` đã tải
+                    // sẵn, không fetch thêm), khớp thì gợi ý kèm tên tỉnh — bấm vào 1 dòng gợi ý
+                    // này CHỌN LUÔN CẢ TỈNH LẪN XÃ/HUYỆN, bỏ qua hẳn Bước 2 (đã đủ thông tin).
+                    const goiYDiaDiem = []
+                    dsTinh.forEach(t => {
+                        const d = ddpXaHuyenData[t.ma]
+                        if (!d) return
+                        const src = ddpState.tenMoi ? (d.xa_moi || []) : (d.huyen_cu || [])
+                        const tenTinh = ddpState.tenMoi ? (d.ten_moi || t.ten) : (d.ten_cu || t.ten)
+                        src.forEach(nhan => {
+                            if (chuanHoaTimKiem(nhan).includes(tuKhoa)) {
+                                goiYDiaDiem.push({
+                                    key: `xh:${t.ma}:${nhan}`,
+                                    label: `${nhan} <span class="ddp-goi-y-tinh">— ${tenTinh}</span>`,
+                                    raw: { tinh: t, nhan },
+                                    laDiaDiem: true
+                                })
+                            }
+                        })
+                    })
+                    items = items.concat(goiYDiaDiem)
+                }
             } else {
                 const d = ddpXaHuyenData[ddpState.tinhDangChon.ma]
                 const src = ddpState.tenMoi ? (d?.xa_moi || []) : (d?.huyen_cu || [])
                 items = src.map(label => ({ key: label, label, raw: label }))
+                if (tuKhoa) items = items.filter(it => chuanHoaTimKiem(it.label).includes(tuKhoa))
             }
-            if (tuKhoa) items = items.filter(it => boDau(it.label).includes(tuKhoa))
             const list = document.getElementById('ddp-list')
-            list.innerHTML = items.length
-                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}"><span>${it.label}</span></div>`).join('')
-                : '<div class="ddp-empty">Không tìm thấy</div>'
+            // Nhãn "Địa danh phổ biến" (đợt redesign, theo mẫu hình) — chỉ hiện ở Bước 1 lúc CHƯA
+            // gõ gì (list lúc đó là nguyên 17 tỉnh dọc tuyến, coi như "phổ biến" vì đã là danh
+            // sách rút gọn sẵn — không có khái niệm xếp hạng riêng nào khác trong app này).
+            const nhanMuc = (ddpState.buoc === 1 && !tuKhoa) ? '<div class="ddp-section-label">Địa danh phổ biến</div>' : ''
+            list.innerHTML = nhanMuc + (items.length
+                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}">${DDP_PIN_SVG}<span>${it.label}</span></div>`).join('')
+                : '<div class="ddp-empty">Không tìm thấy</div>')
             list.querySelectorAll('.dia-diem-picker-option').forEach(el => {
                 el.addEventListener('click', () => {
                     const item = items.find(it => it.key === el.dataset.key)
                     if (ddpState.buoc === 1) {
+                        if (item.laDiaDiem) {
+                            const diaDiem = { nhan: item.raw.nhan, loai: ddpState.tenMoi ? 'xa' : 'huyen' }
+                            if (ddpState.vaiTro === 'xuat_phat') { noiXuatPhatTinh = item.raw.tinh; noiXuatPhatDiaDiem = diaDiem }
+                            else { diemDenTinh = item.raw.tinh; diemDenDiaDiem = diaDiem }
+                            dongDiaDiemPicker()
+                            renderTuyenPickerBlock()
+                            capNhatGiaVeBar()
+                            capNhatNutTimChuyen()
+                            return
+                        }
                         ddpState.tinhDangChon = item.raw
                         ddpState.buoc = 2
                         renderDiaDiemPicker()
@@ -1173,8 +1484,9 @@
                     if (ddpState.vaiTro === 'xuat_phat') { noiXuatPhatTinh = ddpState.tinhDangChon; noiXuatPhatDiaDiem = diaDiem }
                     else { diemDenTinh = ddpState.tinhDangChon; diemDenDiaDiem = diaDiem }
                     dongDiaDiemPicker()
-                    renderChieuSelector(entryDangChonChieu)
+                    renderTuyenPickerBlock()
                     capNhatGiaVeBar()
+                    capNhatNutTimChuyen()
                 })
             })
         }
@@ -1185,9 +1497,14 @@
         // biết mô tả 2 đầu tuyến cố định, không khớp khi khách chọn cặp tỉnh giữa đường (đợt 9).
         function renderChuyenDaChonBar() {
             const c = currentChuyen
+            // Khứ hồi (2 chặng) — thêm nhãn "🔁 Chặng X/2 — Chiều đi/về" phía trên, để khách biết
+            // đang ở đúng lượt nào giữa 2 lượt đặt liên tiếp (SPEC "Lịch chọn ngày đặt vé" mục 1.3).
+            const changLabel = dsChangDat.length > 1
+                ? `<div class="chang-label">🔁 Chặng ${changHienTaiIdx + 1}/2 — ${dsChangDat[changHienTaiIdx].vaiTro === 'di' ? 'Chiều đi' : 'Chiều về'}</div>`
+                : ''
             document.getElementById('chuyen-info-wrap').innerHTML = `
                 <div class="chuyen-da-chon-bar">
-                    <div>Chuyến đã chọn: <b>${noiXuatPhatTinh.ten} → ${diemDenTinh.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunarDay, c.lunarMonth)}</div>
+                    <div>${changLabel}Chuyến đã chọn: <b>${noiXuatPhatTinh.ten} → ${diemDenTinh.ten}</b><br>${nhanNgayLabel(c.ngay, c.lunarDay, c.lunarMonth)}</div>
                     <button type="button" class="btn-doi-chuyen" id="btn-doi-chuyen">Đổi ngày khởi hành</button>
                 </div>
             `
@@ -1217,10 +1534,24 @@
             history.pushState({ datVeBuoc: 'booking' }, '')
             backGuardPushed = true
         }
+        // Đã confirm xong (đang ở Bước 1-3) → Back đưa về Bước 0 (như cũ). Còn ở Bước 0, khứ hồi
+        // ON, ĐÃ chọn xong "ngày về" (guard riêng, push trong `chonNgay`) → Back lùi ĐÚNG 1 nấc
+        // của state machine chọn ngày (xoá ngày về, không thoát hẳn lịch) — khớp SPEC "Lịch chọn
+        // ngày đặt vé" mục 6, tái dùng ĐÚNG 1 guard entry (không push chồng thêm mỗi lần tap).
         window.addEventListener('popstate', () => {
-            if (backGuardPushed) {
-                backGuardPushed = false
-                doiChuyenKhac()
+            if (!backGuardPushed) return
+            backGuardPushed = false
+            if (currentChuyen) { doiChuyenKhac(); return }
+            if (khuHoi && ngayVeChon) {
+                ngayVeChon = null
+                // Popup CÓ THỂ đã đóng từ trước (khách bấm ‹/Xác nhận trong popup rồi mới bấm
+                // Back thật) — chỉ vẽ lại nếu đang mở, tránh lỗi tham chiếu `#lich-thang-wrap`
+                // không tồn tại; hàng tóm tắt ngoài trang thì LUÔN làm mới, bất kể popup mở/đóng.
+                if (document.getElementById('ngay-picker').classList.contains('open')) renderNgayPickerContent()
+                renderNgayChonRow()
+                renderTuyenPickerBlock()
+                capNhatNutTimChuyen()
+                pushBackGuard()
             }
         })
 
@@ -1235,6 +1566,7 @@
             selectedGiuongMap.clear()
             capNhatGiaVeBar()
             document.getElementById('dat-ve-form').style.display = 'none'
+            document.body.classList.remove('co-xac-nhan-ngay-bar')
             pushBackGuard()
             renderChuyenDaChonBar()
             document.getElementById('so-do-wrap').style.display = 'block'
@@ -1248,12 +1580,16 @@
 
         function doiChuyenKhac() {
             currentChuyen = null
-            ngayDangChonTam = null
-            baseMonthOffset = 0
+            ngayDiChon = null
+            ngayVeChon = null
+            dsChangDat = []
+            changHienTaiIdx = 0
+            ketQuaCacChang = []
             selectedGiuongMap.clear()
             soDoData = []
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
+            document.getElementById('ngay-picker').classList.remove('open')
             capNhatGiaVeBar()
             renderChonChuyenStep()
         }

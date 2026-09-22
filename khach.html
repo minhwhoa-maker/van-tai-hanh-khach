@@ -2,7 +2,9 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- interactive-widget=resizes-content (2026-09-22, đồng bộ fix từ dat-ve.html — cùng modal
+         picker Tỉnh→Xã/Huyện bị bàn phím Android che khuất list kết quả tìm kiếm). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="theme-color" content="#1565c0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -45,40 +47,48 @@
             background: var(--white); font-size: 17px; cursor: pointer; color: var(--primary);
             display: flex; align-items: center; justify-content: center; font-family: inherit;
         }
+        /* Modal chọn địa danh — ĐỔI HẲN sang trang toàn màn hình kiểu Vexere (2026-09-22, đồng bộ
+           với dat-ve.html — xem ghi chú chi tiết ở đó). DÙNG CHUNG picker này cho cả 3 nơi: dải
+           "Nơi xuất phát/Điểm đến", nút "📍" trong renderVeRowEdit (Danh sách), nút "📍" trong
+           openVeModal (Sơ đồ, sửa vé đã đặt) — xem moTinhXaHuyenPicker(). */
         .dia-diem-picker {
-            display: none; position: fixed; inset: 0; z-index: 1000; align-items: flex-end; justify-content: center;
+            display: none; position: fixed; inset: 0; z-index: 1000; background: var(--white);
         }
-        .dia-diem-picker.open { display: flex; }
-        .dia-diem-picker-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.4); }
+        .dia-diem-picker.open { display: flex; flex-direction: column; }
+        .dia-diem-picker-backdrop { display: none; }
         .dia-diem-picker-card {
-            position: relative; width: 100%; max-width: 480px; background: var(--white);
-            border-radius: var(--radius) var(--radius) 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
-            max-height: 75vh; overflow-y: auto; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; flex: 1; min-height: 0;
             user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
         }
-        .dia-diem-picker-card h3 { margin: 0 0 6px; font-size: 17px; }
+        .ddp-header-bar {
+            background: var(--primary); color: #fff; flex-shrink: 0;
+            display: flex; align-items: center; gap: 12px;
+            padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+        }
+        .ddp-header-back { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 2px; line-height: 1; font-family: inherit; }
+        .ddp-header-bar h3 { flex: 1; margin: 0; font-size: 18px; font-weight: 700; }
+        .ddp-switch-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+        .ddp-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+        .ddp-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+        .ddp-switch .track { position: absolute; inset: 0; background: rgba(255,255,255,.35); border-radius: 999px; transition: background .15s; pointer-events: none; }
+        .ddp-switch input:checked + .track { background: #fff; }
+        .ddp-switch .thumb { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s, background .15s; pointer-events: none; }
+        .ddp-switch input:checked ~ .thumb { left: 20px; background: var(--primary); }
+        .ddp-search-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+        .ddp-search-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+        .ddp-search { flex: 1; min-width: 0; border: none; font-size: 17px; font-family: inherit; padding: 4px 0; background: transparent; }
+        .ddp-search:focus { outline: none; }
+        .ddp-luu-y { flex-shrink: 0; background: #fff8e1; color: #6d4c00; font-size: 13px; padding: 10px 16px; line-height: 1.5; }
+        .ddp-luu-y b { color: #e53935; }
+        .ddp-section-label { flex-shrink: 0; padding: 14px 16px 4px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .ddp-list { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom); }
+        .ddp-empty { padding: 24px 16px; text-align: center; color: var(--text-muted); }
         .dia-diem-picker-option {
-            display: flex; align-items: center; justify-content: space-between; padding: 14px 4px;
-            font-size: 16px; cursor: pointer; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 14px; padding: 16px;
+            font-size: 17px; cursor: pointer; border-bottom: 1px solid var(--border);
         }
-        .dia-diem-picker-option:last-of-type { border-bottom: none; }
-        .dia-diem-picker-option.dang-chon { color: var(--primary); font-weight: 700; }
-        .dia-diem-picker-option .check { color: var(--primary); font-weight: 700; visibility: hidden; }
-        .dia-diem-picker-option.dang-chon .check { visibility: visible; }
-        /* Bỏ diem_khach, thay bằng chọn Tỉnh -> Xã/Huyện (2026-09-22) — DÙNG CHUNG picker này cho
-           cả 3 nơi: dải "Nơi xuất phát/Điểm đến", nút "📍" trong renderVeRowEdit (Danh sách), nút
-           "📍" trong openVeModal (Sơ đồ, sửa vé đã đặt) — xem moTinhXaHuyenPicker(). */
-        .ddp-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-        .ddp-header h3 { margin: 0; font-size: 17px; flex: 1; }
-        .ddp-back { border: none; background: none; font-size: 24px; font-weight: 700; color: var(--text); cursor: pointer; padding: 0 4px; line-height: 1; }
-        .ddp-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; user-select: none; white-space: nowrap; }
-        .ddp-toggle input { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
-        .ddp-search {
-            width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
-            border-radius: var(--radius-sm); font-size: 16px; font-family: inherit; box-sizing: border-box;
-            margin-bottom: 4px;
-        }
-        .ddp-list { max-height: 46vh; overflow-y: auto; }
+        .dia-diem-picker-option .ddp-pin { flex-shrink: 0; color: var(--text-muted); }
+        .ddp-goi-y-tinh { font-weight: 400; color: var(--text-muted); font-size: 14px; }
         .ddp-empty { padding: 20px 4px; text-align: center; color: var(--text-muted); font-size: 14px; }
         .edit-diem-btn {
             width: 100%; text-align: left; padding: 10px 12px; border: 1.5px solid var(--border);
@@ -272,10 +282,14 @@
                trên) — chỉ hợp lý trên màn hẹp. Từ tablet: căn giữa + bo đủ 4 góc + max-width hẹp
                lại thành hộp thay vì tràn theo body (đã rộng 960px). Giữ nguyên max-height/overflow
                (cuộn nội bộ) và mọi hành vi đóng hiện có (bấm ra ngoài/nút Back) — chỉ đổi CSS. */
-            .ve-modal, .diemkhach-modal, .gia-tinh-modal, .dia-diem-picker { align-items: center; }
-            .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card, .dia-diem-picker-card {
+            .ve-modal, .diemkhach-modal, .gia-tinh-modal { align-items: center; }
+            .ve-modal-card, .diemkhach-modal-card, .gia-tinh-modal-card {
                 max-width: 520px; border-radius: var(--radius);
             }
+            /* Picker toàn màn hình -> hộp giữa màn hình có backdrop từ 768px (2026-09-22, đồng bộ
+               dat-ve.html — xem ghi chú chi tiết ở đó, khác pattern bottom-sheet của 3 modal trên). */
+            .dia-diem-picker.open { flex-direction: row; align-items: center; justify-content: center; background: rgba(0,0,0,.4); }
+            .dia-diem-picker-card { flex: none; width: 100%; max-width: 480px; max-height: 80vh; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
             /* Đặt vé giống dat-ve.html (2026-09-21) — thanh giá cố định đáy nới theo body (960px)
                cho đồng bộ mép trái/phải với phần nội dung phía trên, cùng cách dat-ve.html làm. */
             .gia-ve-bar { max-width: 960px; }
@@ -704,7 +718,6 @@
             document.getElementById('dia-diem-picker').classList.remove('open')
             ddpState = null
         }
-        document.querySelector('#dia-diem-picker .dia-diem-picker-backdrop').addEventListener('click', dongDiaDiemPickerCrew)
         // Đổi toggle Cũ/Mới GIỮA CHỪNG (đã ở Bước 2) -> reset về Bước 1, xoá tỉnh đang chọn tạm
         // (quyết định owner, tránh kẹt "tỉnh hiện tên cũ nhưng xã bên dưới lại là danh sách xã
         // mới" — cùng nguyên tắc doiChuyenKhac() ở dat-ve.html). Đổi lúc còn Bước 1 chỉ vẽ lại
@@ -714,54 +727,101 @@
             if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null }
             renderDiaDiemPicker()
         }
+        // Icon ghim địa điểm (SVG, đồng bộ dat-ve.html).
+        const DDP_PIN_SVG = '<svg class="ddp-pin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>'
         // Chỉ render lại KHUNG (header/toggle/search input) khi đổi bước/toggle — search input giữ
         // nguyên DOM node xuyên suốt lúc gõ (renderDdpList() riêng, không đụng lại input) để không
         // mất focus/con trỏ giữa chừng, cùng bài học đã áp dụng cho .item-qty-input ở hang.html.
+        // Trang toàn màn hình kiểu Vexere (2026-09-22, đồng bộ dat-ve.html) — #ddp-header-back
+        // dùng CHUNG cho cả đóng hẳn (Bước 1) lẫn lùi về Bước 1 (Bước 2).
         function renderDiaDiemPicker() {
             const card = document.getElementById('dia-diem-picker-card')
             const tieuDe = ddpState.buoc === 1 ? ddpState.tieuDeB1 : `Xã/huyện — ${ddpState.tinhDangChon.ten}`
+            const placeholder = ddpState.buoc === 1 ? 'Tên tỉnh/thành phố, quận/huyện' : 'Tên xã/phường, thị trấn'
             card.innerHTML = `
-                <div class="ddp-header">
-                    ${ddpState.buoc === 2 ? '<button type="button" class="ddp-back" id="ddp-back">‹</button>' : ''}
+                <div class="ddp-header-bar">
+                    <button type="button" class="ddp-header-back" id="ddp-header-back">${ddpState.buoc === 2 ? '‹' : '←'}</button>
                     <h3>${tieuDe}</h3>
-                    <label class="ddp-toggle"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}> Địa chỉ mới</label>
+                    <label class="ddp-switch-wrap">
+                        <span class="ddp-switch"><input type="checkbox" id="ddp-toggle-cb"${ddpState.tenMoi ? ' checked' : ''}><span class="track"></span><span class="thumb"></span></span>
+                        Địa chỉ mới
+                    </label>
                 </div>
-                <input type="text" class="ddp-search" id="ddp-search" placeholder="Gõ để tìm...">
+                <div class="ddp-search-row">
+                    <span class="ddp-search-dot"></span>
+                    <input type="text" class="ddp-search" id="ddp-search" placeholder="${placeholder}">
+                </div>
+                ${ddpState.buoc === 1 ? `<div class="ddp-luu-y"><b>*Lưu ý:</b> Sử dụng tên địa phương ${ddpState.tenMoi ? 'sau' : 'trước'} sáp nhập</div>` : ''}
                 <div class="ddp-list" id="ddp-list"></div>
             `
             document.getElementById('ddp-toggle-cb').addEventListener('change', doiToggleDiaDiemCrew)
-            if (ddpState.buoc === 2) {
-                document.getElementById('ddp-back').addEventListener('click', () => {
-                    ddpState.buoc = 1; ddpState.tinhDangChon = null
-                    renderDiaDiemPicker()
-                })
-            }
-            document.getElementById('ddp-search').addEventListener('input', renderDdpList)
+            document.getElementById('ddp-header-back').addEventListener('click', () => {
+                if (ddpState.buoc === 2) { ddpState.buoc = 1; ddpState.tinhDangChon = null; renderDiaDiemPicker() }
+                else dongDiaDiemPickerCrew()
+            })
+            const searchEl = document.getElementById('ddp-search')
+            searchEl.addEventListener('input', renderDdpList)
             renderDdpList()
+            searchEl.focus()
         }
+        function chuanHoaTimKiem(s) { return boDau(s).replace(/\s+/g, '') }
         function renderDdpList() {
-            const tuKhoa = boDau(document.getElementById('ddp-search').value)
+            const tuKhoa = chuanHoaTimKiem(document.getElementById('ddp-search').value)
             let items
             if (ddpState.buoc === 1) {
-                items = tinhTuyenChoDatVeCrew().filter(t => t.ma !== ddpState.tinhBenKiaMa).map(t => ({
+                const dsTinh = tinhTuyenChoDatVeCrew().filter(t => t.ma !== ddpState.tinhBenKiaMa)
+                items = dsTinh.map(t => ({
                     key: t.ma,
                     label: ddpState.tenMoi ? (ddpXaHuyenData[t.ma]?.ten_moi || t.ten) : t.ten,
                     raw: t
                 }))
+                if (tuKhoa) {
+                    items = items.filter(it => chuanHoaTimKiem(it.label).includes(tuKhoa))
+                    // Gợi ý theo tên xã/huyện cụ thể (2026-09-22, đồng bộ với dat-ve.html — xem
+                    // ghi chú chi tiết ở đó) — gõ thẳng tên xã/huyện (vd "Eakar") không cần biết
+                    // trước thuộc tỉnh nào, quét toàn bộ xã/huyện của mọi tỉnh còn lại, khớp thì
+                    // gợi ý kèm tên tỉnh — bấm vào chọn LUÔN CẢ TỈNH LẪN XÃ/HUYỆN, bỏ qua Bước 2.
+                    const goiYDiaDiem = []
+                    dsTinh.forEach(t => {
+                        const d = ddpXaHuyenData[t.ma]
+                        if (!d) return
+                        const src = ddpState.tenMoi ? (d.xa_moi || []) : (d.huyen_cu || [])
+                        const tenTinh = ddpState.tenMoi ? (d.ten_moi || t.ten) : (d.ten_cu || t.ten)
+                        src.forEach(nhan => {
+                            if (chuanHoaTimKiem(nhan).includes(tuKhoa)) {
+                                goiYDiaDiem.push({
+                                    key: `xh:${t.ma}:${nhan}`,
+                                    label: `${nhan} <span class="ddp-goi-y-tinh">— ${tenTinh}</span>`,
+                                    raw: { tinh: t, nhan },
+                                    laDiaDiem: true
+                                })
+                            }
+                        })
+                    })
+                    items = items.concat(goiYDiaDiem)
+                }
             } else {
                 const d = ddpXaHuyenData[ddpState.tinhDangChon.ma]
                 const src = ddpState.tenMoi ? (d?.xa_moi || []) : (d?.huyen_cu || [])
                 items = src.map(label => ({ key: label, label, raw: label }))
+                if (tuKhoa) items = items.filter(it => chuanHoaTimKiem(it.label).includes(tuKhoa))
             }
-            if (tuKhoa) items = items.filter(it => boDau(it.label).includes(tuKhoa))
             const list = document.getElementById('ddp-list')
-            list.innerHTML = items.length
-                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}"><span>${it.label}</span></div>`).join('')
-                : '<div class="ddp-empty">Không tìm thấy</div>'
+            const nhanMuc = (ddpState.buoc === 1 && !tuKhoa) ? '<div class="ddp-section-label">Địa danh phổ biến</div>' : ''
+            list.innerHTML = nhanMuc + (items.length
+                ? items.map(it => `<div class="dia-diem-picker-option" data-key="${it.key.replace(/"/g, '&quot;')}">${DDP_PIN_SVG}<span>${it.label}</span></div>`).join('')
+                : '<div class="ddp-empty">Không tìm thấy</div>')
             list.querySelectorAll('.dia-diem-picker-option').forEach(el => {
                 el.addEventListener('click', () => {
                     const item = items.find(it => it.key === el.dataset.key)
                     if (ddpState.buoc === 1) {
+                        if (item.laDiaDiem) {
+                            const onChonXongDiaDiem = ddpState.onChonXong
+                            const loaiDiaDiem = ddpState.tenMoi ? 'xa' : 'huyen'
+                            dongDiaDiemPickerCrew()
+                            onChonXongDiaDiem({ tinh: item.raw.tinh, nhan: item.raw.nhan, loai: loaiDiaDiem })
+                            return
+                        }
                         ddpState.tinhDangChon = item.raw
                         ddpState.buoc = 2
                         renderDiaDiemPicker()
