@@ -557,12 +557,15 @@
         // Chưa giao: chính = "Hoàn thành", menu chỉ có "Sửa". Đã giao: không có hành động
         // gấp nào (mọi thao tác ở đây là sửa sai, tần suất thấp) nên chỉ còn menu, gộp cả
         // "Sửa" / "Hủy giao" / "Sửa tiền".
-        // Đếm số dòng "[HH:mm dd/MM] ..." đã append vào ghi_chu qua "Ghi nhận đã gọi" — chỉ
-        // gợi ý hiển thị cho crew cân nhắc lúc nào bấm "Trả hàng", KHÔNG chặn hành động nào,
-        // KHÔNG giới hạn số lần thử (quyết định nghiệp vụ: để crew tự quyết).
+        // Đếm số dòng "[HH:mm dd/MM] Thử liên lạc..." đã append vào ghi_chu qua "Ghi nhận đã
+        // gọi" — chỉ gợi ý hiển thị cho crew cân nhắc lúc nào bấm "Trả hàng", KHÔNG chặn hành
+        // động nào, KHÔNG giới hạn số lần thử (quyết định nghiệp vụ: để crew tự quyết).
+        // Match theo cụm "Thử liên lạc" (KHÔNG chỉ `.startsWith('[')`) — 2 dòng audit "AI tự
+        // điền SĐT..." (ghiNhanDaGoi ở đây, xem chayDoiChieuSdt) cũng bắt đầu bằng "[" nhưng
+        // KHÔNG phải 1 lần thử liên lạc, từng bị đếm nhầm cộng dồn vào badge này.
         function demSoLanThuLienLac(ghiChu) {
             if (!ghiChu) return 0
-            return ghiChu.split('\n').filter(dong => dong.trimStart().startsWith('[')).length
+            return ghiChu.split('\n').filter(dong => dong.includes('Thử liên lạc')).length
         }
 
         // Ẩn dòng audit "AI tự điền SĐT: ..." (append lúc bấm "⚡ Điền tất cả") khỏi hiển thị —
