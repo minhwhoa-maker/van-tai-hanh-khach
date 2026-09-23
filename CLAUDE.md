@@ -4,6 +4,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 App quản lý kiện hàng crew xe khách giường nằm, tuyến Đắk Lắk ↔ Hải Dương. Fork từ `eakar-logistics` — tái dùng `shared.js`, CSS, PWA shell; auth viết lại hoàn toàn (Supabase Auth thật, không phải Zalo-OTP-tự-viết của repo gốc).
 
+## TODO trước khi go-live
+
+Checklist việc BẮT BUỘC xác nhận trước khi cho khách/crew thật dùng các luồng liên quan — không
+phải nợ kỹ thuật thông thường, mà là thứ sẽ ÂM THẦM SAI nếu quên, không có lỗi rõ ràng nào báo
+hiệu lúc go-live. Đọc mục này TRƯỚC khi trả lời "đã sẵn sàng dùng thật chưa" cho bất kỳ tính năng
+nào bên dưới.
+
+- **`OTP_TEST_MODE` (env Vercel) — ĐANG BẬT (`true`) ở Production kể từ 2026-09-23, PHẢI xoá/set
+  về `false` trước khi cho khách thật dùng `dat-ve.html`** — xem cơ chế chi tiết ở mục "OTP bắt
+  buộc mọi lượt đặt vé công khai". Bật để test luồng OTP/đặt vé trong lúc Zalo ZNS/SMS Brandname
+  chưa có credential thật (`ZALO_OA_ACCESS_TOKEN`/`ZALO_ZNS_TEMPLATE_ID`/nhà cung cấp SMS đều chưa
+  có). Nếu quên tắt: khách thật bấm "Gửi mã xác thực" sẽ nhận `{ok:true}` như bình thường nhưng
+  KHÔNG có gì gửi đi thật (bước gửi bị bỏ qua âm thầm, chỉ log ra Vercel function logs) — khách
+  không có quyền vào Supabase để tự tra mã, coi như không bao giờ đặt được vé, không có lỗi nào
+  hiện ra để biết nguyên nhân. Kiểm tra bằng `vercel env ls --scope minhwhoa-makers-projects` (hoặc
+  Vercel Dashboard → Settings → Environment Variables), xoá/sửa xong phải `vercel --prod` lại để có
+  hiệu lực (đổi env không tự động redeploy).
+- **Zalo OAuth login (crew, `login.html`)** — endpoint/tên tham số Zalo OAuth v4 trong
+  `api/zalo-login.js`/`api/zalo-callback.js` viết theo hiểu biết chung (doc `developers.zalo.me` là
+  SPA, không fetch được nội dung lúc viết) — đối chiếu lại với doc thật + test end-to-end bằng 2 tài
+  khoản Zalo khác nhau trước khi dùng thật. Xem chi tiết ở mục "Auth" bên dưới.
+- **Zalo ZNS + SMS Brandname (đặt vé công khai)** — chưa có credential nào (`ZALO_OA_ACCESS_TOKEN`/
+  `ZALO_ZNS_TEMPLATE_ID` chưa đăng ký; nhà cung cấp SMS chưa chốt) — cả 2 kênh gửi OTP thật đều sẽ
+  throw lỗi nếu gọi lúc này (đang được che bởi `OTP_TEST_MODE`, xem bullet trên). Xem mục "OTP bắt
+  buộc mọi lượt đặt vé công khai".
+
 ## Stack
 
 Vanilla HTML/CSS/JS + Supabase (Postgres + Auth + Storage) + Vercel. Không build step, không test runner, không lint.
@@ -1393,6 +1419,27 @@ Zalo Login OAuth ở `login.html`) — mục đích khác nhau, không liên qua
   - `guiOtpSms` — placeholder, chưa gắn nhà cung cấp cụ thể (owner chưa chốt eSMS/SpeedSMS/nhà
     mạng, cần tài khoản Brandname + giấy tờ HKD, duyệt vài ngày) — luôn throw lỗi "chưa tích hợp
     xong" cho tới khi có credential thật và code phần gọi API nhà cung cấp.
+  - **⚠️ `OTP_TEST_MODE` (env Vercel, thêm 2026-09-23) — ĐANG BẬT ở Production, xem mục "TODO trước
+    khi go-live" ở đầu file** — cho phép test hết luồng OTP/đặt vé trong lúc Zalo ZNS/SMS Brandname
+    chưa có credential thật (2 hàm `guiOtpZalo`/`guiOtpSms` ở trên vẫn luôn throw nếu gọi thật).
+    So sánh **ĐÚNG CHUỖI** `process.env.OTP_TEST_MODE === 'true'` (KHÔNG dùng truthy-check trần) —
+    env var Vercel luôn là string, set `"false"` mà check truthy sẽ bị coi là BẬT, đây là bug rất
+    dễ mắc. Bọc ĐÚNG bước gọi `guiOtpZalo`/`guiOtpSms` (không đụng gì phía trước) — dòng `dat_ve_otp`
+    vẫn INSERT bình thường trước đó (thứ tự code vốn đã đúng: insert trước, gửi sau), chỉ BỎ QUA
+    lời gọi gửi thật, log 1 dòng `[OTP_TEST_MODE] Bỏ qua gửi thật cho <sdt>, kenh=<kenh>` ra Vercel
+    function logs (không phải response) để có dấu vết debug. **KHÔNG đổi gì về việc client có thấy
+    mã OTP hay không** — response vẫn chỉ `{ok:true}`, không bao giờ trả `ma_otp` dù test mode bật
+    hay tắt (giữ nguyên nguyên tắc đã có ở trên); người test phải tự tra `dat_ve_otp.ma_otp` qua
+    Supabase (SQL hoặc Table Editor — cột này lưu **plaintext, không hash**, đọc trực tiếp được).
+    Rate-limit (≥3 lần/10 phút, ≥10 lần/24h) và validate SĐT **KHÔNG đổi gì**, chạy y hệt dù test
+    mode bật hay tắt. **Đã verify thật (không chỉ đọc code, 2026-09-23)**: gọi
+    `POST /api/cong-khai-gui-otp` với SĐT test → `{ok:true}`; tra `dat_ve_otp` qua SQL lấy đúng
+    `ma_otp` plaintext; gọi `POST /api/cong-khai-xac-thuc-otp` với mã đó → `{ok:true}`, SQL xác
+    nhận `da_dung=true`; đặt vé thật qua `api/cong-khai-dat-ve.js` bằng đúng SĐT đó → thành công,
+    tạo `ve` với `trang_thai='da_dat', nguon='khach_tu_dat'`; **test âm**: đặt vé bằng 1 SĐT KHÁC
+    CHƯA xác thực OTP lần nào → vẫn `403 "Vui lòng xác thực số điện thoại trước khi đặt vé"` như
+    bình thường — xác nhận test mode không làm yếu bước kiểm tra ở `api/cong-khai-dat-ve.js`. Đã
+    dọn sạch data test (`ve`/`dat_ve_otp`/`chuyen` vừa tạo) sau khi xong.
 - **`api/cong-khai-xac-thuc-otp.js`** (POST `{sdt, ma_otp}`) — lấy dòng `dat_ve_otp` MỚI NHẤT của
   SĐT chưa dùng/chưa hết hạn (mã cũ hơn tự động mất hiệu lực dù chưa hết 5 phút, phòng khách bấm gửi
   lại nhiều lần), sai mã → `so_lan_sai += 1`, ≥5 lần sai → khoá phải gửi mã mới. Đúng mã →

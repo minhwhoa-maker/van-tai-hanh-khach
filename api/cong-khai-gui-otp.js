@@ -98,12 +98,24 @@ export default async function handler(req, res) {
     })
     if (insErr) { res.status(500).json({ error: insErr.message }); return }
 
-    try {
-        if (kenh === 'zalo') await guiOtpZalo(sdtChuan, maOtp)
-        else await guiOtpSms(sdtChuan, maOtp)
-    } catch (err) {
-        console.error('[gui-otp] Lỗi gửi mã:', err.message)
-        res.status(502).json({ error: 'Không gửi được mã, thử lại hoặc chọn kênh khác' }); return
+    // OTP_TEST_MODE — bỏ qua bước gửi thật (Zalo ZNS/SMS Brandname CHƯA có credential thật lúc
+    // viết tính năng này), dùng để test hết luồng đặt vé mà không phải chờ 2 cái đó xong. So sánh
+    // ĐÚNG CHUỖI 'true' (KHÔNG dùng truthy-check trần) — env var Vercel luôn là string, set
+    // "false" mà check truthy sẽ bị coi là BẬT, đây là bug rất dễ mắc. Mặc định KHÔNG set biến này
+    // ở đâu cả → hành vi y hệt trước (gọi thật, throw nếu chưa cấu hình). Dòng OTP đã INSERT xong
+    // ở trên (trước khối này) bất kể test mode bật hay tắt — mã vẫn tồn tại trong DB để tra tay.
+    // ⚠️ PHẢI xoá/set về false ở Vercel Production TRƯỚC KHI cho khách thật dùng dat-ve.html — xem
+    // CLAUDE.md mục "TODO trước khi go-live".
+    if (process.env.OTP_TEST_MODE === 'true') {
+        console.log(`[OTP_TEST_MODE] Bỏ qua gửi thật cho ${sdtChuan}, kenh=${kenh}`)
+    } else {
+        try {
+            if (kenh === 'zalo') await guiOtpZalo(sdtChuan, maOtp)
+            else await guiOtpSms(sdtChuan, maOtp)
+        } catch (err) {
+            console.error('[gui-otp] Lỗi gửi mã:', err.message)
+            res.status(502).json({ error: 'Không gửi được mã, thử lại hoặc chọn kênh khác' }); return
+        }
     }
 
     // KHÔNG BAO GIỜ trả mã OTP trong response — chỉ báo đã gửi thành công.
