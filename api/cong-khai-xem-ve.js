@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     const { data: veRows, error: veErr } = await sbAdmin
         .from('ve')
         .select(`
-            id, chuyen_id, giuong_id, ten_khach, sdt_khach, gia, trang_thai, hinh_thuc_thanh_toan,
+            id, ma_ve, chuyen_id, giuong_id, ten_khach, sdt_khach, gia, trang_thai, hinh_thuc_thanh_toan,
             nha_xe_id, tinh_len_ma, tinh_xuong_ma,
             dia_diem_len_nhan, dia_diem_len_loai, dia_diem_xuong_nhan, dia_diem_xuong_loai,
             chuyen:chuyen_id ( id, khoi_hanh, chieu ),
@@ -107,6 +107,7 @@ export default async function handler(req, res) {
         }
         nhomTheoChuyen.get(v.chuyen_id).ve.push({
             id: v.id,
+            ma_ve: v.ma_ve,
             ma_giuong: v.giuong?.ma || null,
             ten_khach: v.ten_khach,
             sdt_khach: v.sdt_khach,

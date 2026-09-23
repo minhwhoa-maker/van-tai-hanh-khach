@@ -870,6 +870,7 @@
             // để báo rõ, số lượng mỗi lần chọn thường nhỏ (vài giường) nên không đáng lo tốc độ.
             const thanhCong = []
             const thatBai = []
+            const maVeThanhCong = []
             for (const g of dsGiuong) {
                 btn.textContent = `Đang đặt vé... (${thanhCong.length + thatBai.length + 1}/${dsGiuong.length})`
                 try {
@@ -905,6 +906,7 @@
                     else {
                         thanhCong.push(g)
                         if (data.ve_id) veIdCacChang.push(data.ve_id)
+                        if (data.ma_ve) maVeThanhCong.push(data.ma_ve)
                         if (data.chuyen_id && !currentChuyen.chuyen_id) currentChuyen.chuyen_id = data.chuyen_id
                     }
                 } catch (err) {
@@ -933,9 +935,15 @@
             capNhatGiaVeBar()
             const maThanhCong = thanhCong.map(g => g.ma).join(', ')
             const nhanChang = dsChangDat.length > 1 ? (dsChangDat[changHienTaiIdx].vaiTro === 'di' ? 'Chiều đi' : 'Chiều về') + ' — ' : ''
+            // Mã vé (2026-09-23, xem SPEC "Mã vé ngắn") — chia 4-4 bằng dấu gạch CHỈ ĐỂ DỄ ĐỌC,
+            // không phải 1 phần giá trị lưu DB. Nhiều giường trong cùng chặng → liệt kê đủ mã.
+            const maVeHtml = maVeThanhCong.length
+                ? ' — Mã vé: ' + maVeThanhCong.map(m => `${m.slice(0, 4)}-${m.slice(4)}`).join(', ')
+                : ''
             ketQuaCacChang.push(
                 `${nhanChang}${nhanNgayLabel(currentChuyen.ngay, currentChuyen.lunarDay, currentChuyen.lunarMonth)}: Giường ${maThanhCong} — ${ten} — ${sdt}` +
-                (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe')
+                (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe') +
+                maVeHtml
             )
             if (thatBai.length) {
                 showToast(`${thatBai.length} giường không đặt được: ${thatBai.map(x => x.g.ma).join(', ')}`, 'error')
@@ -1064,7 +1072,7 @@
             wrap.innerHTML = '<div class="chuyen-chon-wrap">' +
                 '<div class="lich-chieu-wrap" id="lich-chieu-wrap"></div>' +
                 '<div class="ngay-chon-row" id="ngay-chon-row"></div>' +
-                '<button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong">Xác nhận</button>' +
+                '<button type="button" class="btn-chon-vi-tri-giuong" id="btn-chon-vi-tri-giuong">Chọn chỗ</button>' +
                 '</div>'
             document.body.classList.add('co-xac-nhan-ngay-bar')
             renderTuyenPickerBlock()
@@ -1141,7 +1149,7 @@
                 </div>
                 <div class="lich-tuan-header">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(t => `<span>${t}</span>`).join('')}</div>
                 <div class="np-lich-scroll"><div class="lich-thang-wrap" id="lich-thang-wrap"></div></div>
-                <button type="button" class="btn-chon-vi-tri-giuong" id="np-btn-xac-nhan"${duDieuKien ? '' : ' disabled'}>Xác nhận</button>
+                <button type="button" class="btn-chon-vi-tri-giuong" id="np-btn-xac-nhan"${duDieuKien ? '' : ' disabled'}>Chọn chỗ</button>
             `
             document.getElementById('np-close').addEventListener('click', dongNgayPicker)
             document.getElementById('np-khu-hoi-toggle').addEventListener('change', onToggleKhuHoi)

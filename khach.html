@@ -223,11 +223,17 @@
         }
         .view-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
         .ve-list-empty { text-align: center; color: var(--text-muted); font-size: 14px; padding: 32px 16px; }
+        .ve-search-input {
+            display: block; width: calc(100% - 32px); margin: 12px 16px; padding: 12px 14px;
+            font-size: 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            box-sizing: border-box;
+        }
         .ve-list-wrap { margin: 0 16px 16px; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); background: var(--white); }
         .ve-row { padding: 14px 16px; border-bottom: 1px solid var(--border); }
         .ve-row:last-child { border-bottom: none; }
         .ve-row-ten { font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
         .ve-row-giuong { font-size: 12px; color: var(--primary); font-weight: 700; flex-shrink: 0; }
+        .ve-row-ma-ve { font-size: 12px; color: var(--text-muted); font-family: monospace; font-weight: 400; }
         .ve-row .mota { color: var(--text-muted); font-size: 13px; margin-top: 3px; }
         .ve-row-actions { display: flex; gap: 8px; margin-top: 10px; }
         .ve-row-btn {
@@ -390,7 +396,9 @@
     </div>
 
     <div id="view-danh-sach" style="display:none;">
+        <input type="text" id="ve-search-input" class="ve-search-input" placeholder="🔍 Tìm theo mã vé...">
         <div class="ve-list-empty" id="ve-list-empty" style="display:none;">Chưa có vé nào cho chuyến này.</div>
+        <div class="ve-list-empty" id="ve-search-empty" style="display:none;">Không tìm thấy mã này trong chuyến đang xem.</div>
         <div class="ve-list-wrap" id="ve-list-wrap"></div>
     </div>
 
@@ -503,6 +511,9 @@
         let veModalLenChon = null
         let veModalXuongChon = null
         let currentView = 'so_do'      // 'so_do' | 'danh_sach' — toggle 2 khối UI, dùng chung veMap/giuongMap
+        // Tìm theo mã vé (2026-09-23, xem SPEC "Mã vé ngắn") — lọc CLIENT-SIDE trên veMap đã tải
+        // sẵn cho chuyến đang xem, KHÔNG gọi thêm query, KHÔNG tra cứu xuyên chuyến khác.
+        let veSearchQuery = ''
         // Đặt vé giống dat-ve.html (2026-09-21) — xem SPEC "Đặt vé trên khach.html" CLAUDE.md.
         // noiXuatPhatTinh/diemDenTinh: object THAM CHIẾU trực tiếp tới phần tử trong `tinhList`
         // (không copy) — để khi modal "Giá vé theo tỉnh" cập nhật t.gia_moc, giá hiện ở thanh đáy
@@ -980,7 +991,7 @@
             // lại đúng dữ liệu vé CŨ tạo trước 2026-09-22 (chưa có dia_diem_*_nhan), tenDiaDiem()
             // ưu tiên dia_diem_*_nhan, fallback về tenDiemKhach(diem_*_id) nếu thiếu.
             const { data, error } = await sb.from('ve')
-                .select('id, chuyen_id, giuong_id, tinh_len_ma, tinh_xuong_ma, dia_diem_len_nhan, dia_diem_len_loai, dia_diem_xuong_nhan, dia_diem_xuong_loai, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
+                .select('id, ma_ve, chuyen_id, giuong_id, tinh_len_ma, tinh_xuong_ma, dia_diem_len_nhan, dia_diem_len_loai, dia_diem_xuong_nhan, dia_diem_xuong_loai, diem_len_id, diem_xuong_id, ten_khach, sdt_khach, gia, trang_thai, ghi_chu, nguon, hinh_thuc_thanh_toan')
                 .eq('chuyen_id', chuyen.id)
                 .neq('trang_thai', 'huy')
             if (error) { showToast('Lỗi tải vé: ' + error.message, 'error'); return }
@@ -1042,6 +1053,7 @@
         }
         document.getElementById('tab-view-so-do').addEventListener('click', () => { currentView = 'so_do'; capNhatView() })
         document.getElementById('tab-view-danh-sach').addEventListener('click', () => { currentView = 'danh_sach'; capNhatView() })
+        document.getElementById('ve-search-input').addEventListener('input', e => { veSearchQuery = e.target.value; renderDanhSachVe() })
 
         // === Danh sách vé (view thay thế cho Sơ đồ, đọc CHUNG veMap/giuongMap/diemKhachList —
         // không fetch riêng, không có state riêng) ===
@@ -1076,14 +1088,26 @@
         function renderDanhSachVe() {
             const wrap = document.getElementById('ve-list-wrap')
             const emptyEl = document.getElementById('ve-list-empty')
+            const searchEmptyEl = document.getElementById('ve-search-empty')
             wrap.textContent = ''
-            const list = [...veMap.values()].filter(v => v.trang_thai === 'da_dat')
+            searchEmptyEl.style.display = 'none'
+            let list = [...veMap.values()].filter(v => v.trang_thai === 'da_dat')
             if (!list.length) {
                 emptyEl.style.display = 'block'
                 wrap.style.display = 'none'
                 return
             }
             emptyEl.style.display = 'none'
+            // Lọc theo mã vé — không phân biệt hoa/thường, khớp bất kỳ vị trí nào trong ma_ve.
+            const q = veSearchQuery.trim().toUpperCase()
+            if (q) {
+                list = list.filter(v => v.ma_ve && v.ma_ve.includes(q))
+                if (!list.length) {
+                    searchEmptyEl.style.display = 'block'
+                    wrap.style.display = 'none'
+                    return
+                }
+            }
             wrap.style.display = 'block'
             list.sort((a, b) => {
                 const ga = giuongMap.get(a.giuong_id), gb = giuongMap.get(b.giuong_id)
@@ -1102,7 +1126,7 @@
             const giuong = giuongMap.get(ve.giuong_id)
             row.innerHTML = `
                 <div class="ve-row-ten">
-                    <span>${ve.ten_khach || '(chưa có tên)'}${ve.nguon === 'khach_tu_dat' ? ' <span title="Đặt online">🌐</span>' : ''}</span>
+                    <span>${ve.ten_khach || '(chưa có tên)'}${ve.nguon === 'khach_tu_dat' ? ' <span title="Đặt online">🌐</span>' : ''}${ve.ma_ve ? ` <span class="ve-row-ma-ve">${ve.ma_ve}</span>` : ''}</span>
                     <span class="ve-row-giuong">${nhanGiuong(giuong)}</span>
                 </div>
                 <div class="mota">${ve.sdt_khach || '(chưa có SĐT)'}</div>

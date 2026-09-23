@@ -240,7 +240,7 @@ export default async function handler(req, res) {
         nguon: 'khach_tu_dat',
         hinh_thuc_thanh_toan,
         nha_xe_id: nhaXe.id
-    }).select('id').single()
+    }).select('id, ma_ve').single()
 
     if (error) {
         if (error.code === '23505') {
@@ -254,5 +254,8 @@ export default async function handler(req, res) {
     // ve_id (thêm 2026-09-23, xem SPEC "Xem lại vé đã đặt") — dat-ve.html gom các ve_id vừa đặt
     // thành công để build link `xem-ve.html?id=...&id=...` ở màn xác nhận, không cần tự tạo route
     // riêng chỉ để tra lại UUID vừa insert.
-    res.status(200).json({ ok: true, chuyen_id: chuyenId, ve_id: veCreated.id })
+    // ma_ve (thêm 2026-09-23, xem SPEC "Mã vé ngắn") — CHỈ hiển thị cho khách đối chiếu, KHÔNG
+    // phải khoá bảo mật/tra cứu — sinh tự động bởi trigger private.gen_ma_ve(), không phải giá
+    // trị route này tự tính.
+    res.status(200).json({ ok: true, chuyen_id: chuyenId, ve_id: veCreated.id, ma_ve: veCreated.ma_ve })
 }

@@ -1548,6 +1548,65 @@ riêng.**
   đúng, không phải sót middleware), redirect 308 từ host crew sang host booking giữ nguyên query
   string, các trang crew khác (`hang.html`...) vẫn 404 trên host booking (không bị allow-list mới
   vô tình mở rộng). Đã dọn sạch toàn bộ data test (`ve`/`chuyen`/`dat_ve_otp`) sau khi xong.
+- **Test guard cross-tenant riêng (2026-09-23, chạy sau lần verify ở trên — lần đầu CHƯA test ca
+  này)** — tạo tạm nhà xe `test-b` (kèm 1 `chuyen`/`giuong`/`ve` test), gọi route với 2 `id`: 1 từ
+  `ve` thật của `eakar` + 1 từ `ve` test của `test-b` → **`400`**,
+  `{"error":"Link không hợp lệ — các vé không thuộc cùng 1 nhà xe"}` — guard `nhaXeIdSet.size > 1`
+  chặn đúng, KHÔNG trả `200` lẫn lộn data 2 nhà xe. Đã xoá sạch data `test-b` sau khi xong.
+
+### Mã vé ngắn — `ve.ma_ve` (2026-09-23)
+
+Mỗi `ve` có thêm 1 mã 8 ký tự dễ đọc/gõ (vd `FZHKBQPK`) để crew tra nhanh trong Danh sách khách của
+1 chuyến. **KHÔNG PHẢI cơ chế bảo mật/chống giả mạo, KHÔNG dùng cho tra cứu công khai** (khác
+`ve.id` UUID — `xem-ve.html`/`api/cong-khai-xem-ve.js` GIỮ NGUYÊN dùng `id`, xem mục "KHÔNG làm" ở
+spec gốc) — chỉ hiển thị cho khách/crew đối chiếu bằng mắt.
+
+- **Sinh mã bằng TRIGGER DB (`private.gen_ma_ve()`, `BEFORE INSERT ON ve`), KHÔNG sinh ở JS** —
+  quyết định cốt lõi: `ve` có 2 đường insert khác hẳn nhau (`api/cong-khai-dat-ve.js` qua
+  `SUPABASE_SERVICE_KEY`, và `khach.html` qua `supabase-js` trực tiếp với session `authenticated`)
+  — sinh ở tầng DB đảm bảo CẢ 2 đường LUÔN có `ma_ve` mà không cần sửa gì thêm ở `khach.html`'s
+  code insert. Bảng chữ cái Crockford Base32 (`0123456789ABCDEFGHJKMNPQRSTVWXYZ`, bỏ I/L/O/U tránh
+  nhầm khi đọc/gõ tay), 8 ký tự (`32^8 ≈ 1.1 nghìn tỷ` tổ hợp). Retry tối đa 10 lần nếu trùng (query
+  lại chính bảng `ve` mỗi lần) — không giả định không bao giờ trùng dù xác suất cực thấp. Chỉ sinh
+  khi `NEW.ma_ve IS NULL` (không ghi đè nếu sau này có nhu cầu set tay). **Unique GLOBAL** (không
+  theo từng `nha_xe_id`) — đơn giản hơn, và crew tra cứu vốn đã bị RLS giới hạn chỉ thấy `ve` của
+  nhà xe mình nên không lộ gì thêm dù mã là duy nhất toàn hệ thống.
+- **Migration** (`ve_ma_ve_short_code`) — cột nullable trước, backfill toàn bộ `ve` hiện có (kể cả
+  đã huỷ — để tra cứu lịch sử vẫn có mã nếu cần), rồi mới `NOT NULL` (đúng pattern "DEFAULT trước,
+  NOT NULL sau" đã dùng nhiều lần trong dự án). Backfill chạy bằng vòng lặp PL/pgSQL riêng (không
+  tái dùng được trigger cho UPDATE hàng loạt vì trigger chỉ bắt `NEW.ma_ve IS NULL` trên INSERT).
+- **`api/cong-khai-dat-ve.js`** — `.insert(...).select('id, ma_ve').single()`, response thêm field
+  `ma_ve` (cùng lúc với `ve_id` đã có từ tính năng "Xem lại vé"). **`api/cong-khai-xem-ve.js`** —
+  `.select(...)` thêm `ma_ve`, đưa vào từng phần tử `ve` trong response — route KHÔNG đổi cách xác
+  định danh tính (vẫn dùng `id`/UUID trong query string, `ma_ve` chỉ là field hiển thị thêm).
+- **`dat-ve.html`** — màn "Đặt vé thành công" nối thêm `— Mã vé: XXXX-XXXX` (chia 4-4 bằng dấu gạch
+  CHỈ ĐỂ DỄ ĐỌC, không phải 1 phần giá trị lưu DB) vào CUỐI dòng tóm tắt mỗi chặng (`ketQuaCacChang`,
+  biến `maVeThanhCong` gom mã của MỌI giường đặt thành công trong chặng đó — 1 chặng có thể nhiều
+  giường nếu đặt nhóm cùng lúc, liệt kê đủ mã cách nhau bởi dấu phẩy). **`xem-ve.html`** — mỗi
+  `.ve-item` thêm dòng `.ma-ve` ngay dưới tên giường/khách, cùng format chia 4-4.
+- **`khach.html`** — 3 chỗ đổi:
+  1. `loadVeChoChuyen`'s `.select(...)` thêm `ma_ve`.
+  2. `renderVeRowView` hiện `ma_ve` (chữ nhỏ, muted, font monospace, class `.ve-row-ma-ve`) cạnh tên
+     khách trong Danh sách.
+  3. **Ô tìm theo mã vé** (`#ve-search-input`, phía trên `#ve-list-wrap` trong `#view-danh-sach`) —
+     lọc CLIENT-SIDE trên `veMap` đã tải sẵn cho chuyến đang xem (`veSearchQuery`, biến
+     module-level, listener `input`), KHÔNG gọi thêm query, KHÔNG tra cứu xuyên chuyến khác (đúng
+     phạm vi đã chốt). So khớp `ma_ve.includes(q)` sau khi `.toUpperCase()` cả 2 vế — không phân
+     biệt hoa/thường. Không tìm thấy → `#ve-search-empty` ("Không tìm thấy mã này trong chuyến đang
+     xem"), tách riêng khỏi `#ve-list-empty` (chuyến chưa có vé nào) — 2 thông điệp khác ý nghĩa,
+     không dùng chung 1 dòng.
+- **Đã verify thật (2026-09-23, không chỉ đọc code)**: đặt 1 vé qua `api/cong-khai-dat-ve.js` thật
+  (`nx=eakar`, số test `0911222555`) → response có `ma_ve` 8 ký tự đúng bảng chữ cái
+  (`FZHKBQPK`) → gọi lại `api/cong-khai-xem-ve.js` với đúng `id` → response chứa đúng `ma_ve` đó;
+  **insert `ve` trực tiếp bằng SQL** (mô phỏng đường `khach.html`, KHÔNG qua route nào, KHÔNG tự
+  set `ma_ve`) → trigger tự sinh `ma_ve` (`13V7HBW0`) — xác nhận đúng lý do chọn trigger thay vì
+  sinh ở JS: **bất kỳ đường insert nào cũng tự có mã, không cần sửa code insert riêng**; đặt khứ
+  hồi thật (2 chặng, đảo chiều `bac`→`nam`) → 2 `ve` ra 2 `ma_ve` KHÁC NHAU (`FZHKBQPK` vs
+  `9J2BHH6K`); unit-test logic lọc client-side (`node -e`) xác nhận đúng cả case khớp
+  (không phân biệt hoa/thường) lẫn không khớp; SQL xác nhận backfill `select count(*) from ve where
+  ma_ve is null` → `0`. Đã dọn sạch data test (`ve`/`dat_ve_otp` của số `0911222555`/`0911222556`,
+  `chuyen` tự tạo lúc test chặng về) — chuyến `bac` có sẵn từ trước (đã có khách thật đặt ở giường
+  khác) KHÔNG bị xoá, chỉ xoá đúng `ve` test tạo thêm vào chuyến đó.
 
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 

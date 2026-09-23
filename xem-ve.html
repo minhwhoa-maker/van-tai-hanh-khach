@@ -37,6 +37,7 @@
         }
         .ve-item:last-child { margin-bottom: 0; }
         .ve-item .giuong-ten { font-weight: 700; color: var(--text); }
+        .ve-item .ma-ve { font-size: 13px; color: var(--text-muted); font-family: monospace; letter-spacing: 0.5px; }
         .ve-item .diem { color: var(--text-muted); }
         .ve-item .badge-huy {
             display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
@@ -87,9 +88,11 @@
             const ttHtml = v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc'
                 ? `${giaHtml} · Chuyển khoản trước`
                 : `${giaHtml} · Tiền mặt lúc lên xe`
+            const maVeHtml = v.ma_ve ? `<div class="ma-ve">Mã vé: ${v.ma_ve.slice(0, 4)}-${v.ma_ve.slice(4)}</div>` : ''
             return `
                 <div class="ve-item">
                     <div class="giuong-ten">🪑 Giường ${v.ma_giuong || '?'} — ${v.ten_khach || ''} — ${v.sdt_khach || ''}</div>
+                    ${maVeHtml}
                     ${diemHtml}
                     <div>${ttHtml}</div>
                     ${daHuy ? '<span class="badge-huy">❌ Vé này đã bị huỷ</span>'
