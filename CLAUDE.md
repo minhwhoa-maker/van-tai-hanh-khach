@@ -1455,6 +1455,100 @@ Zalo Login OAuth ở `login.html`) — mục đích khác nhau, không liên qua
   `sdtDaXacThucOtp` — lệch (kể cả đổi số sau khi đã xác thực số khác) → chặn, báo toast yêu cầu xác
   thực lại; listener `input` trên `#f-sdt` tự ẩn dấu ✓/khối nhập mã khi số không khớp nữa.
 
+### Xem lại vé đã đặt — `xem-ve.html` + `api/cong-khai-xem-ve.js` (2026-09-23)
+
+Trước đó màn xác nhận đặt vé nói thẳng "hệ thống chưa hỗ trợ tra cứu lại vé" — khách đóng tab là
+mất trắng thông tin, phải gọi nhà xe hỏi lại. Thêm khả năng quay lại xem (tên/SĐT/giường/ngày giờ/
+tuyến/giá/hình thức thanh toán/trạng thái) qua 1 link riêng, **bảo mật dựa vào `ve.id` (UUID khó
+đoán) — đúng pattern app đang dùng cho ảnh Storage (`{kien.id}.jpg`), không thêm cơ chế token/login
+riêng.**
+
+- **`api/cong-khai-xem-ve.js`** (GET, `?id=<ve.id>`, CÓ THỂ lặp lại `id` nhiều lần trong query
+  string để gộp nhiều vé vào 1 link — dùng cho khứ hồi 2 chặng) —
+  - **KHÔNG bắt buộc `?nx=`** — NGOẠI LỆ CÓ CHỦ ĐÍCH so với 4 route `cong-khai-*` khác (`layNhaXe`
+    luôn là việc đầu tiên của mọi handler ở các route đó, xem mục "Multi-tenant Giai đoạn 5"). Lý
+    do: các route kia thao tác TRÊN TOÀN BỘ tài nguyên của 1 nhà xe (đặt vé mới, xem lịch chạy...)
+    nên cần `nx` để biết phạm vi truy vấn; route này chỉ TRA CỨU ĐIỂM theo đúng `ve.id` — UUID đã
+    tự xác định duy nhất 1 nhà xe rồi, không có gì mơ hồ cần `nx` để phân giải. Vẫn dùng
+    `SUPABASE_SERVICE_KEY` (bypass RLS) như các route công khai khác.
+  - **Xử lý cả 2 dạng Vercel trả `req.query.id`** — string đơn nếu chỉ 1 `?id=`, mảng nếu ≥2
+    (`Array.isArray(raw) ? raw : [raw]`) — lỗi rất dễ quên case 1-phần-tử-không-phải-mảng.
+  - **Lọc UUID hợp lệ trước khi query** (regex, không để lọt chuỗi rác xuống Postgres gây lỗi cú
+    pháp uuid) — id sai định dạng coi như "không tìm thấy" ngay từ đầu, gộp chung với id đúng định
+    dạng nhưng không có trong DB vào 1 field `khong_tim_thay: [...]` ở response — **KHÔNG hard-fail
+    cả request nếu 1 phần id thiếu**, để frontend hiện đúng phần tìm được + báo thiếu phần kia
+    thay vì trắng trang.
+  - **Guard mọi `id` phải cùng `nha_xe_id`** — URL bị chỉnh tay ghép 2 id của 2 nhà xe khác nhau →
+    400 rõ ràng, KHÔNG âm thầm hiện lẫn lộn data 2 nhà xe trên cùng 1 trang.
+  - `ve.tinh_len_ma`/`tinh_xuong_ma` **KHÔNG có FK trực tiếp tới `tinh`** (FK thật là composite qua
+    `tuyen_tinh`, xem mục "`ve_tinh_len_xuong_ma`" ở Database) nên KHÔNG embed được qua cú pháp
+    PostgREST `tinh_len:tinh_len_ma(ten)` — phải gom hết mã tỉnh cần tra (từ cả `tinh_len_ma`/
+    `tinh_xuong_ma` lẫn `diem_khach.tinh_ma` fallback) rồi query riêng bảng `tinh`, build map ở JS.
+  - **Nhãn địa điểm ƯU TIÊN `dia_diem_*_nhan`** (vé mới, xem mục "Bỏ diem_khach" bên dưới),
+    **FALLBACK `diem_khach`** (embed thẳng qua `diem_len:diem_len_id(ten, tinh_ma)` — cột này CÓ FK
+    thật, embed được bình thường) cho vé CŨ trước 2026-09-22 chưa có field mới — cùng tinh thần
+    `tenDiaDiem()` đã có ở `khach.html`, không viết lại từ đầu logic ưu tiên.
+  - **Gom vé theo `chuyen_id`** (1 chặng = 1 chuyến, có thể nhiều giường/vé nếu đặt nhóm cùng lúc)
+    rồi **sort theo `khoi_hanh` TĂNG DẦN** — không phụ thuộc thứ tự `id` trong URL, luôn hiện chiều
+    đi trước chiều về (đã test đảo ngược thứ tự 2 `id` trong URL, vẫn ra đúng thứ tự).
+  - `tinh_len_ten`/`tinh_xuong_ten` ở cấp CHẶNG (tóm tắt tuyến cho tiêu đề) lấy từ **vé ĐẦU TIÊN**
+    gặp trong nhóm — hợp lý vì mọi vé cùng `chuyen_id` luôn cùng `tinh_len_ma`/`tinh_xuong_ma` (đặt
+    cùng lúc theo cùng 1 tuyến đã chọn ở Bước 0 của `dat-ve.html`/`khach.html`). Từng vé vẫn có
+    `dia_diem_len`/`dia_diem_xuong` RIÊNG (đã kèm tên tỉnh) để hiện chi tiết xã/huyện hơn nếu khác
+    nhau giữa các vé trong cùng nhóm.
+  - `Cache-Control: no-store` — data có thể đổi bất kỳ lúc nào (crew huỷ vé qua `khach.html`), phải
+    luôn tải mới, không cache.
+  - Response KHÔNG có field nào ngoài phạm vi đã hiện sẵn ở màn xác nhận lúc đặt — không thêm gì
+    nhạy cảm hơn.
+  - **KHÔNG rate-limit route này** — UUID khó đoán, rủi ro dò quét thấp, không đáng thêm phức tạp
+    ở bản TEST.
+- **`api/cong-khai-dat-ve.js` response thêm `ve_id`** (trước chỉ có `chuyen_id`) — `.insert(...)
+  .select('id').single()` thay vì `.insert(...)` trơn. `dat-ve.html` cần giá trị này để build link
+  xem lại vé ở màn xác nhận.
+- **`xem-ve.html`** — trang PUBLIC, KHÔNG `requireSession`/hamburger (giống `dat-ve.html`), KHÔNG
+  đăng ký service worker riêng (trang tĩnh, không có luồng nhập liệu dài cần offline-first). Đọc
+  `id` bằng `URLSearchParams.getAll('id')` (KHÔNG phải `.get('id')` — mới lấy đủ nhiều giá trị).
+  Không có `id` nào → "Link không hợp lệ". Âm lịch/thứ trong tuần tính LẠI Ở CLIENT từ
+  `chuyen.khoi_hanh` (timestamptz) bằng `convertSolar2Lunar` (hàm global có sẵn từ `shared.js`,
+  cùng cách tái dùng đã áp dụng nhiều nơi khác trong app) — dịch `+7h` rồi đọc qua getter UTC để ra
+  đúng ngày/giờ VN, CÙNG kỹ thuật `ranhGioiNgayVN`/`tinhKhoiHanhMacDinh` đã dùng ở
+  `api/cong-khai-dat-ve.js` (Asia/Ho_Chi_Minh không DST, offset cố định +07:00). Vé
+  `trang_thai = 'huy'` → hiện rõ badge đỏ "❌ Vé này đã bị huỷ" (không xoá khỏi trang, khách cần
+  biết trạng thái thật), ẩn dòng "Chờ nhà xe xác nhận chuyển khoản" nếu đã huỷ. `khong_tim_thay`
+  không rỗng → hiện dòng nhỏ "⚠ 1 phần thông tin không tìm thấy, có thể đã bị xoá" cuối trang.
+- **`dat-ve.html`** — màn xác nhận (`#xac-nhan-box`) đổi câu "Vui lòng lưu lại thông tin này — hệ
+  thống chưa hỗ trợ tra cứu lại vé" (bỏ vế sau) thành nút "🔗 Sao chép link xem lại vé"
+  (`navigator.clipboard.writeText`, fallback `document.execCommand('copy')` qua `<textarea>` ẩn cho
+  WebView cũ không hỗ trợ Clipboard API) + nút "📤 Chia sẻ" (chỉ hiện nếu `navigator.share` tồn
+  tại — dùng share sheet gốc để khách tự chọn gửi qua Zalo/SMS/Ghi chú, KHÔNG hardcode link chia sẻ
+  riêng cho Zalo). `veIdCacChang` (mảng module-level, CÙNG vòng đời reset với `ketQuaCacChang` —
+  đầu `xacNhanChonChieu()`, trong `doiChuyenKhac()`) gom `ve_id` của MỌI vé đặt thành công xuyên
+  suốt cả phiên (kể cả khứ hồi 2 chặng), build link `xem-ve.html?id=...&id=...` từ mảng này.
+- **`middleware.js`** — thêm `/xem-ve.html` + `/api/cong-khai-xem-ve` vào allow-list host booking
+  (thiếu bước này thì trang mới trả 404 y hệt các trang crew khác trên host đó).
+- **`vercel.json`** — thêm redirect `/xem-ve.html` (host crew → host booking, 308, giữ nguyên query
+  string), nhất quán với `/dat-ve.html`/`/api/manifest-dat-ve` đã có sẵn — link cũ/copy nhầm domain
+  vẫn dẫn đúng chỗ. **Lưu ý khác biệt với 2 redirect kia**: các route `api/cong-khai-*` khác (bao
+  gồm `api/cong-khai-xem-ve`) KHÔNG có redirect riêng — chúng vốn đã 200 trên CẢ 2 host (middleware
+  chỉ chặn host booking, không chặn gì trên host crew `van-tai-hanh-khach.vercel.app`), vì
+  `dat-ve.html` gọi API bằng path tương đối `/api/cong-khai-*` — cần hoạt động trên bất kỳ host nào
+  đang serve trang đó, không riêng gì `xem-ve.html`.
+- **Đã verify bằng `curl`/SQL thật (2026-09-23, không chỉ đọc code)**: đặt 1 vé đơn chiều thật
+  (`nx=eakar`) → response có `ve_id` → gọi route mới với đúng id → JSON trả đúng tên/SĐT/giường/
+  tuyến/giá/tỉnh/địa điểm khớp vé vừa đặt; đặt khứ hồi thật (2 chuyến khác `chuyen_id`, khác
+  `chieu`) → gọi route với **2 id đảo ngược thứ tự trong URL** (id chặng về đứng trước) → response
+  vẫn trả ĐÚNG THỨ TỰ chặng đi trước/về sau (sort theo `khoi_hanh`, không phụ thuộc thứ tự URL); id
+  UUID giả không tồn tại → `200 {chang:[], khong_tim_thay:[...]}`, không crash/500; 1 id thật + 1
+  id giả trộn lẫn → trả đúng phần tìm được + báo thiếu phần kia; id chuỗi rác không đúng định dạng
+  UUID (`"abc123"`) → không rớt lỗi cú pháp Postgres, xử lý y hệt "không tìm thấy"; thiếu `id` hẳn
+  → `400 "Thiếu id vé"`; `UPDATE ve.trang_thai='huy'` trực tiếp (tương đương crew huỷ qua
+  `khach.html` — cùng 1 UPDATE, xem mục "Trả khách" ở `manifest-hang.html`) → gọi lại route → phản
+  ánh đúng `trang_thai: "huy"` ngay; `curl` xác nhận `xem-ve.html`/`api/cong-khai-xem-ve` đều 200
+  trên CẢ 2 host (booking VÀ crew — xem giải thích ở bullet `vercel.json` trên, đây LÀ hành vi
+  đúng, không phải sót middleware), redirect 308 từ host crew sang host booking giữ nguyên query
+  string, các trang crew khác (`hang.html`...) vẫn 404 trên host booking (không bị allow-list mới
+  vô tình mở rộng). Đã dọn sạch toàn bộ data test (`ve`/`chuyen`/`dat_ve_otp`) sau khi xong.
+
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 
 Áp dụng cho `dat-ve.html` (khách tự đặt online) + `khach.html` (crew đặt vé nội bộ). **KHÔNG áp
