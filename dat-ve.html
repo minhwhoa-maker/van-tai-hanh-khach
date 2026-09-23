@@ -355,7 +355,16 @@
             display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px;
             border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; color: var(--text); cursor: pointer;
         }
-        .thanh-toan-radio input { width: auto; }
+        /* Reset ĐẦY ĐỦ (không chỉ `width`) — input radio nằm trong `.dat-ve-form` nên vẫn kế thừa
+           `padding: 12px 14px; border: 1.5px solid; border-radius` từ rule `.dat-ve-form input`
+           chung phía trên. Padding/border trên `input[type=radio]` không đổi HÌNH DÁNG hiển thị ở
+           hầu hết trình duyệt (vẫn ra chấm tròn mặc định OS) nhưng VẪN CỘNG VÀO kích thước vùng
+           chạm ẩn — trên 1 số WebView Android, vùng chạm phình to bất thường theo padding, có thể
+           lấn sang label kế bên trong `.otp-kenh-radio`/`.thanh-toan-radio` (2 label cạnh nhau,
+           `flex:1`), khiến bấm nhắm "SMS" nhưng vô tình chọn trúng "Zalo". Sửa cùng lúc với
+           bullet "Highlight rõ label đang chọn" bên dưới — cùng 1 nguyên nhân gốc: người dùng
+           không có cách nào xác nhận đã chọn đúng kênh trước khi bấm gửi. */
+        .thanh-toan-radio input { width: auto; padding: 0; border: none; border-radius: 0; }
         .chuyen-khoan-info {
             display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
             background: #fff8e1; border: 1.5px solid #f0c14b; font-size: 13px; line-height: 1.6;
@@ -373,7 +382,17 @@
             padding: 10px 8px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
             font-size: 14px; color: var(--text); cursor: pointer;
         }
-        .otp-kenh-radio input { width: auto; }
+        .otp-kenh-radio input { width: auto; padding: 0; border: none; border-radius: 0; }
+        /* Highlight rõ label đang được chọn (thêm 2026-09-23, theo phản ánh thật — trước đó cả 2
+           label "Zalo"/"SMS" nhìn GIỐNG HỆT NHAU bất kể đang chọn cái nào, chỉ khác đúng cái chấm
+           radio mặc định của trình duyệt (rất nhỏ, dễ bỏ sót trên di động) — không có cách nào
+           XÁC NHẬN BẰNG MẮT mình vừa chọn đúng kênh trước khi bấm "Gửi mã xác thực". `:has()` được
+           hỗ trợ đủ rộng trên Chrome Android hiện tại (Chrome 105+, 2022) — không cần fallback JS
+           thêm class tay, đơn giản hơn. */
+        .otp-kenh-radio label:has(input:checked) {
+            border-color: var(--primary); background: var(--primary-light);
+            color: var(--primary); font-weight: 700;
+        }
         .btn-gui-otp {
             width: 100%; margin-top: 8px; padding: 11px; border: 1.5px solid var(--primary);
             border-radius: var(--radius-sm); background: #fff; color: var(--primary); font-size: 14px;
