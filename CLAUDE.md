@@ -517,11 +517,20 @@ thống lịch trình cố định, không có OTP xác thực SĐT (chấp nh�
         `van-tai-hanh-khach.vercel.app/login.html`/`/hang.html` vẫn 200.
       - **Chưa test thật trên thiết bị** (cùng ghi chú như đợt 15) — cần crew/owner tự bấm "Thêm vào
         màn hình chính" từ `https://eakar-booking.vercel.app/?nx=eakar` trên điện thoại thật.
+  - **⚠️ TOÀN BỘ khối "Luồng 4 bước" + các bullet con bên dưới (đến hết "Đặt TUẦN TỰ từng giường")
+    MÔ TẢ BẢN TRƯỚC 2026-09-23 — ĐÃ LỖI THỜI Ở PHẦN BƯỚC 0 (lịch/tuyến/khứ hồi)**, thay bởi mục
+    "Lịch chọn ngày đặt vé — popup toàn màn hình + khứ hồi (2026-09-23)" ngay sau mục "Lịch chạy cố
+    định" bên dưới. Giữ nguyên văn ở đây vì: (1) lịch sử các quyết định UX (đợt 4→16) vẫn đúng bối
+    cảnh, phần lớn hành vi (chọn tỉnh tự do 17 tỉnh, không mặc định ĐL/HD, picker Tỉnh→Xã/Huyện...)
+    KHÔNG đổi; (2) Bước 1-3 (sơ đồ giường/form liên hệ/OTP/đặt tuần tự nhiều giường) **KHÔNG đổi gì
+    ở đợt 2026-09-23**, vẫn đúng y nguyên. CHỈ riêng cơ chế hiển thị lịch (1 khối tháng + `‹`/`›`)
+    và việc "chọn ngày xong = xác nhận luôn" bị thay hẳn — đọc mục mới trước khi sửa bất kỳ gì liên
+    quan lịch/ngày/khứ hồi.
   - **Luồng 4 bước theo THỨ TỰ (2026-09-17, thêm Bước 0 "Chọn ngày đi" — trước đó chỉ có 3 bước,
     tự động dùng chuyến `dang_chay` gần nhất, không cho khách chọn gì)**. Bước 0 sau đó đổi tiếp 2
     lần cùng đợt: lần 1 (2026-09-17) từ "1 chuyến cố định" sang "chọn giữa các chuyến crew tự tạo
     tay"; lần 2 (2026-09-19, xem mục "Lịch chạy cố định" bên dưới) đổi UI từ **danh sách phẳng**
-    sang **LỊCH DẠNG LƯỚI** (giống Vexere) — bản mới nhất mô tả ngay dưới đây:
+    sang **LỊCH DẠNG LƯỚI** (giống Vexere) — bản mô tả dưới đây LÀ BẢN CŨ (xem cảnh báo ngay trên):
     (0) `renderChonChuyenStep` dựng khung `#lich-thang-wrap` (1 khối tháng) + `#lich-chieu-wrap`
     (ẩn ban đầu), gọi `renderLichThang()` vẽ tháng đang xem (`baseMonthOffset`, xem bullet lịch bên
     dưới) từ `lichMap` (dựng 1 lần trong `initPage` từ TOÀN BỘ mảng `api/cong-khai-lich-chay.js`
@@ -842,6 +851,140 @@ thật trong DB chỉ được TẠO LÚC CẦN (khách thật sự bấm "Đặ
   tay, tránh trường hợp xe không chạy được ngày đó (hỏng xe, tài xế nghỉ) mà hệ thống đã tự chuyển
   trạng thái; không huỷ/gộp chuyến `dat_truoc` nếu 0 khách đặt tới sát ngày — crew tự xử lý tay qua
   Supabase dashboard nếu cần, không có luồng UI riêng cho việc này ở bản test.
+
+### Lịch chọn ngày đặt vé — popup toàn màn hình + khứ hồi (2026-09-23)
+
+**Viết lại gần như toàn bộ Bước 0 của `dat-ve.html`** (commit "v5", `5920c4c`) — không chỉ thêm
+tính năng khứ hồi, mà đổi hẳn cơ chế hiển thị lịch từ "1 khối tháng + nút `‹`/`›` hiện thẳng trong
+trang" sang "lịch ẩn mặc định, bấm mở popup toàn màn hình cuộn dọc liên tục". Bước 1-3 (sơ đồ
+giường/form liên hệ/OTP/đặt tuần tự nhiều giường, xem mục "Đặt vé công khai cho khách" phía trên)
+**KHÔNG đổi gì** ở đợt này — `xacNhanChonChieu()`/`batDauChang()` chỉ tái dùng nguyên `chonChuyen()`
+đã có sẵn. **Lưu ý cho người đọc sau này**: bản implement gốc của đợt này có nhiều comment trong
+code trỏ `"xem SPEC 'Lịch chọn ngày đặt vé' CLAUDE.md"` nhưng mục này KHÔNG được viết vào CLAUDE.md
+cùng lúc với code — viết bù lại sau (2026-09-23, cùng ngày, lúc audit lại theo yêu cầu owner).
+
+- **Hàng tóm tắt sticky thay lịch hiện thẳng** (`#ngay-chon-row`, trong `renderChonChuyenStep`) —
+  Bước 0 giờ chỉ hiện 1 hàng gọn "Ngày đi / Ngày về (nếu khứ hồi) + toggle Khứ hồi", bấm vào bất kỳ
+  đâu trong hàng (trừ toggle, tự `stopPropagation`) mở `#ngay-picker` — popup toàn màn hình
+  (`.fullscreen-picker`, DÙNG CHUNG class với picker Tỉnh→Xã/Huyện `#dia-diem-picker`, xem mục "Bỏ
+  diem_khach" — 2 element DOM riêng, cùng style, đổi tên chung `.fullscreen-picker*` từ lúc có
+  picker thứ 2 để không nhầm). Đóng popup (nút `←`, nút "Xác nhận" trong popup, hay Back Android)
+  KHÔNG "huỷ" gì — mọi tap ngày đã commit thẳng vào `ngayDiChon`/`ngayVeChon` (module-level) ngay
+  lúc tap, popup chỉ là nơi HIỂN THỊ; đóng xong luôn vẽ lại hàng tóm tắt + khối tuyến + nút "Xác
+  nhận" ngoài trang (`dongNgayPicker()`).
+- **Khối "Nơi xuất phát / Điểm đến" ĐƯA LÊN TRÊN hàng ngày** (`renderTuyenPickerBlock`, trong
+  `.lich-chieu-wrap`) — khác bản cũ (khối này từng nằm DƯỚI lịch, chỉ hiện sau khi tap 1 ngày và
+  nhận `entry` qua tham số hàm `renderChieuSelector(entry)`). Giờ khối này KHÔNG còn gắn với 1 lượt
+  tap ngày cụ thể nào — đứng độc lập phía trên, tự đọc `ngayDiChon`/`lichMap` mỗi lần render, không
+  còn tham số `entry`/biến `entryDangChonChieu`. Tên hàm cũng đổi (`renderChieuSelector` →
+  `renderTuyenPickerBlock`) nhưng logic bên trong (chọn tỉnh tự do 17 tỉnh, picker Tỉnh→Xã/Huyện,
+  không mặc định Đắk Lắk/Hải Dương, nút "⇅" chỉ swap hiển thị...) **giữ nguyên y hệt** những gì đã
+  mô tả ở các bullet "đợt 4→16" phía trên (mục "Luồng 4 bước" — đã đánh dấu lỗi thời phần lịch,
+  nhưng phần tuyến vẫn đúng).
+- **Nút "Xác nhận" — FIXED ĐÁY MÀN HÌNH** (`.btn-chon-vi-tri-giuong`, navy `#0d1b4c`) thay bản cũ
+  (button thường `.btn-primary`, nằm trong dòng chảy trang, dễ bị cuộn khuất khi lịch cao nhiều
+  tháng) — luôn trong tầm tay. Dùng CHUNG style với `.gia-ve-bar` ở Bước 1 (2 bar KHÔNG BAO GIỜ
+  cùng hiện 1 lúc: bar Bước 0 chỉ tồn tại trong DOM lúc còn ở Bước 0, biến mất ngay khi
+  `chonChuyen` thay hẳn nội dung `#chuyen-info-wrap`). `capNhatNutTimChuyen()` bật/tắt `disabled` —
+  chỉ bấm được khi ĐÃ chọn đủ tuyến + đủ ngày cần (đi luôn cần; về chỉ cần thêm nếu `khuHoi=true`).
+- **Lịch cuộn dọc liên tục, KHÔNG còn `baseMonthOffset`/nút `‹`/`›`** — `soThangCanVe()`
+  (`dat-ve.html`) tính số tháng cần vẽ = đủ phủ hết khoảng `lichList` server trả (từ tháng hôm nay
+  tới tháng của ngày cuối cùng trong `lichList`), KHÔNG hardcode, chặn an toàn ở 8 tháng (phòng dữ
+  liệu server bất thường, không phải giới hạn nghiệp vụ — `SO_NGAY_MO_BAN_TRUOC=45` ở
+  `api/cong-khai-lich-chay.js` KHÔNG đổi). `renderLichThang()` vẽ TOÀN BỘ khối tháng xếp dọc trong
+  `#lich-thang-wrap` (bên trong `.np-lich-scroll` của popup), người dùng cuộn trang bình thường để
+  xem tháng sau — không phải scroll container lồng riêng, không phân trang. `.lich-tuan-header`
+  (weekday T2..CN) đứng CỐ ĐỊNH 1 lần ở đầu popup (`renderNgayPickerContent`), KHÔNG lặp lại mỗi
+  khối tháng như bản cũ — `renderThangBlock({y,m})` giờ chỉ vẽ đúng 1 khối (header "Tháng M/Y" + lưới
+  ngày), không tự vẽ weekday header riêng nữa.
+- **Toggle Khứ hồi** (`khuHoi`, mặc định `false`) — hiện ở 2 nơi: hàng tóm tắt ngoài trang
+  (`.kh-switch`, `renderNgayChonRow`) và header popup (`.ddp-switch`, `renderNgayPickerContent`),
+  cùng gọi `onToggleKhuHoi()` — bật/tắt `khuHoi`, tắt thì xoá `ngayVeChon` (giữ nguyên `ngayDiChon`),
+  vẽ lại cả hàng tóm tắt lẫn popup (nếu đang mở).
+- **State chọn ngày: `ngayDiChon`/`ngayVeChon` (chuỗi `'YYYY-MM-DD'` hoặc `null`) thay `ngayDangChonTam`
+  đơn của bản cũ.** `chonNgay(entry)` (dòng ~1172) là state machine date-range-picker:
+  - `khuHoi=false`: tap 1 lần set `ngayDiChon`, xong (hành vi cũ y hệt bản đơn-chiều).
+  - `khuHoi=true`, chưa có `ngayDiChon`: tap set `ngayDiChon`.
+  - Có `ngayDiChon`, chưa có `ngayVeChon`: tap ngày ≤ `ngayDiChon` → đổi `ngayDiChon`; tap ngày sau
+    → set `ngayVeChon` (`pushBackGuard()` — xem bullet Back bên dưới).
+  - **Cả 2 đã chọn (range đầy đủ)**: tap ngày TIẾP THEO (bất kể trước hay sau `ngayDiChon` hiện
+    tại) **LUÔN khởi động lại lựa chọn** — `ngayDiChon` = ngày vừa tap, `ngayVeChon = null`, đối
+    xứng cả 2 chiều tăng/giảm.
+    - **⚠️ Sửa bug 2026-09-23 (báo cáo thật từ owner kèm ảnh chụp máy Android, cùng ngày với lúc
+      viết section này)** — bản gốc của commit `5920c4c` chỉ có nhánh `ngay <= ngayDiChon` (đổi
+      `ngayDiChon` + xoá `ngayVeChon`) và nhánh `else` (LUÔN gán `ngayVeChon = ngay`) — nghĩa là
+      khi cả 2 đã chọn, tap bất kỳ ngày SAU `ngayDiChon` nào (kể cả sau cả `ngayVeChon`, ví dụ
+      muốn đổi ngày đi 24/9 thành 26/9) luôn bị gán NHẦM thành ngày về, không có cách nào TĂNG ngày
+      đi lên được — chỉ giảm được. Đã gộp 2 nhánh cuối thành 1 (luôn reset về ngày vừa tap), commit
+      `ca11cfa`. **Chưa test lại bằng thiết bị thật sau fix** — mới verify bằng syntax-check
+      (`node -e new Function(...)`) + `curl` xác nhận production đã lên đúng code mới.
+  - Vẽ lại NỘI DUNG POPUP mỗi lần tap (`renderNgayPickerContent()`) — hàng tóm tắt/khối tuyến/nút
+    "Xác nhận" ngoài trang chỉ làm mới lúc ĐÓNG popup (`dongNgayPicker`), không phải mỗi lần tap.
+- **Tô màu ô lịch cho range** — điểm đầu/cuối (`ngayStr === ngayDiChon` hoặc `=== ngayVeChon` khi
+  `khuHoi`) dùng class `.dang-chon` (tái dùng có sẵn từ bản đơn-chiều, nền cam đặc `#fb8c00` + icon
+  `✓`, KHÔNG đổi tên vì đã gắn với nhiều chỗ khác trong file); các ngày Ở GIỮA range (`ngayDiChon <
+  ngayStr < ngayVeChon`) dùng class MỚI `.trong-khoang` (nền vàng nhạt `#fff3cd`) — chỉ có ý nghĩa
+  khi `khuHoi=true` và cả 2 đầu đã chọn. Mùng 1/15 âm lịch tô đỏ (`.am-dac-biet`, đặt TRƯỚC
+  `.dang-chon` trong CSS để nhường ưu tiên trắng khi trùng cùng lúc là ngày đang chọn); hôm nay tô
+  số dương lịch xanh (`.hom-nay`, cùng lý do thứ tự CSS). **Chưa đối chiếu tay với lịch âm thật ở
+  mốc ngày cụ thể nào** — chỉ dựa vào `convertSolar2Lunar` đã dùng ổn định ở nơi khác trong app
+  (`formatDate` ở `shared.js`), chưa verify riêng cho tính năng này.
+- **Đặt khứ hồi = 2 lượt đặt độc lập nối tiếp trong CÙNG 1 phiên UI, KHÔNG thêm bảng/cột DB liên
+  kết 2 vé** — `xacNhanChonChieu()` (bấm nút "Xác nhận" ngoài trang HOẶC trong popup) build
+  `dsChangDat` (mảng JS thuần, module-level, biến mất khi rời trang): 1 phần tử nếu đơn chiều, 2
+  phần tử nếu khứ hồi (`vaiTro: 'di'|'ve'`, route chặng về ĐẢO NGƯỢC tự động theo cặp tỉnh của
+  chặng đi — `tinhXuatPhat`/`tinhDiemDen` hoán đổi, `chieuVe = chieuDi === 'bac' ? 'nam' : 'bac'` —
+  khách KHÔNG phải chọn lại route cho chiều về). `batDauChang(idx)` gán lại
+  `noiXuatPhatTinh`/`diemDenTinh`/`noiXuatPhatDiaDiem`/`diemDenDiaDiem` theo đúng chặng rồi gọi
+  THẲNG `chonChuyen()` hiện có (không đổi gì ở `chonChuyen`/sơ đồ giường/form liên hệ/OTP). Đặt
+  xong 1 giường của chặng ĐI (trong handler `#btn-dat-ve`) mà còn chặng kế tiếp
+  (`changHienTaiIdx < dsChangDat.length - 1`) → tự động ẩn sơ đồ + form, tăng `changHienTaiIdx`,
+  gọi lại `batDauChang()` cho chặng về — **tên/SĐT/trạng thái xác thực OTP (`sdtDaXacThucOtp`) GIỮ
+  NGUYÊN giữa 2 chặng** (không xoá `#f-ten`/`#f-sdt`), vì cùng 1 SĐT vẫn còn hiệu lực xác thực
+  (server tự kiểm tra lại trong 30 phút gần nhất, xem `api/cong-khai-dat-ve.js`), khách không phải
+  xác thực lại OTP lần 2. **Kết quả 2 lượt tra thành `ve` gắn 2 `chuyen_id` khác nhau, hoàn toàn
+  độc lập ở tầng DB** — đã xác nhận qua `list_migrations` (Supabase): không có migration nào mới
+  cho tính năng này (migration gần nhất trước "v5" là `ve_dia_diem_len_xuong_nhan`, 2026-09-22).
+  **Chưa có test SQL/Playwright thật nào xác nhận 1 lượt đặt khứ hồi ra đúng 2 dòng `ve`/2
+  `chuyen_id`** — chỉ đọc code xác nhận logic, chưa chạy thử.
+- **Màn xác nhận cuối gộp CẢ 2 chặng, không hiện riêng từng chặng** — `ketQuaCacChang` (mảng string
+  tóm tắt, module-level) được push thêm 1 dòng sau MỖI chặng đặt thành công (nhãn `"Chiều đi — ..."`/
+  `"Chiều về — ..."` nếu khứ hồi), chỉ hiện `#xac-nhan-box` sau khi chặng CUỐI xong — nối các dòng
+  bằng `<div>` (không phải `<p>`, vì lồng `<div>` trong `<p>` là HTML không hợp lệ, trình duyệt tự
+  đóng thẻ `<p>` sớm).
+- **Banner "🔁 Chặng X/2 — Chiều đi/về"** (`renderChuyenDaChonBar`, class `.chang-label`) — chỉ hiện
+  khi `dsChangDat.length > 1`, cho khách biết đang ở đúng lượt nào giữa 2 lượt đặt liên tiếp.
+- **Guard Back Android/trình duyệt — mở rộng thêm 1 case so với bản gốc (đợt 7, xem mục "Luồng 4
+  bước" phía trên để biết cơ chế `pushBackGuard`/`backGuardPushed` gốc, KHÔNG đổi)** — `chonNgay()`
+  gọi thêm `pushBackGuard()` ngay khi `ngayVeChon` VỪA ĐƯỢC SET (hoàn thành range), tái dùng ĐÚNG 1
+  guard entry có sẵn (không push chồng thêm mỗi lần tap). `popstate` handler (dòng ~1541) giờ có 2
+  nhánh: đã confirm xong (`currentChuyen` khác `null`) → `doiChuyenKhac()` như cũ; còn ở Bước 0,
+  khứ hồi ON và ĐÃ có `ngayVeChon` → Back lùi ĐÚNG 1 nấc của state machine (xoá `ngayVeChon`, KHÔNG
+  thoát hẳn lịch), vẽ lại popup (nếu đang mở)/hàng tóm tắt/khối tuyến, rồi `pushBackGuard()` lại để
+  lần Back kế tiếp vẫn bị chặn đúng cách. **Chưa test bằng thiết bị thật/gesture Android** — chỉ
+  đọc code xác nhận logic không có lỗi tham chiếu rõ ràng (có guard `document.getElementById(...)
+  .classList.contains('open')` trước khi vẽ lại popup, phòng trường hợp popup đã đóng từ trước lúc
+  bấm Back thật).
+- **`doiChuyenKhac()` reset thêm `dsChangDat`/`changHienTaiIdx`/`ketQuaCacChang`** (ngoài các state
+  cũ đã reset từ trước — `currentChuyen`/`ngayDiChon`/`selectedGiuongMap`/`soDoData`) — đóng luôn
+  popup `#ngay-picker` nếu đang mở. KHÔNG đụng `noiXuatPhatTinh`/`diemDenTinh`/2 biến địa điểm —
+  giữ đúng hành vi đã có từ đợt 16 (2 biến tỉnh độc lập với việc chọn ngày).
+- **Trạng thái test tổng thể tính năng này (2026-09-23, ghi lại sau khi bị hỏi thẳng và không tìm
+  ra bằng chứng nào)**: KHÔNG có Playwright test nào chạy qua, KHÔNG có SQL nào xác nhận 2
+  vé/2 chuyến sau 1 lượt đặt khứ hồi thật, KHÔNG có đối chiếu âm lịch tay, KHÔNG có test Back
+  Android trên thiết bị thật. Chỉ có: syntax-check `node -e new Function(...)` cho các khối
+  `<script>` (không lỗi cú pháp), và `curl` xác nhận production (`eakar-booking.vercel.app`) đang
+  chạy đúng code mới nhất sau mỗi lần deploy. **Trước khi tin tưởng tính năng này hoạt động đúng
+  trong sản xuất thật, cần chạy ít nhất**: 1 lượt đặt khứ hồi thật qua UI + query `ve`/`chuyen` xác
+  nhận đúng 2 dòng độc lập; test tap-range trên thiết bị Android thật (không chỉ đọc code); test
+  Back Android/gesture giữa lúc đang chọn range.
+- **Deploy** — commit gốc tính năng: `5920c4c` ("v5"). Fix bug tap-range: `ca11cfa`. Cả 2 đã deploy
+  production qua `vercel --prod --scope minhwhoa-makers-projects` (session viết code KHÔNG có git
+  credentials để `git push` — lỗi `fatal: could not read Username for 'https://github.com'` — nên
+  deploy trực tiếp không qua GitHub, đúng cách CLAUDE.md mục Commands đã ghi). **Kiểm tra lại
+  `git status`/`git log origin/main` trước khi tiếp tục sửa file này** — có khả năng repo local đi
+  trước `origin/main` (commit chưa được push từ máy có credentials), dễ bị đè mất nếu deploy từ máy
+  khác mà không pull trước.
 
 ### Bảng giá theo tỉnh (2026-09-19, đợt 12)
 
