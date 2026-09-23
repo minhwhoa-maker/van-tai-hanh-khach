@@ -29,6 +29,12 @@ nào bên dưới.
   `ZALO_ZNS_TEMPLATE_ID` chưa đăng ký; nhà cung cấp SMS chưa chốt) — cả 2 kênh gửi OTP thật đều sẽ
   throw lỗi nếu gọi lúc này (đang được che bởi `OTP_TEST_MODE`, xem bullet trên). Xem mục "OTP bắt
   buộc mọi lượt đặt vé công khai".
+- **`ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE` (env Vercel) — CHƯA set, ZNS xác nhận đặt vé mới chỉ là
+  khung code, CHƯA gửi được tin thật** — khác `ZALO_ZNS_TEMPLATE_ID` của OTP (template riêng, phải
+  đăng ký/duyệt riêng với Zalo). Code đã nối vào luồng thật (`api/cong-khai-dat-ve.js`) nhưng LUÔN
+  no-op ở trạng thái hiện tại (guard tự bỏ qua khi thiếu env, không ảnh hưởng việc đặt vé) — set
+  xong env này thì tính năng TỰ ĐỘNG bật (không cần sửa code gì thêm), nên nhớ TEST GỬI THẬT tới 1
+  SĐT thật trước khi coi là go-live, xem mục "ZNS xác nhận đặt vé".
 
 ## Stack
 
@@ -1607,6 +1613,52 @@ spec gốc) — chỉ hiển thị cho khách/crew đối chiếu bằng mắt.
   ma_ve is null` → `0`. Đã dọn sạch data test (`ve`/`dat_ve_otp` của số `0911222555`/`0911222556`,
   `chuyen` tự tạo lúc test chặng về) — chuyến `bac` có sẵn từ trước (đã có khách thật đặt ở giường
   khác) KHÔNG bị xoá, chỉ xoá đúng `ve` test tạo thêm vào chuyến đó.
+
+### ZNS xác nhận đặt vé — hạ tầng dựng sẵn, CHƯA BẬT THẬT (2026-09-23)
+
+Chuẩn bị sẵn khung gửi Zalo ZNS xác nhận đặt vé cho khách ngay sau khi đặt vé thành công qua
+`dat-ve.html` — **CHƯA có credential thật, code đã nối vào luồng thật nhưng LUÔN no-op ở trạng thái
+hiện tại** (xem checklist "TODO trước khi go-live" đầu file).
+
+- **`api/cong-khai-dat-ve.js`** thêm `guiVeZalo(sdt, thongTinVe)` — CÙNG PATTERN `guiOtpZalo`
+  (`api/cong-khai-gui-otp.js`): gọi Zalo Business OpenAPI `POST /message/template`, cần
+  `ZALO_OA_ACCESS_TOKEN` (dùng CHUNG với OTP — cùng 1 Zalo OA) + `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE`
+  (template RIÊNG, KHÁC `ZALO_ZNS_TEMPLATE_ID` của OTP — 2 mẫu tin khác nội dung, phải đăng ký/
+  duyệt riêng). Thiếu 1 trong 2 env → throw lỗi rõ ràng, KHÔNG fail âm thầm.
+- **`xayThongTinVeChoZns(sbAdmin, {...})`** — gom `template_data`: `ten_khach`, `tuyen` (tự ghép
+  tên 2 tỉnh, query riêng `tinh` theo `tinh_len_ma`/`tinh_xuong_ma`), `ngay_gio` (format
+  `HH:mm dd/MM/yyyy` giờ VN, hàm `formatNgayGioVN` — cùng kỹ thuật dịch +7h/đọc getter UTC đã dùng
+  ở `ranhGioiNgayVN`/`xem-ve.html`), `ma_giuong`, `ma_ve` (xem mục "Mã vé ngắn" — có sẵn trong
+  `veCreated` vừa insert, không tính lại), `hinh_thuc_thanh_toan` (nhãn tiếng Việt, không phải giá
+  trị enum thô), `link_xem_ve` (`xem-ve.html?id=<ve_id>` — CHỈ gồm ĐÚNG chặng này, xem bullet khứ
+  hồi dưới).
+- **Điểm gọi — SAU KHI `ve` insert thành công, TRƯỚC response** — bọc `try/catch`, lỗi (thiếu
+  cấu hình, network, quota Zalo...) chỉ `console.error`, **KHÔNG rollback `ve` đã tạo, KHÔNG đổi
+  response trả về khách** — vé đã đặt thành công là sự thật độc lập với việc gửi thông báo có thành
+  công hay không (cùng nguyên tắc "tính năng phụ trợ không được chặn luồng chính" đã áp dụng cho
+  AI/OCR SĐT ở `hang.html`).
+- **Guard `if (process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE)` NGOÀI `try`, KHÔNG chỉ dựa vào guard
+  bên trong `guiVeZalo`** — tránh tốn 2 query xây `thongTinVe` (query `chuyen.khoi_hanh` + query
+  `tinh`) trên MỌI lượt đặt vé thật trong lúc env này còn để trống. Hiện LUÔN rơi vào nhánh bỏ qua
+  (env chưa set) — nghĩa là code đã nối sẵn vào luồng thật nhưng thực chất KHÔNG chạy gì thêm, đúng
+  tinh thần "dựng khung, chưa bật thật" của spec.
+- **Khứ hồi: gọi 2 LẦN riêng biệt** — mỗi chặng tự có `veCreated`/`chuyenId`/`tinh_len_ma`/
+  `tinh_xuong_ma` riêng trong đúng 1 lượt gọi `api/cong-khai-dat-ve.js` (khứ hồi ở `dat-ve.html` =
+  2 lượt gọi API độc lập nối tiếp, xem mục "Lịch chọn ngày đặt vé"), nên KHÔNG cần code gì thêm để
+  "gửi 2 lần" — bản chất route này vốn đã được gọi lại cho từng chặng. `link_xem_ve` mỗi tin CHỈ
+  gồm `id` của đúng chặng đó (KHÔNG gộp cả 2 chặng như link đầy đủ `dat-ve.html` tự build ở màn xác
+  nhận cuối cùng) — vì lúc gửi tin cho chặng đi, chặng về CHƯA đặt xong (chưa có `ve_id` của nó).
+- **KHÔNG BẬT cho tới khi đủ 3 điều kiện** (xem "TODO trước khi go-live"): `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE`
+  có giá trị thật (Zalo đã duyệt template); migration `ma_ve` đã chạy xong trên production (**ĐÃ
+  XONG**, xem mục "Mã vé ngắn" — điều kiện này đã thoả); test được ít nhất 1 lần gửi thật thành
+  công tới 1 SĐT thật — ZNS không có "test mode" kiểu `OTP_TEST_MODE`, phải test bằng credential
+  thật.
+- **Test đã chạy (2026-09-23)**: chỉ test được PHẦN KHÔNG PHỤ THUỘC credential thật — đặt vé thật
+  qua `dat-ve.html`/API (số test `0911222666`) trong lúc `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE` CHƯA
+  set → xác nhận `ve` vẫn tạo thành công bình thường (`{"ok":true, ..., "ma_ve":"Q2JH3H5D"}`), guard
+  ngoài `try` hoạt động đúng (không có lỗi/crash, không tốn query thừa). **CHƯA test gửi ZNS thật**
+  (không thể test cho tới khi có credential — xem mục 4 của spec gốc, đúng như dự kiến). Đã dọn
+  sạch data test.
 
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 

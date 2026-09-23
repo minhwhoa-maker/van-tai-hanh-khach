@@ -60,6 +60,72 @@ function laSdtHopLe(daChuanHoa) {
     return /^0(3|5|7|8|9)\d{8}$/.test(daChuanHoa)
 }
 
+// "HH:mm dd/MM/yyyy" theo giờ VN (UTC+7, không DST) — cùng kỹ thuật dịch +7h rồi đọc getter UTC đã
+// dùng ở `ranhGioiNgayVN`/`xem-ve.html`'s `nhanNgayTuKhoiHanh`.
+function formatNgayGioVN(iso) {
+    const vn = new Date(new Date(iso).getTime() + 7 * 3600 * 1000)
+    const p2 = n => String(n).padStart(2, '0')
+    return `${p2(vn.getUTCHours())}:${p2(vn.getUTCMinutes())} ${p2(vn.getUTCDate())}/${p2(vn.getUTCMonth() + 1)}/${vn.getUTCFullYear()}`
+}
+
+// ZNS xác nhận đặt vé — CHUẨN BỊ HẠ TẦNG, CHƯA BẬT THẬT (2026-09-23, xem SPEC "ZNS xác nhận đặt vé"
+// CLAUDE.md). Template RIÊNG với template OTP (ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE, KHÁC
+// ZALO_ZNS_TEMPLATE_ID của api/cong-khai-gui-otp.js), CÙNG 1 access token ZALO_OA_ACCESS_TOKEN
+// (cùng 1 Zalo OA, khác template) — 2 env này COPY NGUYÊN VĂN pattern gọi Zalo Business OpenAPI đã
+// có ở `guiOtpZalo` (api/cong-khai-gui-otp.js), cố ý KHÔNG import chéo (convention chung của app).
+async function guiVeZalo(sdt, thongTinVe) {
+    const accessToken = process.env.ZALO_OA_ACCESS_TOKEN
+    const templateId = process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE
+    if (!accessToken || !templateId) {
+        throw new Error('Template xác nhận vé chưa cấu hình (thiếu ZALO_OA_ACCESS_TOKEN/ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE)')
+    }
+    const resp = await fetch('https://business.openapi.zalo.me/message/template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', access_token: accessToken },
+        body: JSON.stringify({
+            phone: sdt,
+            template_id: templateId,
+            template_data: thongTinVe
+        })
+    })
+    const data = await resp.json()
+    if (data.error && data.error !== 0) {
+        throw new Error(`Zalo ZNS lỗi: ${data.message || data.error}`)
+    }
+}
+
+// Gom dữ liệu build template_data cho guiVeZalo — 2 query riêng (chuyen.khoi_hanh/chieu, tên 2
+// tỉnh) CHỈ chạy khi ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE đã có giá trị (xem điểm gọi ở handler) — tiết
+// kiệm round-trip DB vô ích trên MỌI lượt đặt vé thật hiện tại (env này đang để trống, xem mục
+// "TODO trước khi go-live" CLAUDE.md).
+async function xayThongTinVeChoZns(sbAdmin, { chuyenId, tinhLenMa, tinhXuongMa, tenKhach, maGiuong, maVe, hinhThuc, veId }) {
+    const { data: chuyen, error: chuyenErr } = await sbAdmin.from('chuyen').select('khoi_hanh').eq('id', chuyenId).single()
+    if (chuyenErr) throw new Error(chuyenErr.message)
+
+    let tenTinhLen = tinhLenMa, tenTinhXuong = tinhXuongMa
+    const maTinh = [tinhLenMa, tinhXuongMa].filter(Boolean)
+    if (maTinh.length) {
+        const { data: tinhRows, error: tinhErr } = await sbAdmin.from('tinh').select('ma, ten').in('ma', maTinh)
+        if (tinhErr) throw new Error(tinhErr.message)
+        const tinhMap = new Map(tinhRows.map(t => [t.ma, t.ten]))
+        tenTinhLen = tinhMap.get(tinhLenMa) || tinhLenMa || '?'
+        tenTinhXuong = tinhMap.get(tinhXuongMa) || tinhXuongMa || '?'
+    }
+
+    return {
+        ten_khach: tenKhach,
+        tuyen: `${tenTinhLen} → ${tenTinhXuong}`,
+        ngay_gio: formatNgayGioVN(chuyen.khoi_hanh),
+        ma_giuong: maGiuong || '?',
+        ma_ve: maVe,
+        hinh_thuc_thanh_toan: hinhThuc === 'chuyen_khoan_truoc' ? 'Chuyển khoản trước' : 'Tiền mặt lúc lên xe',
+        // Link xem lại vé CHỈ gồm ĐÚNG chặng này (khứ hồi gửi 2 tin riêng biệt, mỗi tin gọi hàm này
+        // 1 lần ngay sau khi chặng đó đặt xong — xem điểm gọi ở handler) — khác link đầy đủ gộp cả
+        // 2 chặng mà dat-ve.html tự build ở màn xác nhận (xem SPEC "Xem lại vé đã đặt").
+        link_xem_ve: `https://eakar-booking.vercel.app/xem-ve.html?id=${veId}`
+    }
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
 
@@ -132,10 +198,14 @@ export default async function handler(req, res) {
         if (guiLoiNhaXe(res, err)) return
         res.status(500).json({ error: err.message }); return
     }
+    // `ma` lấy kèm ở đây (không query riêng) — dùng cho template_data của guiVeZalo bên dưới, xem
+    // SPEC "ZNS xác nhận đặt vé" trong CLAUDE.md.
+    let maGiuong = null
     {
-        const { data: giuongFull, error: giuongErr } = await sbAdmin.from('giuong').select('hoat_dong').eq('id', giuong.id).single()
+        const { data: giuongFull, error: giuongErr } = await sbAdmin.from('giuong').select('hoat_dong, ma').eq('id', giuong.id).single()
         if (giuongErr) { res.status(500).json({ error: giuongErr.message }); return }
         if (!giuongFull.hoat_dong) { res.status(400).json({ error: 'Giường ngưng phục vụ' }); return }
+        maGiuong = giuongFull.ma
     }
 
     // Bảng giá theo tỉnh (2026-09-19, đợt 12) — giá vé = |gia_moc(tỉnh đến) − gia_moc(tỉnh đi)|,
@@ -247,6 +317,27 @@ export default async function handler(req, res) {
             res.status(409).json({ error: 'Giường này vừa có người đặt, chọn giường khác' }); return
         }
         res.status(500).json({ error: error.message }); return
+    }
+
+    // ZNS xác nhận đặt vé (2026-09-23, xem SPEC "ZNS xác nhận đặt vé" CLAUDE.md) — BEST-EFFORT,
+    // KHÔNG CHẶN việc đặt vé: `ve` đã tạo thành công là sự thật, gửi thông báo thất bại chỉ log,
+    // KHÔNG rollback/KHÔNG trả lỗi cho khách (cùng nguyên tắc "tính năng phụ trợ không được chặn
+    // luồng chính" đã áp dụng cho AI/OCR SĐT). Guard `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE` NGOÀI try
+    // (không chỉ dựa vào guard trong `guiVeZalo`) để tránh tốn 2 query xây `thongTinVe`
+    // (`xayThongTinVeChoZns`) trên MỌI lượt đặt vé thật trong lúc env này còn để trống — hiện LUÔN
+    // đúng nhánh này (chưa set, xem mục "TODO trước khi go-live"), tức tính năng CHƯA BẬT THẬT dù
+    // code đã nối sẵn vào luồng.
+    if (process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE) {
+        try {
+            const thongTinVe = await xayThongTinVeChoZns(sbAdmin, {
+                chuyenId, tinhLenMa: tinh_len_ma, tinhXuongMa: tinh_xuong_ma,
+                tenKhach: tenSach, maGiuong, maVe: veCreated.ma_ve, hinhThuc: hinh_thuc_thanh_toan,
+                veId: veCreated.id
+            })
+            await guiVeZalo(sdtChuan, thongTinVe)
+        } catch (err) {
+            console.error('[guiVeZalo] Lỗi gửi ZNS xác nhận vé (best-effort, không chặn đặt vé):', err.message)
+        }
     }
 
     // Trả lại chuyen_id đã dùng (kể cả khi vừa tự tạo) — dat-ve.html cần giá trị này để các lượt
