@@ -8,6 +8,12 @@
       "permanent": true
     },
     {
+      "source": "/xem-ve.html",
+      "has": [{ "type": "host", "value": "van-tai-hanh-khach.vercel.app" }],
+      "destination": "https://eakar-booking.vercel.app/xem-ve.html",
+      "permanent": true
+    },
+    {
       "source": "/api/manifest-dat-ve",
       "has": [{ "type": "host", "value": "van-tai-hanh-khach.vercel.app" }],
       "destination": "https://eakar-booking.vercel.app/api/manifest-dat-ve",
