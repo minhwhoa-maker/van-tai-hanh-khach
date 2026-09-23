@@ -221,7 +221,7 @@ export default async function handler(req, res) {
 
     // KHÔNG tự check "còn trống" trước khi insert — DB tự chặn trùng qua unique index
     // uq_ve_giuong_active (bắt lỗi 23505 bên dưới), tránh race condition 2 khách bấm cùng lúc.
-    const { error } = await sbAdmin.from('ve').insert({
+    const { data: veCreated, error } = await sbAdmin.from('ve').insert({
         chuyen_id: chuyenId, giuong_id,
         ten_khach: tenSach, sdt_khach: sdtChuan,
         // diem_len_id/diem_xuong_id KHÔNG còn ghi từ đây (2026-09-22) — cột giữ nullable, tự
@@ -240,7 +240,7 @@ export default async function handler(req, res) {
         nguon: 'khach_tu_dat',
         hinh_thuc_thanh_toan,
         nha_xe_id: nhaXe.id
-    })
+    }).select('id').single()
 
     if (error) {
         if (error.code === '23505') {
@@ -251,5 +251,8 @@ export default async function handler(req, res) {
 
     // Trả lại chuyen_id đã dùng (kể cả khi vừa tự tạo) — dat-ve.html cần giá trị này để các lượt
     // đặt/tải-lại-sơ-đồ TIẾP THEO trong cùng phiên dùng ĐÚNG chuyến vừa tạo, không phải tạo lại.
-    res.status(200).json({ ok: true, chuyen_id: chuyenId })
+    // ve_id (thêm 2026-09-23, xem SPEC "Xem lại vé đã đặt") — dat-ve.html gom các ve_id vừa đặt
+    // thành công để build link `xem-ve.html?id=...&id=...` ở màn xác nhận, không cần tự tạo route
+    // riêng chỉ để tra lại UUID vừa insert.
+    res.status(200).json({ ok: true, chuyen_id: chuyenId, ve_id: veCreated.id })
 }

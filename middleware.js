@@ -22,6 +22,7 @@ const HOST_BOOKING = 'eakar-booking.vercel.app'
 // tiếp từ dat-ve.html/sw-dat-ve.js để liệt kê đủ, xem CLAUDE.md mục "PWA riêng cho dat-ve.html").
 const DUONG_DAN_CHO_PHEP_BOOKING = new Set([
     '/dat-ve.html',
+    '/xem-ve.html', // xem lại vé đã đặt (2026-09-23) — xem SPEC "Xem lại vé đã đặt" CLAUDE.md
     '/sw-dat-ve.js',
     '/manifest-dat-ve.json', // file tĩnh cũ, giữ tới khi test xong trên điện thoại thật — xem CLAUDE.md
     '/style.css',
@@ -37,6 +38,7 @@ const DUONG_DAN_CHO_PHEP_BOOKING = new Set([
     '/api/cong-khai-lich-chay',
     '/api/cong-khai-so-do',
     '/api/cong-khai-xac-thuc-otp',
+    '/api/cong-khai-xem-ve',
 ])
 
 export default function middleware(request) {

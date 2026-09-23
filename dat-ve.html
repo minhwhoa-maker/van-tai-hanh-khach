@@ -424,6 +424,15 @@
            con — lồng <div> trong <p> là HTML không hợp lệ, browser tự đóng thẻ <p> sớm. */
         .xac-nhan-chi-tiet { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
         .xac-nhan-chi-tiet div { margin: 4px 0; }
+        /* Nút sao chép/chia sẻ link xem lại vé (2026-09-23) — cùng style outline với .btn-gui-otp
+           (viền primary, nền trắng) thay vì .btn-dat-ve (nền đặc) để không cạnh tranh thị giác với
+           icon ✅/tiêu đề thành công phía trên. */
+        .xac-nhan-link-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+        .btn-xem-lai-ve {
+            width: 100%; padding: 11px; border: 1.5px solid var(--success);
+            border-radius: var(--radius-sm); background: #fff; color: var(--success); font-size: 14px;
+            font-weight: 700; cursor: pointer; font-family: inherit;
+        }
 
         /* Tablet (2026-09-21) — nới cột 480px (khoá cứng ở đầu file) lên 640px, CHỈ thêm rule
            mới, không sửa rule 480px gốc (vẫn áp dụng cho mobile/phone-landscape dưới breakpoint
@@ -573,7 +582,11 @@
         <div class="icon">✅</div>
         <h3>Đặt vé thành công!</h3>
         <div id="xac-nhan-chi-tiet" class="xac-nhan-chi-tiet"></div>
-        <p>Vui lòng lưu lại thông tin này — hệ thống chưa hỗ trợ tra cứu lại vé. Cần hỗ trợ, gọi cho nhà xe.</p>
+        <p>Lưu lại link bên dưới để xem lại thông tin vé bất cứ lúc nào. Cần hỗ trợ, gọi cho nhà xe.</p>
+        <div class="xac-nhan-link-actions">
+            <button type="button" class="btn-xem-lai-ve" id="btn-copy-link">🔗 Sao chép link xem lại vé</button>
+            <button type="button" class="btn-xem-lai-ve" id="btn-share-link" style="display:none;">📤 Chia sẻ</button>
+        </div>
     </div>
 
     <div class="fullscreen-picker" id="dia-diem-picker">
@@ -891,6 +904,7 @@
                     if (!res.ok) { thatBai.push({ g, error: data.error || 'Lỗi đặt vé' }) }
                     else {
                         thanhCong.push(g)
+                        if (data.ve_id) veIdCacChang.push(data.ve_id)
                         if (data.chuyen_id && !currentChuyen.chuyen_id) currentChuyen.chuyen_id = data.chuyen_id
                     }
                 } catch (err) {
@@ -957,8 +971,54 @@
             document.getElementById('dat-ve-form').style.display = 'none'
             document.getElementById('chuyen-info-wrap').innerHTML = ''
             document.getElementById('xac-nhan-chi-tiet').innerHTML = ketQuaCacChang.map(s => `<div>${s}</div>`).join('')
+            capNhatLinkXemLaiVe()
             document.getElementById('xac-nhan-box').style.display = 'block'
             document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+
+        // Link xem lại vé (2026-09-23) — build từ TOÀN BỘ ve.id đặt thành công trong `veIdCacChang`
+        // (cả 2 chặng nếu khứ hồi), trỏ tới xem-ve.html?id=...&id=... (bảo mật dựa vào UUID khó
+        // đoán, cùng pattern ảnh Storage {kien.id}.jpg — xem SPEC "Xem lại vé đã đặt" CLAUDE.md).
+        // Không dùng <a href> tĩnh vì link chỉ có sau khi đặt xong — build lại mỗi lần hiện biên
+        // nhận (đủ rẻ, không cần cache DOM element riêng).
+        function linkXemLaiVe() {
+            const qs = veIdCacChang.map(id => 'id=' + encodeURIComponent(id)).join('&')
+            return `${location.origin}/xem-ve.html?${qs}`
+        }
+        function capNhatLinkXemLaiVe() {
+            document.getElementById('btn-share-link').style.display = (typeof navigator.share === 'function') ? 'block' : 'none'
+        }
+        // Sao chép — ưu tiên Clipboard API, fallback execCommand('copy') cho WebView cũ/không hỗ
+        // trợ (thường gặp trên PWA Android đời cũ chưa cấp quyền clipboard mặc định).
+        document.getElementById('btn-copy-link').addEventListener('click', async () => {
+            const link = linkXemLaiVe()
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(link)
+                } else {
+                    const ta = document.createElement('textarea')
+                    ta.value = link
+                    ta.style.position = 'fixed'
+                    ta.style.opacity = '0'
+                    document.body.appendChild(ta)
+                    ta.focus()
+                    ta.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(ta)
+                }
+                showToast('Đã sao chép link', 'success')
+            } catch (err) {
+                showToast('Không sao chép được, vui lòng tự copy link trên thanh địa chỉ', 'error')
+            }
+        })
+        // Chia sẻ qua share sheet gốc (Zalo/SMS/Ghi chú...) — nút chỉ hiện khi trình duyệt hỗ trợ
+        // Web Share API (`capNhatLinkXemLaiVe`), không hardcode link chia sẻ riêng cho Zalo.
+        document.getElementById('btn-share-link').addEventListener('click', async () => {
+            try {
+                await navigator.share({ title: 'Vé xe của bạn', url: linkXemLaiVe() })
+            } catch (err) {
+                // AbortError khi khách tự đóng share sheet — không phải lỗi thật, im lặng bỏ qua.
+            }
         })
 
         // Tải/làm mới sơ đồ giường của currentChuyen — chuyen_id CÓ THỂ chưa tồn tại (ngày/chiều
@@ -1303,6 +1363,11 @@
         let dsChangDat = []        // [{vaiTro:'di'|'ve', ngay, lunarDay, lunarMonth, chieu, chuyen_id, tinhXuatPhat, tinhDiemDen, diaDiemXuatPhat, diaDiemDiemDen}]
         let changHienTaiIdx = 0
         let ketQuaCacChang = []    // dòng tóm tắt từng chặng đã đặt xong, gộp lại hiện ở xac-nhan-box cuối cùng
+        // ve.id của MỌI vé đặt thành công xuyên suốt cả phiên (kể cả khứ hồi 2 chặng) — dùng build
+        // link "xem-ve.html?id=...&id=..." ở biên nhận cuối cùng (2026-09-23, xem SPEC "Xem lại vé
+        // đã đặt" CLAUDE.md). Cùng vòng đời reset với `ketQuaCacChang` (đầu `xacNhanChonChieu`/
+        // trong `doiChuyenKhac`).
+        let veIdCacChang = []
         function xacNhanChonChieu() {
             if (!noiXuatPhatTinh || !diemDenTinh) {
                 showToast('Vui lòng chọn cả nơi xuất phát và điểm đến', 'error')
@@ -1338,6 +1403,7 @@
             }
             changHienTaiIdx = 0
             ketQuaCacChang = []
+            veIdCacChang = []
             batDauChang(0)
         }
 
@@ -1615,6 +1681,7 @@
             dsChangDat = []
             changHienTaiIdx = 0
             ketQuaCacChang = []
+            veIdCacChang = []
             selectedGiuongMap.clear()
             soDoData = []
             document.getElementById('so-do-wrap').style.display = 'none'

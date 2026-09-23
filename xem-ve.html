@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1565c0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192-booking.png">
+    <title>Xem lại vé</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Trang PUBLIC, KHÔNG requireSession/hamburger — giống dat-ve.html. Trang TĨNH (không có
+           luồng nhập liệu dài để cần offline-first), không đăng ký service worker riêng — xem
+           SPEC "Xem lại vé đã đặt" CLAUDE.md. */
+        html { background: var(--bg); }
+        body { background: var(--bg); padding-bottom: 40px; max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
+        .public-header {
+            background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
+        }
+        .public-header h1 { margin: 0 0 4px; font-size: 19px; }
+        .public-header .sub { font-size: 13px; opacity: 0.9; }
+        .trang-thai-msg {
+            margin: 24px 16px; padding: 20px 16px; text-align: center; color: var(--text-muted);
+            background: var(--white); border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+        }
+        .chang-block {
+            margin: 16px; padding: 16px; background: var(--white); border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+        }
+        .chang-nhan { font-size: 12px; font-weight: 700; color: #ef6c00; margin-bottom: 4px; }
+        .chang-ngay { font-size: 15px; font-weight: 700; color: var(--text); }
+        .chang-tuyen { font-size: 14px; color: var(--text-muted); margin: 2px 0 12px; }
+        .ve-item {
+            padding: 12px; border-radius: var(--radius-sm); background: var(--bg);
+            margin-bottom: 8px; font-size: 14px; line-height: 1.6;
+        }
+        .ve-item:last-child { margin-bottom: 0; }
+        .ve-item .giuong-ten { font-weight: 700; color: var(--text); }
+        .ve-item .diem { color: var(--text-muted); }
+        .ve-item .badge-huy {
+            display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+            background: #fdecea; color: var(--danger); font-size: 12px; font-weight: 700;
+        }
+        .ve-item .badge-cho-ck {
+            display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
+            background: #fff8e1; color: #6d4c00; font-size: 12px; font-weight: 700;
+        }
+        .khong-tim-thay-note {
+            margin: 0 16px 16px; font-size: 13px; color: var(--text-muted); text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="public-header">
+        <h1 id="public-header-ten">🚌 Xem lại vé</h1>
+        <div class="sub" id="public-header-sub">Thông tin vé đã đặt</div>
+    </div>
+
+    <div id="noi-dung"></div>
+
+    <script src="shared.js"></script>
+    <script>
+        // KHÔNG bắt buộc `?nx=` (khác dat-ve.html) — xem đầu file api/cong-khai-xem-ve.js: bảo
+        // mật dựa vào `ve.id` (UUID khó đoán), id đã tự xác định duy nhất 1 nhà xe.
+        const ids = new URLSearchParams(location.search).getAll('id')
+
+        const THU_LABEL = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+        // Quy đổi `khoi_hanh` (timestamptz UTC) sang ngày/giờ VN bằng cách dịch +7h rồi đọc qua
+        // getter UTC — cùng kỹ thuật `ranhGioiNgayVN`/`tinhKhoiHanhMacDinh` đã dùng ở
+        // api/cong-khai-dat-ve.js (Asia/Ho_Chi_Minh không DST, offset cố định +07:00).
+        function nhanNgayTuKhoiHanh(iso) {
+            const vn = new Date(new Date(iso).getTime() + 7 * 3600 * 1000)
+            const y = vn.getUTCFullYear(), m = vn.getUTCMonth() + 1, d = vn.getUTCDate()
+            const hh = String(vn.getUTCHours()).padStart(2, '0'), mi = String(vn.getUTCMinutes()).padStart(2, '0')
+            const thu = THU_LABEL[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+            const am = convertSolar2Lunar(d, m, y, 7)
+            return `${thu}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')} · ${am.day}/${am.month} ÂL · ${hh}:${mi}`
+        }
+
+        function renderVeItem(v) {
+            const daHuy = v.trang_thai === 'huy'
+            const diemHtml = (v.dia_diem_len || v.dia_diem_xuong)
+                ? `<div class="diem">📍 Đón: ${v.dia_diem_len || '—'} · Trả: ${v.dia_diem_xuong || '—'}</div>`
+                : ''
+            const giaHtml = v.gia != null ? `Giá: ${formatMoney(v.gia)}` : 'Giá: liên hệ nhà xe'
+            const ttHtml = v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc'
+                ? `${giaHtml} · Chuyển khoản trước`
+                : `${giaHtml} · Tiền mặt lúc lên xe`
+            return `
+                <div class="ve-item">
+                    <div class="giuong-ten">🪑 Giường ${v.ma_giuong || '?'} — ${v.ten_khach || ''} — ${v.sdt_khach || ''}</div>
+                    ${diemHtml}
+                    <div>${ttHtml}</div>
+                    ${daHuy ? '<span class="badge-huy">❌ Vé này đã bị huỷ</span>'
+                        : (v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc' ? '<span class="badge-cho-ck">⏳ Chờ nhà xe xác nhận chuyển khoản</span>' : '')}
+                </div>
+            `
+        }
+
+        function renderChangBlock(chang, idx, tongSo) {
+            const nhan = tongSo > 1 ? `<div class="chang-nhan">🔁 ${idx === 0 ? 'Chiều đi' : 'Chiều về'}</div>` : ''
+            const tuyen = (chang.tinh_len_ten && chang.tinh_xuong_ten) ? `${chang.tinh_len_ten} → ${chang.tinh_xuong_ten}` : ''
+            return `
+                <div class="chang-block">
+                    ${nhan}
+                    <div class="chang-ngay">${nhanNgayTuKhoiHanh(chang.khoi_hanh)}</div>
+                    ${tuyen ? `<div class="chang-tuyen">${tuyen}</div>` : '<div class="chang-tuyen"></div>'}
+                    ${chang.ve.map(renderVeItem).join('')}
+                </div>
+            `
+        }
+
+        async function initPage() {
+            const noiDung = document.getElementById('noi-dung')
+            if (!ids.length) {
+                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Link không hợp lệ.</div>'
+                return
+            }
+
+            const qs = ids.map(id => 'id=' + encodeURIComponent(id)).join('&')
+            let data
+            try {
+                const res = await fetch(`/api/cong-khai-xem-ve?${qs}`)
+                data = await res.json()
+                if (!res.ok) {
+                    noiDung.innerHTML = `<div class="trang-thai-msg">${data.error || 'Lỗi tải thông tin vé'}</div>`
+                    return
+                }
+            } catch (err) {
+                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Lỗi mạng, vui lòng thử lại.</div>'
+                return
+            }
+
+            if (!data.chang.length) {
+                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Không tìm thấy vé nào — có thể link đã sai hoặc vé đã bị xoá.</div>'
+                return
+            }
+
+            if (data.nha_xe) {
+                document.getElementById('public-header-ten').textContent = '🚌 ' + data.nha_xe.ten
+                document.title = data.nha_xe.ten + ' — Xem lại vé'
+            }
+
+            noiDung.innerHTML = data.chang.map((c, i) => renderChangBlock(c, i, data.chang.length)).join('')
+                + (data.khong_tim_thay.length
+                    ? '<div class="khong-tim-thay-note">⚠ 1 phần thông tin không tìm thấy, có thể đã bị xoá.</div>'
+                    : '')
+        }
+
+        initPage()
+    </script>
+</body>
+</html>
