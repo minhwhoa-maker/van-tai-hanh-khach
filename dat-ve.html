@@ -1164,9 +1164,13 @@
         // - khuHoi=true: tap 1 (chưa có ngày đi) → set ngày đi. Tap 2 (đã có ngày đi, chưa ngày
         //   về): tap SỚM HƠN/BẰNG ngày đi → đổi ngày đi (chưa có ngày về); tap SAU ngày đi → set
         //   ngày về, xong range (push back-guard riêng, xem mục "Guard Back" ở dưới). Tap tiếp
-        //   theo (CẢ 2 đã có, chưa bấm "Xác nhận") → tap sớm hơn/bằng ngày đi hiện tại: đổi ngày
-        //   đi + XOÁ ngày về (chọn lại range từ đầu); tap sau đó (kể cả giữa 2 ngày hoặc sau ngày
-        //   về): đổi ngày về.
+        //   theo (CẢ 2 đã có, chưa bấm "Xác nhận") → LUÔN bắt đầu range MỚI từ ngày vừa tap (ngày
+        //   đi = ngày vừa tap, xoá ngày về) — BẤT KỂ tap trước hay sau ngày đi hiện tại.
+        //   SỬA BUG 2026-09-23 (báo cáo thật từ owner, kèm ảnh chụp): bản trước chỉ cho GIẢM ngày
+        //   đi (tap ≤ ngày đi hiện tại), còn tap ngày SAU ngày đi (kể cả sau cả ngày về) luôn bị
+        //   gán nhầm thành "ngày về" — khiến ngày đi bị khoá cứng, không có cách nào tăng lên được
+        //   khi cả 2 đã chọn. Giờ theo đúng chuẩn range-picker phổ biến (kiểu Airbnb): 1 range đã
+        //   đủ 2 đầu thì tap tiếp theo luôn khởi động lại lựa chọn, đối xứng cả 2 chiều tăng/giảm.
         // KHÔNG còn reset noiXuatPhatTinh/diemDenTinh khi đổi ngày (giữ nguyên hành vi đã có từ
         // đợt 16 — 2 biến tỉnh độc lập với việc chọn ngày, xem renderTuyenPickerBlock).
         function chonNgay(entry) {
@@ -1178,11 +1182,9 @@
             } else if (!ngayVeChon) {
                 if (ngay <= ngayDiChon) ngayDiChon = ngay
                 else { ngayVeChon = ngay; pushBackGuard() }
-            } else if (ngay <= ngayDiChon) {
+            } else {
                 ngayDiChon = ngay
                 ngayVeChon = null
-            } else {
-                ngayVeChon = ngay
             }
             // Chỉ vẽ lại NỘI DUNG POPUP (đang mở — ô ngày chỉ tồn tại bên trong popup, xem
             // `renderNgayPickerContent`) — hàng tóm tắt/hint "đã có khách"/nút "Xác nhận" ngoài
