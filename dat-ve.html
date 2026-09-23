@@ -944,9 +944,18 @@
             }
 
             // Đã xong CHẶNG CUỐI (1 chặng bình thường, hoặc chặng về của khứ hồi) — hiện xác nhận
-            // tổng hợp tất cả các chặng đã đặt.
+            // tổng hợp tất cả các chặng đã đặt. XOÁ SẠCH #chuyen-info-wrap (bar "Chuyến đã chọn" +
+            // nút "Đổi ngày khởi hành") — sửa bug thật 2026-09-23: trước đó nút này vẫn còn nguyên
+            // trong DOM sau khi đặt vé xong, bấm vào mở lại toàn bộ picker Bước 0
+            // (`doiChuyenKhac`→`renderChonChuyenStep`) NGAY BÊN TRÊN biên nhận "Đặt vé thành
+            // công!" vẫn còn hiển thị — nhìn như "vé vừa đặt vẫn sửa được", dù thực chất mỗi lần
+            // "Đặt vé" luôn tạo `ve` MỚI (không update tại chỗ, API không hỗ trợ sửa vé qua
+            // dat-ve.html) nên vé cũ không hề bị đổi — chỉ là UI gây hiểu lầm. Đặt vé thêm chuyến
+            // khác sau khi đã xong giờ bắt buộc tải lại trang (khớp thông điệp "Vui lòng lưu lại
+            // thông tin này" — biên nhận này là ĐIỂM DỪNG, không phải màn hình có thể quay lại).
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
+            document.getElementById('chuyen-info-wrap').innerHTML = ''
             document.getElementById('xac-nhan-chi-tiet').innerHTML = ketQuaCacChang.map(s => `<div>${s}</div>`).join('')
             document.getElementById('xac-nhan-box').style.display = 'block'
             document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1610,6 +1619,11 @@
             soDoData = []
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
+            // Phòng thủ lớp 2 (2026-09-23) — bình thường không còn đường nào gọi được hàm này khi
+            // biên nhận đang hiện (nút "Đổi ngày khởi hành" đã bị xoá khỏi DOM cùng lúc hiện biên
+            // nhận, xem handler `#btn-dat-ve`), nhưng vẫn ẩn ở đây phòng lối vào khác trong tương
+            // lai (vd popstate) lỡ gọi trúng — biên nhận là điểm dừng, không nên vô tình lộ lại.
+            document.getElementById('xac-nhan-box').style.display = 'none'
             document.getElementById('ngay-picker').classList.remove('open')
             capNhatGiaVeBar()
             renderChonChuyenStep()
