@@ -32,7 +32,7 @@ export async function layNhaXe(sbAdmin, nx) {
 
     const { data, error } = await sbAdmin
         .from('nha_xe')
-        .select('id, ten, slug, trang_thai, gio_khoi_hanh_bac, gio_khoi_hanh_nam')
+        .select('id, ten, slug, trang_thai, gio_khoi_hanh_bac, gio_khoi_hanh_nam, sdt_lien_he, logo_url')
         .eq('slug', nx)
         .maybeSingle()
     if (error) throw loi(500, error.message)

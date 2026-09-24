@@ -14,7 +14,12 @@
 // v5 (2026-09-22, Bỏ diem_khach): dat-ve.html thêm phụ thuộc point-match.js (boDau, lọc picker
 // Tỉnh->Xã/Huyện) + data/tinh-xa-huyen.json (dữ liệu xã/huyện) — thêm vào STATIC_ASSETS để precache
 // dùng offline được, bump để cache cũ (chưa có 2 file này) không kẹt.
-const CACHE_NAME = 'eakar-dat-ve-v5';
+// v6 (2026-09-24, Branding nhà xe): dat-ve.html đổi header (logo/tên/SĐT liên hệ) — bump để dọn
+// cache HTML cũ (chưa có markup mới). Ảnh logo (`nha_xe.logo_url`, Supabase Storage — origin KHÁC
+// hẳn `eakar-booking.vercel.app`) KHÔNG bị fetch handler này đụng tới (guard `url.origin !==
+// self.location.origin` ở dưới return sớm cho mọi request cross-origin, không cache/không chặn),
+// nên không cần thêm gì riêng cho ảnh logo dù đổi domain sau này.
+const CACHE_NAME = 'eakar-dat-ve-v6';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',

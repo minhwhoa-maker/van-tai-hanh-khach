@@ -1806,6 +1806,102 @@ hiện tại** (xem checklist "TODO trước khi go-live" đầu file).
   (không thể test cho tới khi có credential — xem mục 4 của spec gốc, đúng như dự kiến). Đã dọn
   sạch data test.
 
+### Branding nhà xe — tên/logo/SĐT liên hệ (2026-09-24)
+
+Mỗi nhà xe (bảng `nha_xe`) có tên/logo/SĐT liên hệ RIÊNG, hiển thị trên `dat-ve.html` (trang đặt vé
+công khai) và `xem-ve.html` (tra cứu lại vé). **CHỈ 3 thứ này** — không làm UI admin để tự sửa
+(vẫn set tay qua SQL/Supabase dashboard, giống cách `gio_khoi_hanh_bac`/`gio_khoi_hanh_nam` đang
+làm), không đổi màu theme/CSS variables theo nhà xe, không đổi icon PWA/favicon riêng từng nhà xe
+(`icons/icon-*-booking.png` vẫn dùng chung mọi nhà xe), không có đường upload logo từ trong app.
+
+- **`nha_xe` thêm 2 cột** (migration `nha_xe_thong_tin_lien_he`): `sdt_lien_he text` (check
+  `is null or ~ '^0[0-9]{9,10}$'` — số VN bắt đầu bằng 0, 10-11 chữ số) và `logo_url text` (check
+  `is null or ~ '^https://'` — chỉ nhận URL https, chặn `http://`/URL tương đối/`javascript:` ngay
+  ở tầng DB). Cả 2 nullable, KHÔNG có default — nhà xe chưa set thì ẩn hẳn phần UI liên quan (xem
+  dưới), không hiện gì thay thế. **KHÔNG tự bịa SĐT/logo cho `eakar`** — cả 2 vẫn `null` sau đợt
+  này (owner tự set khi có số/logo thật).
+- **Bucket Storage public `nha-xe-logo`** (`public: true`) — tạo sẵn cho lần sau có UI upload, hiện
+  **KHÔNG có policy ghi nào** cho `anon`/`authenticated` (đúng yêu cầu — chỉ `SUPABASE_SERVICE_KEY`
+  ghi được, upload logo hiện vẫn phải làm tay qua Supabase Dashboard/Storage rồi dán `logo_url`).
+- **API — `api/_lib/nha-xe.js`'s `layNhaXe()`** select thêm `sdt_lien_he, logo_url` (dùng bởi cả 4
+  route công khai qua `docNx`/`layNhaXe`, dù hiện chỉ `api/cong-khai-lich-chay.js` thật sự đưa vào
+  response `nha_xe` — 3 route còn lại (`cong-khai-so-do`/`cong-khai-diem-khach`/`cong-khai-dat-ve`)
+  không trả object `nha_xe` nào cả, ngoài phạm vi đợt này, không đổi). `api/cong-khai-lich-chay.js`'s
+  `nhaXeInfo` thêm `sdt_lien_he`/`logo_url` (`|| null`) — có mặt ở MỌI nhánh 200 (kể cả 0 ngày hợp
+  lệ, đã có sẵn từ trước). `api/cong-khai-xem-ve.js` — route này tự query `nha_xe` riêng (KHÔNG qua
+  `layNhaXe`/`nx`, xem lý do ở đầu file), `.select('ten')` đổi thành `.select('ten, sdt_lien_he,
+  logo_url')`, cả 2 field mới nằm SAU guard `nhaXeIdSet.size > 1` (chặn ghép id 2 nhà xe khác nhau)
+  — cross-tenant fail thì route trả lỗi TRƯỚC khi query tới `nha_xe`, không đổi gì ở đường guard đó.
+  Không đổi `api/cong-khai-so-do.js`/`api/cong-khai-diem-khach.js` — 2 route đó không trả `nha_xe`.
+- **Frontend — `dat-ve.html`**: header đổi từ `<h1>` đơn sang `.public-header-row` (flex, logo 44px
+  + khối tên/SĐT) — `apDungThongTinNhaXe(nhaXe)` (hàm mới, gọi 1 lần trong `initPage()` ngay khi có
+  `lichData.nha_xe`, thay 2 dòng gán `textContent`/`document.title` cũ) gán tên qua `textContent`,
+  `document.title`, logo qua `<img src>` (chỉ nhận nếu `logo_url.startsWith('https://')`, double
+  check phía client dù DB đã có CHECK constraint) với `alt` qua `setAttribute`, `onerror` tự thay
+  bằng `layFallbackLogo()` (div `.public-header-logo-fallback`, chữ cái đầu tên, viết hoa) — thiếu
+  `logo_url` cũng rơi thẳng vào fallback này, không cần nhánh riêng. SĐT liên hệ hiện ở **3 chỗ**
+  qua `ganGoiNhaXe(elId, sdt)` dùng chung: header (`#header-goi-nha-xe`, `<a>` chính nó), dưới khối
+  OTP (`#otp-goi-nha-xe`, "Không nhận được mã? Gọi nhà xe"), màn xác nhận đặt vé thành công
+  (`#xac-nhan-goi-nha-xe`) — thiếu SĐT thì `ganGoiNhaXe` set `display:none`, không hiện "null"/nút
+  chết. `xem-ve.html`: `.icon-box` (44px, đổi từ 40px) đổi từ CỐ ĐỊNH icon bus SVG trắng sang
+  `apDungThongTinNhaXe(nhaXe)` (gọi trong `initPage()` sau khi có `data.chang.length`) — logo/
+  fallback-chữ-cái-đầu (span `.fallback-chu`, tái dùng nền `--accent` có sẵn của `.icon-box`, không
+  cần class riêng) theo ĐÚNG pattern `dat-ve.html`, SĐT hiện ở `#xv-goi-nha-xe` (dưới tên nhà xe).
+  **Cả 2 trang: gán tên/SĐT/logo_url bằng `textContent`/`setAttribute` — KHÔNG `innerHTML`** (đã
+  test XSS, xem dưới). CSS `overflow-wrap: break-word; word-break: break-word` trên `h1`/`.ten` +
+  `min-width: 0` trên khối flex chứa tên — tên dài (có dấu cách hoặc không) tự xuống dòng, không
+  tràn ngang ở 360px.
+- **`sw-dat-ve.js`**: `CACHE_NAME` bump `v5` → `v6` (dọn cache HTML cũ chưa có markup header mới).
+  **Không cần sửa gì cho ảnh logo cross-origin** (Supabase Storage khác hẳn origin
+  `eakar-booking.vercel.app`) — fetch handler đã có sẵn guard `url.origin !== self.location.origin`
+  → `return` sớm cho MỌI request khác origin (không cache, không chặn), viết từ trước đợt này, chỉ
+  xác nhận lại bằng cách đọc code, không cần thay đổi.
+- **Test đã chạy thật (2026-09-24, Playwright 360×800 + curl production, không chỉ đọc code)**:
+  1. `curl` `api/cong-khai-lich-chay?nx=eakar` và `api/cong-khai-xem-ve?id=...` (set tạm
+     `sdt_lien_he='0912345678'`/`logo_url='https://picsum.photos/200'` cho `eakar` qua SQL trước,
+     xoá lại `null` ngay sau khi test xong) — cả 2 route trả đúng `sdt_lien_he`/`logo_url`.
+  2. Tạo tạm nhà xe `test-b` KHÔNG logo/SĐT (`tuyen_tinh` 2 dòng DLK/HDG để trang load được) — ảnh
+     chụp `?nx=test-b`: không ảnh vỡ, không hiện chữ "null" ở đâu, nút gọi nhà xe `display:none`
+     đúng cả 3 chỗ ở `dat-ve.html`. Đổi `nha_xe.ten` = `<b>x</b><img src=x onerror=alert(1)>` qua
+     SQL trực tiếp → header hiện ĐÚNG chuỗi literal (đã escape, `innerHTML` trả về
+     `&lt;b&gt;x&lt;/b&gt;&lt;img src=x onerror=alert(1)&gt;`), **KHÔNG có `dialog` nào bật lên**
+     (nghe event `page.on('dialog', ...)`, không có `alert(1)` chạy) — xác nhận
+     `textContent`/`setAttribute` an toàn trước tên chứa HTML/script độc hại. Test lại y hệt cho
+     `xem-ve.html` bằng cách mock response `api/cong-khai-xem-ve` (`page.route`) với cùng tên độc
+     hại — cùng kết quả, không dialog, không HTML injection. Test thêm 1 tên dài KHÔNG dấu cách
+     (~80 ký tự liền) — `document.documentElement.scrollWidth === clientWidth === 360`, xác nhận
+     không tràn ngang kể cả trường hợp CSS `word-break` khó nhất (không có khoảng trắng để ngắt tự
+     nhiên).
+  3. Mở song song `?nx=eakar` (logo/SĐT test tạm ở bước 1) và `?nx=test-b` (tên `Nhà Xe Test B`,
+     logo/SĐT test riêng) — 2 header hiện đúng branding riêng biệt, không lẫn (`tel:0912345678` vs
+     `tel:0987654321`, 2 ảnh logo khác nhau, 2 tiêu đề `<title>` khác nhau).
+  4. `href="tel:..."` xác nhận đúng số ở CẢ 4 chỗ (`header-goi-nha-xe`, `otp-goi-nha-xe`,
+     `xac-nhan-goi-nha-xe` ở `dat-ve.html`; `xv-goi-nha-xe` ở `xem-ve.html`) qua
+     `getAttribute('href')` — chưa test bấm ra trình quay số THẬT trên thiết bị di động thật (môi
+     trường headless không mô phỏng được hành vi `tel:` của hệ điều hành, chỉ xác nhận `href` đúng
+     giá trị).
+  5. Regression đầy đủ bằng luồng thật qua `dat-ve.html` (không phải gọi thẳng API): đặt vé 1 chiều
+     (OTP thật qua `OTP_TEST_MODE`, tra `ma_otp` bằng SQL) → `ve`/`chuyen` tạo đúng,
+     `api/cong-khai-xem-ve` trả đúng vé + branding; đặt khứ hồi ĐẦY ĐỦ 2 chặng (không bấm Back giữa
+     chừng) → 2 `ve_id` khác `chuyen_id`, `api/cong-khai-xem-ve` với 2 `id` trả đúng thứ tự đi
+     trước/về sau, kèm branding đúng; test riêng case bấm Back GIỮA 2 chặng (kịch bản đã sửa ở mục
+     "Bug thật: Back giữa chặng đi/chặng về" — xem trên) VẪN hoạt động đúng sau khi thêm code
+     branding (không có regression): `veIdCacChangLen` giữ nguyên `1`, biên nhận vẫn hiện đúng, xác
+     nhận việc thêm `apDungThongTinNhaXe()`/DOM mới không phá logic `hienBienNhanCuoi()`/`popstate`
+     đã có. Guard cross-tenant của `api/cong-khai-xem-ve.js` test lại bằng data thật (tạo `giuong`/
+     `chuyen`/`ve` tạm cho `test-b`, gọi kèm 1 `id` của `eakar` + 1 `id` của `test-b`) → vẫn `400
+     "Link không hợp lệ — các vé không thuộc cùng 1 nhà xe"` như trước khi thêm field mới — field
+     mới nằm SAU guard này trong code nên không có đường nào bỏ qua được guard.
+  6. Đã dọn sạch toàn bộ data test sau khi xong: nhà xe `test-b` (kèm `giuong`/`chuyen`/`ve`/
+     `tuyen_tinh` của nó), mọi `ve`/`chuyen`/`dat_ve_otp` tạo ra trong lúc test (số test
+     `0977988xxx`), và `sdt_lien_he`/`logo_url` của `eakar` trả lại `null` — `select slug,
+     sdt_lien_he, logo_url from nha_xe` sau cùng chỉ còn đúng 1 dòng `eakar` với cả 2 field `null`.
+- **Chưa test** (ngoài khả năng môi trường phiên làm việc này): bấm `tel:` link trên điện thoại
+  thật để xác nhận mở đúng trình quay số (chỉ xác nhận `href` đúng giá trị qua headless); logo ảnh
+  thật của 1 nhà xe thật (test dùng `picsum.photos` làm placeholder, chưa thử URL từ bucket
+  `nha-xe-logo` thật vì chưa có logo thật nào được upload); hiển thị trên iOS Safari/PWA cài đặt
+  thật (chỉ test qua Chrome headless viewport 360×800).
+
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 
 Áp dụng cho `dat-ve.html` (khách tự đặt online) + `khach.html` (crew đặt vé nội bộ). **KHÔNG áp

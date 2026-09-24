@@ -198,7 +198,7 @@ export default async function handler(req, res) {
 
     // `nha_xe` giờ có mặt ở MỌI nhánh 200 (kể cả nhánh 0 ngày hợp lệ ngay dưới) — frontend không
     // phải xử lý riêng 1 response thiếu field này.
-    const nhaXeInfo = { ten: nhaXe.ten, slug: nhaXe.slug }
+    const nhaXeInfo = { ten: nhaXe.ten, slug: nhaXe.slug, sdt_lien_he: nhaXe.sdt_lien_he || null, logo_url: nhaXe.logo_url || null }
 
     const ngayHopLe = tatCaNgay.filter(x => x.hop_le)
     if (!ngayHopLe.length) { res.status(200).json({ lich: tatCaNgay, nha_xe: nhaXeInfo }); return }

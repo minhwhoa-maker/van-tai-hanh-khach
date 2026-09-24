@@ -38,11 +38,19 @@
             background: #ffffff; border-bottom: 1px solid var(--border2);
         }
         .xv-header .icon-box {
-            width: 40px; height: 40px; border-radius: 11px; background: var(--accent);
+            width: 44px; height: 44px; border-radius: 11px; background: var(--accent);
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .xv-header .ten { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; }
+        /* Logo nhà xe (2026-09-24) — object-fit:contain trong đúng ô 44px của .icon-box, nền trắng
+           vì logo có thể có nền trong suốt. Fallback (thiếu logo_url/onerror) = ô chữ cái đầu tên,
+           dùng CHÍNH .icon-box (nền --accent có sẵn), không cần class riêng. */
+        .xv-header .icon-box img { width: 44px; height: 44px; border-radius: 11px; object-fit: contain; background: #fff; }
+        .xv-header .icon-box .fallback-chu { font-size: 18px; font-weight: 800; color: #fff; }
+        .xv-header .ten { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; overflow-wrap: break-word; word-break: break-word; }
         .xv-header .sub { font-size: 12.5px; color: var(--muted2); margin-top: 1px; }
+        .xv-header-text { min-width: 0; }
+        .xv-goi-nha-xe { display: none; font-size: 12px; margin-top: 3px; }
+        .xv-goi-nha-xe a { color: var(--accent); font-weight: 700; text-decoration: underline; }
 
         .xv-body { padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; }
 
@@ -132,9 +140,10 @@
 <body>
     <div class="xv-header">
         <div class="icon-box" id="header-icon"></div>
-        <div>
+        <div class="xv-header-text">
             <div class="ten" id="public-header-ten">Xem lại vé</div>
             <div class="sub">Thông tin vé đã đặt</div>
+            <div class="xv-goi-nha-xe" id="xv-goi-nha-xe">📞 <a href="#" id="xv-goi-nha-xe-link">Gọi nhà xe</a></div>
         </div>
     </div>
 
@@ -341,6 +350,42 @@
             })
         }
 
+        // Branding nhà xe (2026-09-24) — tên/logo/SĐT, cùng nguyên tắc với dat-ve.html (xem SPEC
+        // "Branding nhà xe" CLAUDE.md): gán bằng textContent/setAttribute, KHÔNG innerHTML;
+        // logo_url chỉ nhận khi bắt đầu bằng "https://"; thiếu logo/onerror -> ô chữ cái đầu tên.
+        function apDungThongTinNhaXe(nhaXe) {
+            if (!nhaXe) return
+            document.getElementById('public-header-ten').textContent = nhaXe.ten
+            document.title = nhaXe.ten + ' — Xem lại vé'
+
+            const iconBox = document.getElementById('header-icon')
+            function ganFallbackChu() {
+                iconBox.innerHTML = ''
+                const span = document.createElement('span')
+                span.className = 'fallback-chu'
+                span.textContent = (nhaXe.ten || '?').trim().charAt(0).toUpperCase() || '?'
+                iconBox.appendChild(span)
+            }
+            if (nhaXe.logo_url && nhaXe.logo_url.startsWith('https://')) {
+                const img = document.createElement('img')
+                img.setAttribute('alt', nhaXe.ten)
+                img.addEventListener('error', ganFallbackChu)
+                img.src = nhaXe.logo_url
+                iconBox.innerHTML = ''
+                iconBox.appendChild(img)
+            } else {
+                ganFallbackChu()
+            }
+
+            const goiWrap = document.getElementById('xv-goi-nha-xe')
+            if (nhaXe.sdt_lien_he) {
+                document.getElementById('xv-goi-nha-xe-link').setAttribute('href', 'tel:' + nhaXe.sdt_lien_he)
+                goiWrap.style.display = 'block'
+            } else {
+                goiWrap.style.display = 'none'
+            }
+        }
+
         async function initPage() {
             const noiDung = document.getElementById('noi-dung')
             document.getElementById('header-icon').innerHTML = ICON_BUS_WHITE
@@ -368,10 +413,7 @@
                 return
             }
 
-            if (data.nha_xe) {
-                document.getElementById('public-header-ten').textContent = data.nha_xe.ten
-                document.title = data.nha_xe.ten + ' — Xem lại vé'
-            }
+            apDungThongTinNhaXe(data.nha_xe)
 
             noiDung.innerHTML = '<div class="xv-body">'
                 + data.chang.map((c, i) => renderChangBlock(c, i, data.chang.length)).join('')

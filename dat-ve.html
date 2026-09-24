@@ -57,8 +57,30 @@
         .public-header {
             background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
         }
-        .public-header h1 { margin: 0 0 4px; font-size: 19px; }
+        /* Logo/tên/SĐT nhà xe (2026-09-24) — mỗi nhà xe đặt tên/logo/SĐT riêng, xem SPEC "Branding
+           nhà xe" trong CLAUDE.md. Row flex thay vì text-align:center thuần vì logo cần đứng cạnh
+           tên, không phải xếp trên/dưới. */
+        .public-header-row { display: flex; align-items: center; gap: 10px; justify-content: center; }
+        .public-header-logo, .public-header-logo-fallback {
+            width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+        }
+        .public-header-logo { object-fit: contain; background: #fff; }
+        .public-header-logo-fallback {
+            background: rgba(255, 255, 255, 0.22); display: flex; align-items: center;
+            justify-content: center; font-size: 19px; font-weight: 800;
+        }
+        .public-header-text { text-align: left; min-width: 0; }
+        .public-header h1 {
+            margin: 0 0 4px; font-size: 18px; overflow-wrap: break-word; word-break: break-word;
+        }
         .public-header .sub { font-size: 13px; opacity: 0.9; }
+        .header-goi-nha-xe {
+            display: none; margin-top: 6px; font-size: 12.5px; color: #fff; text-decoration: underline;
+        }
+        .otp-goi-nha-xe, .xac-nhan-goi-nha-xe {
+            display: none; margin-top: 8px; font-size: 13px; color: var(--text-muted);
+        }
+        .otp-goi-nha-xe a, .xac-nhan-goi-nha-xe a { color: var(--primary); font-weight: 700; text-decoration: underline; }
         /* Bước 0 — chọn NGÀY ĐI trước tất cả, dùng lịch chạy cố định theo ngày chẵn âm lịch
            (api/cong-khai-lich-chay.js). LỊCH CUỘN DỌC LIÊN TỤC (2026-09-23, thay hẳn bản "1 khối
            tháng/màn hình + ‹/›" trước đó — xem SPEC "Lịch chọn ngày đặt vé" CLAUDE.md) — số tháng
@@ -467,9 +489,17 @@
         <!-- Nhãn "🚌 EaKar Xe Khách" là placeholder trước khi nx resolve xong — initPage() ghi đè
              bằng nha_xe.ten thật (từ response api/cong-khai-lich-chay.js) khi có nx hợp lệ. Tuyến
              "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ, KHÔNG sửa
-             ở Giai đoạn 5 (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện sai. -->
-        <h1 id="public-header-ten">🚌 EaKar Xe Khách</h1>
-        <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
+             ở Giai đoạn 5 (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện sai.
+             #public-header-logo-wrap: logo 44px hoặc ô chữ cái đầu (fallback), điền bằng
+             apDungThongTinNhaXe() — xem SPEC "Branding nhà xe". -->
+        <div class="public-header-row">
+            <div id="public-header-logo-wrap"></div>
+            <div class="public-header-text">
+                <h1 id="public-header-ten">🚌 EaKar Xe Khách</h1>
+                <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
+                <a href="#" id="header-goi-nha-xe" class="header-goi-nha-xe">📞 Gọi nhà xe</a>
+            </div>
+        </div>
     </div>
 
     <div id="chuyen-info-wrap"></div>
@@ -558,6 +588,7 @@
             </div>
         </div>
         <div class="otp-xac-thuc-ok" id="otp-xac-thuc-ok">✓ Đã xác thực số điện thoại</div>
+        <div class="otp-goi-nha-xe" id="otp-goi-nha-xe">Không nhận được mã? <a href="#" id="otp-goi-nha-xe-link">Gọi nhà xe</a></div>
 
         <!-- Ẩn phần chọn phương thức thanh toán (2026-09-19, theo yêu cầu) — luôn mặc định
              "tien_mat_len_xe" (radio vẫn giữ nguyên trong DOM, chỉ ẩn khối chứa, để nguyên logic
@@ -583,6 +614,7 @@
         <h3>Đặt vé thành công!</h3>
         <div id="xac-nhan-chi-tiet" class="xac-nhan-chi-tiet"></div>
         <p>Lưu lại link bên dưới để xem lại thông tin vé bất cứ lúc nào. Cần hỗ trợ, gọi cho nhà xe.</p>
+        <div class="xac-nhan-goi-nha-xe" id="xac-nhan-goi-nha-xe">📞 <a href="#" id="xac-nhan-goi-nha-xe-link">Gọi nhà xe</a></div>
         <div class="xac-nhan-link-actions">
             <button type="button" class="btn-xem-lai-ve" id="btn-copy-link">🔗 Sao chép link xem lại vé</button>
             <button type="button" class="btn-xem-lai-ve" id="btn-share-link" style="display:none;">📤 Chia sẻ</button>
@@ -1735,6 +1767,53 @@
             renderChonChuyenStep()
         }
 
+        // Branding nhà xe (2026-09-24) — tên/logo/SĐT liên hệ, xem SPEC "Branding nhà xe" CLAUDE.md.
+        // BẮT BUỘC gán bằng textContent/setAttribute, KHÔNG innerHTML — nha_xe.ten đến từ dữ liệu
+        // do người tạo nhà xe (không phải khách) nhưng vẫn coi là input không tin cậy, tránh HTML
+        // injection nếu sau này có UI cho phép đổi tên tự do. logo_url chỉ nhận khi bắt đầu bằng
+        // "https://" (double-check phía client dù DB đã có CHECK constraint tương tự).
+        function layFallbackLogo(ten) {
+            const div = document.createElement('div')
+            div.className = 'public-header-logo-fallback'
+            div.textContent = (ten || '?').trim().charAt(0).toUpperCase() || '?'
+            return div
+        }
+
+        function ganGoiNhaXe(elId, sdt) {
+            const el = document.getElementById(elId)
+            if (!el) return
+            if (!sdt) { el.style.display = 'none'; return }
+            const link = el.tagName === 'A' ? el : el.querySelector('a')
+            if (link) link.setAttribute('href', 'tel:' + sdt)
+            el.style.display = el.tagName === 'A' ? 'inline-block' : 'block'
+        }
+
+        function apDungThongTinNhaXe(nhaXe) {
+            if (!nhaXe) return
+            document.getElementById('public-header-ten').textContent = '🚌 ' + nhaXe.ten
+            document.title = nhaXe.ten + ' — Đặt vé'
+
+            const logoWrap = document.getElementById('public-header-logo-wrap')
+            logoWrap.innerHTML = ''
+            if (nhaXe.logo_url && nhaXe.logo_url.startsWith('https://')) {
+                const img = document.createElement('img')
+                img.className = 'public-header-logo'
+                img.setAttribute('alt', nhaXe.ten)
+                img.addEventListener('error', () => {
+                    logoWrap.innerHTML = ''
+                    logoWrap.appendChild(layFallbackLogo(nhaXe.ten))
+                })
+                img.src = nhaXe.logo_url
+                logoWrap.appendChild(img)
+            } else {
+                logoWrap.appendChild(layFallbackLogo(nhaXe.ten))
+            }
+
+            ganGoiNhaXe('header-goi-nha-xe', nhaXe.sdt_lien_he)
+            ganGoiNhaXe('otp-goi-nha-xe', nhaXe.sdt_lien_he)
+            ganGoiNhaXe('xac-nhan-goi-nha-xe', nhaXe.sdt_lien_he)
+        }
+
         // Thêm <link rel="manifest"> ĐỘNG sau khi resolve nhà xe thành công — KHÔNG có <link> tĩnh
         // nào trong <head> (đã bỏ hẳn, xem comment ở đầu <head>). Trỏ tới api/manifest-dat-ve.js
         // với đúng slug đã CANONICAL từ server (nhaXe.slug, không dùng thẳng `nx` thô từ URL) —
@@ -1770,12 +1849,10 @@
             // trả field đó cho khách/crew cũ chưa cập nhật cache, chỉ ngừng dùng ở tầng này.
             tinhList = diemJson.tinh || []
 
-            // Tên nhà xe ở header/title thay cho nhãn cố định (chỉ có ở response lich-chay, xem
-            // SPEC 5.3) — và đây cũng là thời điểm DUY NHẤT thêm <link rel="manifest">.
-            if (lichData.nha_xe) {
-                document.getElementById('public-header-ten').textContent = '🚌 ' + lichData.nha_xe.ten
-                document.title = lichData.nha_xe.ten + ' — Đặt vé'
-            }
+            // Tên/logo/SĐT nhà xe ở header/title thay cho nhãn cố định (chỉ có ở response
+            // lich-chay, xem SPEC "Branding nhà xe") — và đây cũng là thời điểm DUY NHẤT thêm
+            // <link rel="manifest">.
+            apDungThongTinNhaXe(lichData.nha_xe)
             themManifestLink(lichData.nha_xe)
 
             lichList = lichData.lich || []

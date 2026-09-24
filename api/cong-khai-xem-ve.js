@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     if (nhaXeIdSet.size > 1) { res.status(400).json({ error: 'Link không hợp lệ — các vé không thuộc cùng 1 nhà xe' }); return }
     const nhaXeId = veRows[0].nha_xe_id
 
-    const { data: nhaXe, error: nhaXeErr } = await sbAdmin.from('nha_xe').select('ten').eq('id', nhaXeId).single()
+    const { data: nhaXe, error: nhaXeErr } = await sbAdmin.from('nha_xe').select('ten, sdt_lien_he, logo_url').eq('id', nhaXeId).single()
     if (nhaXeErr) { res.status(500).json({ error: nhaXeErr.message }); return }
 
     // Tên tỉnh — `ve.tinh_len_ma`/`tinh_xuong_ma` KHÔNG có FK trực tiếp tới `tinh` (FK thật là
@@ -129,5 +129,5 @@ export default async function handler(req, res) {
             ve: nhom.ve
         }))
 
-    res.status(200).json({ nha_xe: { ten: nhaXe.ten }, chang, khong_tim_thay: khongTimThay })
+    res.status(200).json({ nha_xe: { ten: nhaXe.ten, sdt_lien_he: nhaXe.sdt_lien_he || null, logo_url: nhaXe.logo_url || null }, chang, khong_tim_thay: khongTimThay })
 }
