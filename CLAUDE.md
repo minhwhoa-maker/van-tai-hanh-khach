@@ -1560,6 +1560,62 @@ riêng.**
   `{"error":"Link không hợp lệ — các vé không thuộc cùng 1 nhà xe"}` — guard `nhaXeIdSet.size > 1`
   chặn đúng, KHÔNG trả `200` lẫn lộn data 2 nhà xe. Đã xoá sạch data `test-b` sau khi xong.
 
+#### Port UI theo mockup (2026-09-24)
+
+Viết lại TOÀN BỘ layout/CSS của `xem-ve.html` theo 1 mockup Artifact (Design canvas, tham chiếu
+hình thức/hành vi — KHÔNG phải code sản xuất, cùng cách nhận mockup `khach.html` từng nhận qua file
+đính kèm trước đây) — **KHÔNG đổi `api/cong-khai-xem-ve.js`** (đã đúng/đã test từ 2026-09-23, giữ
+nguyên response shape).
+
+- **Nhóm `ve` trong CÙNG 1 chặng theo thông tin THẬT KHỚP** (`nhomVeTheoHanhKhach`, client-side) —
+  key ghép `(ten_khach, sdt_khach, dia_diem_len, dia_diem_xuong, hinh_thuc_thanh_toan)` qua
+  `JSON.stringify([...])` (dùng `?? null` cho từng field — `null` phải khớp `null`, không coi
+  `null` = rỗng = bất kỳ giá trị nào). Dùng `dia_diem_len`/`dia_diem_xuong` (chuỗi ĐÃ GHÉP tên tỉnh,
+  field response thật có) thay vì `dia_diem_len_nhan` thô (field đó không có trong response) —
+  tương đương nhau vì `dia_diem_len` được server build 1-1 từ `dia_diem_len_nhan` + tên tỉnh, không
+  mất thông tin phân biệt. Mỗi nhóm render 3 khối lặp lại: "hành khách + đón/trả" (`renderNhomBlock`
+  phần đầu) → "Giường đã đặt · N" (danh sách giường/mã vé/giá CHỈ của nhóm đó) → thanh thanh toán
+  (tổng tiền CHỈ cộng vé nhóm đó, loại vé `huy` khỏi tổng — vé huỷ không còn tính phí). Đa số thực
+  tế ra đúng 1 nhóm/chặng nhưng code KHÔNG hardcode giả định đó — đã test thật ra 2 nhóm khi 2 `ve`
+  cùng chặng khác điểm đón (xem "Test đã chạy" bên dưới).
+- **Font**: Google Fonts `Be Vietnam Pro` (400/500/600/700/800) + `JetBrains Mono` (600, dùng cho
+  mã vé) — link `fonts.googleapis.com` trong `<head>`, app KHÔNG có Content-Security-Policy riêng
+  nào (không có header CSP set ở `vercel.json`/`middleware.js`) nên không cần whitelist gì thêm.
+- **TOÀN BỘ emoji trong file đã thay bằng SVG inline** (copy path trực tiếp từ mockup: bus, pin,
+  person, bed, ticket, copy-icon, wallet + tự thêm mới cho phần mockup không có sẵn: repeat-icon
+  cho nhãn "Chiều đi/về", alert-triangle cho các thông báo lỗi/cảnh báo, x-circle cho badge huỷ,
+  clock cho badge chờ chuyển khoản, ban-circle cho màn "không tìm thấy vé nào").
+- **Nút "Sao chép mã vé"** (1 nút/giường, không phải 1 nút/link như `dat-ve.html`) — copy ĐÚNG giá
+  trị `ma_ve` THÔ (không dấu gạch, khác phần hiển thị `XXXX-XXXX` chỉ để dễ đọc) —
+  `navigator.clipboard.writeText`, fallback `document.execCommand('copy')` qua `<textarea>` ẩn
+  (COPY nguyên pattern từ nút "Sao chép link" ở `dat-ve.html`, không viết lại). Toast xác nhận dùng
+  lại `.toast`/`#toast` có sẵn trong `style.css` (chưa từng dùng ở `xem-ve.html` trước đây).
+- **Giữ nguyên các trạng thái đặc biệt đã có, chỉ đổi hình thức bao quanh**: vé `trang_thai='huy'`
+  → badge đỏ tròn "Vé này đã bị huỷ" NGAY TRONG dòng giường đó (không phải cấp nhóm — 1 nhóm về lý
+  thuyết có thể lẫn vé huỷ/chưa huỷ nếu 2 vé đó trùng hệt thông tin đón/trả/thanh toán), ẨN badge
+  "Chờ xác nhận chuyển khoản" cho đúng vé đó (giữ nguyên logic cũ, chỉ đổi thành 2 badge riêng thay
+  vì 1 khối text). `khong_tim_thay` không rỗng → khối cảnh báo vàng cuối trang, giữ nguyên vị trí/ý
+  nghĩa. Khứ hồi (`tongSo > 1`) → nhãn "Chiều đi"/"Chiều về" (`ICON_REPEAT` + text, class
+  `.xv-chang-nhan`) đứng NGAY TRÊN card tuyến của mỗi chặng — giữ nguyên vị trí thông tin của bản
+  cũ, chỉ đổi icon/style.
+- **Test đã chạy thật (2026-09-24, không chỉ đọc code)**: đặt 3 vé thật cùng 1 chặng qua
+  `api/cong-khai-dat-ve.js` — 2 vé (T1-05/T1-06) cố tình CÙNG hệt điểm đón/trả/hình thức thanh toán
+  → xác nhận gộp đúng 1 nhóm "Giường đã đặt · 2", tổng tiền cộng đúng 2 giường; 1 vé (T1-07) cố tình
+  KHÁC điểm đón + khác hình thức thanh toán, sau đó `UPDATE trang_thai='huy'` qua SQL → xác nhận
+  tách nhóm riêng "Giường đã đặt · 1", badge huỷ hiện đúng, KHÔNG hiện badge chờ chuyển khoản (vì đã
+  huỷ), thanh thanh toán KHÔNG cộng tiền vé đã huỷ (chỉ hiện tên hình thức thanh toán). Đặt thêm 1
+  vé `chuyen_khoan_truoc` CHƯA huỷ riêng → xác nhận badge "Chờ xác nhận chuyển khoản" hiện đúng.
+  Test màn "Link không hợp lệ" (không `id` nào) và khối cảnh báo `khong_tim_thay` (trộn 1 id thật +
+  1 UUID giả) — cả 2 đúng như code cũ. **Test responsive bằng `google-chrome --headless
+  --window-size=360,900` chụp ảnh màn hình thật** (không chỉ resize DevTools) trên cả 4 kịch bản
+  trên — không vỡ chữ/tràn ngang ở 360px, đã xem ảnh chụp xác nhận bằng mắt khớp mockup. Đã dọn
+  sạch toàn bộ data test (`ve`/`dat_ve_otp` số `0911222777`) sau khi xong — `select count(*) from
+  ve where sdt_khach='0911222777'` → `0`.
+- **Chưa test được** (ngoài khả năng của môi trường phiên làm việc này): thiết bị di động thật
+  (headless Chrome ở viewport cố định gần đúng nhưng không phải cảm ứng/trình duyệt di động thật),
+  Clipboard API thật trên thiết bị (code copy dùng lại nguyên pattern đã có ở `dat-ve.html`, chưa tự
+  verify riêng lần này).
+
 ### Mã vé ngắn — `ve.ma_ve` (2026-09-23)
 
 Mỗi `ve` có thêm 1 mã 8 ký tự dễ đọc/gõ (vd `FZHKBQPK`) để crew tra nhanh trong Danh sách khách của

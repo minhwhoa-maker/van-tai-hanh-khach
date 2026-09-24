@@ -9,56 +9,138 @@
     <link rel="apple-touch-icon" href="icons/icon-192-booking.png">
     <title>Xem lại vé</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Font port từ mockup design (2026-09-24, xem SPEC "Xem lại vé" CLAUDE.md) — domain
+         fonts.googleapis.com, app không có CSP riêng nào chặn nguồn ngoài nên không cần whitelist
+         thêm ở đâu. -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap">
     <style>
         /* Trang PUBLIC, KHÔNG requireSession/hamburger — giống dat-ve.html. Trang TĨNH (không có
            luồng nhập liệu dài để cần offline-first), không đăng ký service worker riêng — xem
-           SPEC "Xem lại vé đã đặt" CLAUDE.md. */
-        html { background: var(--bg); }
-        body { background: var(--bg); padding-bottom: 40px; max-width: 480px; margin: 0 auto; box-shadow: 0 0 0 1px var(--border); }
-        .public-header {
-            background: var(--primary); color: #fff; padding: 18px 16px 16px; text-align: center;
+           SPEC "Xem lại vé đã đặt" CLAUDE.md.
+
+           Layout port NGUYÊN VĂN từ mockup (Artifact "Xem vé" — xem SPEC "Xem lại vé — port UI
+           2026-09-24" CLAUDE.md) — chỉ đổi phần DỮ LIỆU/API (giữ nguyên api/cong-khai-xem-ve.js),
+           không đổi hình thức: nền be nhạt, font Be Vietnam Pro/JetBrains Mono, icon SVG thay hết
+           emoji, thẻ theo mẫu (chuyến/hành khách/giường/thanh toán). --accent khớp --primary của
+           app (#1565c0), KHÔNG dùng biến style.css sẵn có vì bảng màu trang này khác hẳn phần còn
+           lại của app (nền be #F6F4EF thay vì xám #f0f2f5) — cố ý tách riêng theo mockup, không
+           đụng style.css dùng chung. */
+        :root { --accent: #1565c0; --bg2: #f6f4ef; --text2: #1c1c1a; --muted2: #86816f; --border2: #e8e4da; --divider2: #f0ede4; --dash2: #d3cdbe; }
+        html { background: var(--bg2); }
+        body {
+            background: var(--bg2); color: var(--text2); font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+            max-width: 480px; margin: 0 auto; padding-bottom: 36px; box-shadow: 0 0 0 1px var(--border2);
         }
-        .public-header h1 { margin: 0 0 4px; font-size: 19px; }
-        .public-header .sub { font-size: 13px; opacity: 0.9; }
-        .trang-thai-msg {
-            margin: 24px 16px; padding: 20px 16px; text-align: center; color: var(--text-muted);
-            background: var(--white); border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+        a { color: inherit; text-decoration: none; }
+
+        .xv-header {
+            padding: 26px 22px 18px; display: flex; align-items: center; gap: 12px;
+            background: #ffffff; border-bottom: 1px solid var(--border2);
         }
-        .chang-block {
-            margin: 16px; padding: 16px; background: var(--white); border-radius: var(--radius-sm);
-            border: 1.5px solid var(--border);
+        .xv-header .icon-box {
+            width: 40px; height: 40px; border-radius: 11px; background: var(--accent);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        .chang-nhan { font-size: 12px; font-weight: 700; color: #ef6c00; margin-bottom: 4px; }
-        .chang-ngay { font-size: 15px; font-weight: 700; color: var(--text); }
-        .chang-tuyen { font-size: 14px; color: var(--text-muted); margin: 2px 0 12px; }
-        .ve-item {
-            padding: 12px; border-radius: var(--radius-sm); background: var(--bg);
-            margin-bottom: 8px; font-size: 14px; line-height: 1.6;
+        .xv-header .ten { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; }
+        .xv-header .sub { font-size: 12.5px; color: var(--muted2); margin-top: 1px; }
+
+        .xv-body { padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; }
+
+        .xv-chang-nhan {
+            display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+            color: var(--accent); text-transform: uppercase; letter-spacing: 0.4px; margin: 6px 2px -4px;
         }
-        .ve-item:last-child { margin-bottom: 0; }
-        .ve-item .giuong-ten { font-weight: 700; color: var(--text); }
-        .ve-item .ma-ve { font-size: 13px; color: var(--text-muted); font-family: monospace; letter-spacing: 0.5px; }
-        .ve-item .diem { color: var(--text-muted); }
-        .ve-item .badge-huy {
-            display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-            background: #fdecea; color: var(--danger); font-size: 12px; font-weight: 700;
+        .xv-chang-nhan:first-child { margin-top: 0; }
+
+        .xv-card {
+            background: #ffffff; border: 1px solid var(--border2); border-radius: 16px;
+            padding: 18px 20px; display: flex; flex-direction: column; gap: 16px;
         }
-        .ve-item .badge-cho-ck {
-            display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px;
-            background: #fff8e1; color: #6d4c00; font-size: 12px; font-weight: 700;
+        .xv-trip-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+        .xv-trip-top .thu-ngay { font-size: 18px; font-weight: 700; }
+        .xv-trip-top .am-lich { font-size: 12.5px; color: var(--muted2); margin-top: 2px; }
+        .xv-trip-top .gio-badge {
+            background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+            padding: 6px 12px; border-radius: 100px; flex-shrink: 0;
         }
-        .khong-tim-thay-note {
-            margin: 0 16px 16px; font-size: 13px; color: var(--text-muted); text-align: center;
+        .xv-route { display: flex; align-items: center; gap: 8px; }
+        .xv-route .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .xv-route .dot-di { background: #2e7d5b; }
+        .xv-route .dot-den { background: var(--accent); }
+        .xv-route .ten-diem { font-size: 14.5px; font-weight: 600; flex-shrink: 0; }
+        .xv-route .dash { flex-grow: 1; border-top: 1.5px dashed var(--dash2); height: 0; }
+
+        .xv-hanhkhach-row { display: flex; align-items: center; gap: 10px; }
+        .xv-hanhkhach-row .ten { font-size: 14.5px; font-weight: 600; }
+        .xv-hanhkhach-row .sdt { font-size: 13.5px; color: var(--muted2); }
+        .xv-divider { height: 1px; background: var(--divider2); }
+        .xv-diadiem-list { display: flex; flex-direction: column; gap: 12px; }
+        .xv-diadiem-row { display: flex; gap: 10px; align-items: flex-start; }
+        .xv-diadiem-row .icon { margin-top: 2px; flex-shrink: 0; }
+        .xv-diadiem-row .nhan { font-size: 11.5px; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.3px; }
+        .xv-diadiem-row .gia-tri { font-size: 14px; font-weight: 500; margin-top: 2px; }
+
+        .xv-giuong-card { padding: 0; overflow: hidden; }
+        .xv-giuong-title {
+            padding: 15px 20px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.5px;
+            color: var(--muted2); text-transform: uppercase;
+        }
+        .xv-giuong-row { padding: 12px 20px 14px; display: flex; align-items: center; gap: 12px; }
+        .xv-giuong-row .icon-bg {
+            width: 38px; height: 38px; border-radius: 10px; background: #eaf1fb;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .xv-giuong-row .info { flex-grow: 1; min-width: 0; }
+        .xv-giuong-row .top-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .xv-giuong-row .ma-giuong { font-size: 15.5px; font-weight: 700; }
+        .xv-giuong-row .gia { font-size: 13.5px; font-weight: 600; color: #4a473e; flex-shrink: 0; }
+        .xv-giuong-row .ma-ve-line { display: flex; align-items: center; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+        .xv-giuong-row .ma-ve-badge {
+            font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12.5px; font-weight: 600;
+            letter-spacing: 0.8px; background: #f3f1e9; padding: 3px 8px; border-radius: 6px;
+        }
+        .xv-copy-btn {
+            border: none; background: transparent; padding: 5px; margin: -5px; cursor: pointer;
+            color: var(--muted2); display: flex; align-items: center;
+        }
+        .xv-badge-huy {
+            display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 9px;
+            border-radius: 999px; background: #fdecea; color: #c62828; font-size: 12px; font-weight: 700;
+        }
+        .xv-badge-cho-ck {
+            display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 9px;
+            border-radius: 999px; background: #fff8e1; color: #6d4c00; font-size: 12px; font-weight: 700;
+        }
+
+        .xv-payment {
+            background: #eaf1fb; border-radius: 14px; padding: 13px 18px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .xv-payment .text { font-size: 13.5px; font-weight: 500; color: #0d3d73; }
+
+        .xv-msg {
+            margin: 24px 16px; padding: 22px 16px; text-align: center; color: var(--muted2);
+            background: #fff; border-radius: 16px; border: 1px solid var(--border2);
+            display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 14.5px;
+        }
+        .xv-khong-tim-thay {
+            margin: 4px 4px 16px; padding: 12px 16px; display: flex; align-items: center; gap: 8px;
+            font-size: 13px; color: #6d4c00; background: #fff8e1; border-radius: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="public-header">
-        <h1 id="public-header-ten">🚌 Xem lại vé</h1>
-        <div class="sub" id="public-header-sub">Thông tin vé đã đặt</div>
+    <div class="xv-header">
+        <div class="icon-box" id="header-icon"></div>
+        <div>
+            <div class="ten" id="public-header-ten">Xem lại vé</div>
+            <div class="sub">Thông tin vé đã đặt</div>
+        </div>
     </div>
 
     <div id="noi-dung"></div>
+
+    <div class="toast" id="toast"></div>
 
     <script src="shared.js"></script>
     <script>
@@ -66,58 +148,204 @@
         // mật dựa vào `ve.id` (UUID khó đoán), id đã tự xác định duy nhất 1 nhà xe.
         const ids = new URLSearchParams(location.search).getAll('id')
 
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast')
+            toast.textContent = msg
+            toast.className = 'toast show ' + type
+            setTimeout(() => toast.className = 'toast', 2500)
+        }
+
+        // === Icon SVG inline (port từ mockup, thay TOÀN BỘ emoji — xem mục 3 spec "port UI") ===
+        const ICON_BUS_WHITE = '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M3 11h18"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="16.5" cy="19" r="1.5"/></svg>'
+        const ICON_BUS_MUTED = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B0AA97" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><rect x="3" y="6" width="18" height="11" rx="2"/><path d="M3 11h18"/><circle cx="7.5" cy="18.5" r="1.3"/><circle cx="16.5" cy="18.5" r="1.3"/></svg>'
+        const ICON_PERSON = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#86816F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>'
+        function iconPin(color) {
+            return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>`
+        }
+        const ICON_BED = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M3 18h18"/><path d="M5 10V7a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 11 7v3"/></svg>'
+        const ICON_TICKET = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#86816F" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a1.5 1.5 0 0 0 0 3V14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a1.5 1.5 0 0 0 0-3V8z"/></svg>'
+        const ICON_COPY = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+        const ICON_WALLET = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1565c0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M4 7a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v1H6a2 2 0 0 0 0 4h13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z"/></svg>'
+        const ICON_REPEAT = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'
+        const ICON_X_CIRCLE = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>'
+        const ICON_CLOCK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+        const ICON_ALERT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+        const ICON_BAN = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#86816F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>'
+
         const THU_LABEL = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
         // Quy đổi `khoi_hanh` (timestamptz UTC) sang ngày/giờ VN bằng cách dịch +7h rồi đọc qua
         // getter UTC — cùng kỹ thuật `ranhGioiNgayVN`/`tinhKhoiHanhMacDinh` đã dùng ở
         // api/cong-khai-dat-ve.js (Asia/Ho_Chi_Minh không DST, offset cố định +07:00).
-        function nhanNgayTuKhoiHanh(iso) {
+        function tachNgayTuKhoiHanh(iso) {
             const vn = new Date(new Date(iso).getTime() + 7 * 3600 * 1000)
             const y = vn.getUTCFullYear(), m = vn.getUTCMonth() + 1, d = vn.getUTCDate()
             const hh = String(vn.getUTCHours()).padStart(2, '0'), mi = String(vn.getUTCMinutes()).padStart(2, '0')
             const thu = THU_LABEL[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
             const am = convertSolar2Lunar(d, m, y, 7)
-            return `${thu}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')} · ${am.day}/${am.month} ÂL · ${hh}:${mi}`
+            return {
+                thu, ngay: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`,
+                amLich: `${am.day}/${am.month} ÂL`, gio: `${hh}:${mi}`
+            }
         }
 
-        function renderVeItem(v) {
+        // Nhóm các `ve` trong CÙNG 1 chặng theo thông tin THẬT KHỚP — so sánh CHÍNH XÁC từng field
+        // (kể cả null phải khớp null, không coi null = rỗng), KHÔNG hardcode giả định "luôn 1
+        // nhóm" — đa số thực tế ra đúng 1 nhóm/chặng nhưng code phải đúng cho trường hợp lệch (vd
+        // 2 vé cùng chuyến nhưng khác điểm đón/trả). Xem SPEC "Xem lại vé — port UI" CLAUDE.md.
+        function nhomVeTheoHanhKhach(veList) {
+            const map = new Map()
+            veList.forEach(v => {
+                const key = JSON.stringify([v.ten_khach ?? null, v.sdt_khach ?? null, v.dia_diem_len ?? null, v.dia_diem_xuong ?? null, v.hinh_thuc_thanh_toan ?? null])
+                if (!map.has(key)) {
+                    map.set(key, {
+                        ten_khach: v.ten_khach, sdt_khach: v.sdt_khach,
+                        dia_diem_len: v.dia_diem_len, dia_diem_xuong: v.dia_diem_xuong,
+                        hinh_thuc_thanh_toan: v.hinh_thuc_thanh_toan, ve: []
+                    })
+                }
+                map.get(key).ve.push(v)
+            })
+            return [...map.values()]
+        }
+
+        function renderGiuongRow(v) {
             const daHuy = v.trang_thai === 'huy'
-            const diemHtml = (v.dia_diem_len || v.dia_diem_xuong)
-                ? `<div class="diem">📍 Đón: ${v.dia_diem_len || '—'} · Trả: ${v.dia_diem_xuong || '—'}</div>`
-                : ''
-            const giaHtml = v.gia != null ? `Giá: ${formatMoney(v.gia)}` : 'Giá: liên hệ nhà xe'
-            const ttHtml = v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc'
-                ? `${giaHtml} · Chuyển khoản trước`
-                : `${giaHtml} · Tiền mặt lúc lên xe`
-            const maVeHtml = v.ma_ve ? `<div class="ma-ve">Mã vé: ${v.ma_ve.slice(0, 4)}-${v.ma_ve.slice(4)}</div>` : ''
+            const giaHtml = v.gia != null ? formatMoney(v.gia) : 'Liên hệ nhà xe'
+            const choCkHtml = (!daHuy && v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc')
+                ? `<span class="xv-badge-cho-ck">${ICON_CLOCK} Chờ xác nhận chuyển khoản</span>` : ''
+            const huyHtml = daHuy ? `<span class="xv-badge-huy">${ICON_X_CIRCLE} Vé này đã bị huỷ</span>` : ''
             return `
-                <div class="ve-item">
-                    <div class="giuong-ten">🪑 Giường ${v.ma_giuong || '?'} — ${v.ten_khach || ''} — ${v.sdt_khach || ''}</div>
-                    ${maVeHtml}
-                    ${diemHtml}
-                    <div>${ttHtml}</div>
-                    ${daHuy ? '<span class="badge-huy">❌ Vé này đã bị huỷ</span>'
-                        : (v.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc' ? '<span class="badge-cho-ck">⏳ Chờ nhà xe xác nhận chuyển khoản</span>' : '')}
+                <div>
+                    <div class="xv-divider" style="margin:0 20px"></div>
+                    <div class="xv-giuong-row">
+                        <div class="icon-bg">${ICON_BED}</div>
+                        <div class="info">
+                            <div class="top-line">
+                                <div class="ma-giuong">Giường ${v.ma_giuong || '?'}</div>
+                                <div class="gia">${giaHtml}</div>
+                            </div>
+                            <div class="ma-ve-line">
+                                ${ICON_TICKET}
+                                <div class="ma-ve-badge">${v.ma_ve ? v.ma_ve.slice(0, 4) + '-' + v.ma_ve.slice(4) : '—'}</div>
+                                ${v.ma_ve ? `<button type="button" class="xv-copy-btn" aria-label="Sao chép mã vé ${v.ma_ve}" data-ma-ve="${v.ma_ve}">${ICON_COPY}</button>` : ''}
+                                ${huyHtml}${choCkHtml}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `
+        }
+
+        function renderNhomBlock(nhom) {
+            const donHtml = nhom.dia_diem_len || '—'
+            const traHtml = nhom.dia_diem_xuong || '—'
+            const veHopLe = nhom.ve.filter(v => v.trang_thai !== 'huy')
+            const coDuGia = veHopLe.length && veHopLe.every(v => v.gia != null)
+            const tongTien = coDuGia ? veHopLe.reduce((s, v) => s + v.gia, 0) : null
+            const thanhToanText = nhom.hinh_thuc_thanh_toan === 'chuyen_khoan_truoc' ? 'Chuyển khoản trước' : 'Tiền mặt lúc lên xe'
+            const paymentText = tongTien != null
+                ? `Tổng ${formatMoney(tongTien)} · ${thanhToanText}`
+                : (veHopLe.length ? `Giá: liên hệ nhà xe · ${thanhToanText}` : `${thanhToanText}`)
+
+            return `
+                <div class="xv-card">
+                    <div class="xv-hanhkhach-row">
+                        ${ICON_PERSON}
+                        <div class="ten">${nhom.ten_khach || '(chưa có tên)'}</div>
+                        ${nhom.sdt_khach ? `<div class="sdt">· ${nhom.sdt_khach}</div>` : ''}
+                    </div>
+                    <div class="xv-divider"></div>
+                    <div class="xv-diadiem-list">
+                        <div class="xv-diadiem-row">
+                            ${iconPin('#2E7D5B')}
+                            <div>
+                                <div class="nhan">Điểm đón</div>
+                                <div class="gia-tri">${donHtml}</div>
+                            </div>
+                        </div>
+                        <div class="xv-diadiem-row">
+                            ${iconPin('#1565c0')}
+                            <div>
+                                <div class="nhan">Điểm trả</div>
+                                <div class="gia-tri">${traHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="xv-card xv-giuong-card">
+                    <div class="xv-giuong-title">Giường đã đặt · ${nhom.ve.length}</div>
+                    ${nhom.ve.map(renderGiuongRow).join('')}
+                </div>
+                <div class="xv-payment">
+                    ${ICON_WALLET}
+                    <div class="text">${paymentText}</div>
                 </div>
             `
         }
 
         function renderChangBlock(chang, idx, tongSo) {
-            const nhan = tongSo > 1 ? `<div class="chang-nhan">🔁 ${idx === 0 ? 'Chiều đi' : 'Chiều về'}</div>` : ''
-            const tuyen = (chang.tinh_len_ten && chang.tinh_xuong_ten) ? `${chang.tinh_len_ten} → ${chang.tinh_xuong_ten}` : ''
+            const nhan = tongSo > 1
+                ? `<div class="xv-chang-nhan">${ICON_REPEAT} ${idx === 0 ? 'Chiều đi' : 'Chiều về'}</div>` : ''
+            const { thu, ngay, amLich, gio } = tachNgayTuKhoiHanh(chang.khoi_hanh)
+            const diemDi = chang.tinh_len_ten || '?'
+            const diemDen = chang.tinh_xuong_ten || '?'
+            const nhomList = nhomVeTheoHanhKhach(chang.ve)
+
             return `
-                <div class="chang-block">
-                    ${nhan}
-                    <div class="chang-ngay">${nhanNgayTuKhoiHanh(chang.khoi_hanh)}</div>
-                    ${tuyen ? `<div class="chang-tuyen">${tuyen}</div>` : '<div class="chang-tuyen"></div>'}
-                    ${chang.ve.map(renderVeItem).join('')}
+                ${nhan}
+                <div class="xv-card">
+                    <div class="xv-trip-top">
+                        <div>
+                            <div class="thu-ngay">${thu}, ${ngay}</div>
+                            <div class="am-lich">${amLich}</div>
+                        </div>
+                        <div class="gio-badge">${gio}</div>
+                    </div>
+                    <div class="xv-route">
+                        <div class="dot dot-di"></div>
+                        <div class="ten-diem">${diemDi}</div>
+                        <div class="dash"></div>
+                        ${ICON_BUS_MUTED}
+                        <div class="dash"></div>
+                        <div class="ten-diem">${diemDen}</div>
+                        <div class="dot dot-den"></div>
+                    </div>
                 </div>
+                ${nhomList.map(renderNhomBlock).join('')}
             `
+        }
+
+        function ganCopyListeners() {
+            document.querySelectorAll('.xv-copy-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const maVe = btn.dataset.maVe
+                    try {
+                        if (navigator.clipboard?.writeText) {
+                            await navigator.clipboard.writeText(maVe)
+                        } else {
+                            const ta = document.createElement('textarea')
+                            ta.value = maVe
+                            ta.style.position = 'fixed'
+                            ta.style.opacity = '0'
+                            document.body.appendChild(ta)
+                            ta.focus()
+                            ta.select()
+                            document.execCommand('copy')
+                            document.body.removeChild(ta)
+                        }
+                        showToast('Đã sao chép mã vé', 'success')
+                    } catch (err) {
+                        showToast('Không sao chép được', 'error')
+                    }
+                })
+            })
         }
 
         async function initPage() {
             const noiDung = document.getElementById('noi-dung')
+            document.getElementById('header-icon').innerHTML = ICON_BUS_WHITE
             if (!ids.length) {
-                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Link không hợp lệ.</div>'
+                noiDung.innerHTML = `<div class="xv-msg">${ICON_ALERT} Link không hợp lệ.</div>`
                 return
             }
 
@@ -127,28 +355,31 @@
                 const res = await fetch(`/api/cong-khai-xem-ve?${qs}`)
                 data = await res.json()
                 if (!res.ok) {
-                    noiDung.innerHTML = `<div class="trang-thai-msg">${data.error || 'Lỗi tải thông tin vé'}</div>`
+                    noiDung.innerHTML = `<div class="xv-msg">${ICON_ALERT} ${data.error || 'Lỗi tải thông tin vé'}</div>`
                     return
                 }
             } catch (err) {
-                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Lỗi mạng, vui lòng thử lại.</div>'
+                noiDung.innerHTML = `<div class="xv-msg">${ICON_ALERT} Lỗi mạng, vui lòng thử lại.</div>`
                 return
             }
 
             if (!data.chang.length) {
-                noiDung.innerHTML = '<div class="trang-thai-msg">🚫 Không tìm thấy vé nào — có thể link đã sai hoặc vé đã bị xoá.</div>'
+                noiDung.innerHTML = `<div class="xv-msg">${ICON_BAN} Không tìm thấy vé nào — có thể link đã sai hoặc vé đã bị xoá.</div>`
                 return
             }
 
             if (data.nha_xe) {
-                document.getElementById('public-header-ten').textContent = '🚌 ' + data.nha_xe.ten
+                document.getElementById('public-header-ten').textContent = data.nha_xe.ten
                 document.title = data.nha_xe.ten + ' — Xem lại vé'
             }
 
-            noiDung.innerHTML = data.chang.map((c, i) => renderChangBlock(c, i, data.chang.length)).join('')
+            noiDung.innerHTML = '<div class="xv-body">'
+                + data.chang.map((c, i) => renderChangBlock(c, i, data.chang.length)).join('')
                 + (data.khong_tim_thay.length
-                    ? '<div class="khong-tim-thay-note">⚠ 1 phần thông tin không tìm thấy, có thể đã bị xoá.</div>'
+                    ? `<div class="xv-khong-tim-thay">${ICON_ALERT} 1 phần thông tin không tìm thấy, có thể đã bị xoá.</div>`
                     : '')
+                + '</div>'
+            ganCopyListeners()
         }
 
         initPage()
