@@ -1886,9 +1886,18 @@ làm), không đổi màu theme/CSS variables theo nhà xe, không đổi icon P
      chừng) → 2 `ve_id` khác `chuyen_id`, `api/cong-khai-xem-ve` với 2 `id` trả đúng thứ tự đi
      trước/về sau, kèm branding đúng; test riêng case bấm Back GIỮA 2 chặng (kịch bản đã sửa ở mục
      "Bug thật: Back giữa chặng đi/chặng về" — xem trên) VẪN hoạt động đúng sau khi thêm code
-     branding (không có regression): `veIdCacChangLen` giữ nguyên `1`, biên nhận vẫn hiện đúng, xác
-     nhận việc thêm `apDungThongTinNhaXe()`/DOM mới không phá logic `hienBienNhanCuoi()`/`popstate`
-     đã có. Guard cross-tenant của `api/cong-khai-xem-ve.js` test lại bằng data thật (tạo `giuong`/
+     branding (không có regression) — chạy thật qua `dat-ve.html` (SĐT `0977988301`), đặt xong
+     giường chặng đi (`ve.id = 259bf0a0-3210-4dac-8380-019fd4223dd1`) → sang màn "Chặng 2/2 — Chiều
+     về" → `page.goBack()` → `veIdCacChangLen` giữ nguyên `1` (không bị `doiChuyenKhac()` xoá), biên
+     nhận "Đặt vé thành công!" hiện đúng (ảnh chụp), **VÀ SQL query trực tiếp NGAY SAU khi bấm Back**
+     (`select id, trang_thai from ve where id='259bf0a0-...'` → `trang_thai: 'da_dat'`, vẫn còn
+     nguyên trong DB) xác nhận `ve` chặng đi không bị mất — xác nhận việc thêm
+     `apDungThongTinNhaXe()`/DOM mới không phá logic `hienBienNhanCuoi()`/`popstate` đã có. (Lần
+     test đầu trong đợt này — trước khi có yêu cầu bổ sung bằng chứng SQL — cũng đã thật sự bấm
+     Back với data thật, nhưng chỉ quan sát qua JS state/API response rồi xoá data ngay, KHÔNG kịp
+     chụp SQL riêng cho đúng lượt đó trước khi dọn — lượt test này chạy LẠI từ đầu với SĐT khác để
+     có đủ cả ảnh chụp lẫn SQL cho cùng 1 lượt.) Guard cross-tenant của `api/cong-khai-xem-ve.js`
+     test lại bằng data thật (tạo `giuong`/
      `chuyen`/`ve` tạm cho `test-b`, gọi kèm 1 `id` của `eakar` + 1 `id` của `test-b`) → vẫn `400
      "Link không hợp lệ — các vé không thuộc cùng 1 nhà xe"` như trước khi thêm field mới — field
      mới nằm SAU guard này trong code nên không có đường nào bỏ qua được guard.
