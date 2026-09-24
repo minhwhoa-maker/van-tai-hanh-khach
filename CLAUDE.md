@@ -1979,6 +1979,15 @@ trợ khác 2 tầng); có `DROP DEFAULT` 6 cột `nha_xe_id` trong đợt này 
   /dev/null -w '%{http_code}'` (hoặc query `storage.objects`) xác nhận file thật sự tồn tại TRƯỚC
   khi set `logo_url`, không tin lời xác nhận "đã upload" — 1 dòng `curl` rẻ hơn nhiều so với để
   `logo_url` trỏ vào ảnh vỡ trên production.**
+  - **Cập nhật cùng ngày**: Jame upload xong thật, file lên bucket dưới tên `thai-vuong-logo.png`
+    (đúng tên đã nhắc ban đầu, KHÁC path `thai-vuong.png` đã đoán/thử trước đó — 2 tên khác nhau,
+    không phải cùng 1 file). Đã `curl` xác nhận `200 image/png` TRƯỚC khi set, rồi
+    `UPDATE nha_xe SET logo_url = '.../nha-xe-logo/thai-vuong-logo.png' WHERE slug='thai-vuong'`.
+    Verify lại bằng Playwright thật (bật tạm `hoat_dong`, chụp `?nx=thai-vuong`, trả lại `tam_dung`
+    ngay sau) — logo NGANG thật (chữ "Thái Vương" viết tay kiểu chữ ký, nền trắng) hiện đúng trong
+    khung 40px cao/auto rộng/max 160px, `scrollWidth === clientWidth === 360`, không tràn ngang.
+    `thai-vuong` giờ có ĐỦ cả 3 thứ branding (tên/SĐT/logo thật) — chỉ còn chờ `nguoi_dung_nha_xe`
+    + tự bật `hoat_dong` khi sẵn sàng dùng thật (xem đầu mục).
 - **`thai-vuong.gio_khoi_hanh_bac`/`gio_khoi_hanh_nam` = `07:00`/`02:00`, TRÙNG HỆT `eakar`** —
   người yêu cầu được hỏi tường minh 2 lần (không cho `07:00`/`02:00` làm option có sẵn, chỉ đưa các
   giờ khác + để họ tự gõ "Khác") và tự gõ đúng 2 giá trị này ở cả 2 câu — xác nhận đây là câu trả
@@ -2066,8 +2075,9 @@ test, trả lại `tam_dung` ngay sau khi xong)**:
   (`nha_xe`/8 `tuyen_tinh`/44 `giuong`), `eakar` không đổi 1 dòng nào so với baseline 0f.
 
 **Chưa test / chưa làm cho `thai-vuong`**: gán `nguoi_dung_nha_xe` thật (chờ nhân viên đăng nhập
-lần đầu, xem `scripts/gan-nguoi-dung-nha-xe.sql`); upload logo thật (bucket `nha-xe-logo` vẫn trống
-— `logo_url` đang `null`, dùng fallback "T"); test qua `khach.html` (crew đặt vé nội bộ cho
+lần đầu, xem `scripts/gan-nguoi-dung-nha-xe.sql`); **logo thật ĐÃ upload + ĐÃ set + ĐÃ verify bằng
+Playwright (xem cập nhật ở bullet "Ca thật... đã upload nhưng thực ra CHƯA" phía trên) — không còn
+trong danh sách "chưa làm"**; test qua `khach.html` (crew đặt vé nội bộ cho
 `thai-vuong` — chỉ test qua `dat-ve.html` công khai ở đợt này, chưa test crew tự đăng nhập vào đúng
 tenant `thai-vuong` vì chưa gán `nguoi_dung_nha_xe`); `DROP DEFAULT` (xem mục G); sửa hardcode
 `bac.ten`/`nam.ten` ở `api/cong-khai-lich-chay.js` (chỉ là nợ, chưa ảnh hưởng `thai-vuong` do trùng
