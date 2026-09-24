@@ -19,7 +19,9 @@
 // hẳn `eakar-booking.vercel.app`) KHÔNG bị fetch handler này đụng tới (guard `url.origin !==
 // self.location.origin` ở dưới return sớm cho mọi request cross-origin, không cache/không chặn),
 // nên không cần thêm gì riêng cho ảnh logo dù đổi domain sau này.
-const CACHE_NAME = 'eakar-dat-ve-v6';
+// v7 (2026-09-24, sửa placeholder header lộ tên eakar): h1 đổi từ đặt cứng "🚌 EaKar Xe Khách"
+// sang rỗng trước khi nx resolve — bump để dọn cache HTML cũ vẫn còn placeholder tên eakar cũ.
+const CACHE_NAME = 'eakar-dat-ve-v7';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',

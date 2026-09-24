@@ -1910,6 +1910,29 @@ làm), không đổi màu theme/CSS variables theo nhà xe, không đổi icon P
   thật của 1 nhà xe thật (test dùng `picsum.photos` làm placeholder, chưa thử URL từ bucket
   `nha-xe-logo` thật vì chưa có logo thật nào được upload); hiển thị trên iOS Safari/PWA cài đặt
   thật (chỉ test qua Chrome headless viewport 360×800).
+- **Bug thật phát hiện sau đợt trên (2026-09-24, follow-up) — h1 đặt cứng "🚌 EaKar Xe Khách" làm
+  placeholder LỘ TÊN/THƯƠNG HIỆU NHÀ XE EAKAR cho khách của nhà xe khác** — placeholder cũ (trước
+  `apDungThongTinNhaXe()` ghi đè xong) hiện tên eakar CHO MỌI khách, kể cả người mở link `?nx=` của
+  1 nhà xe khác (đang chờ fetch trả lời) hoặc link hỏng hẳn (thiếu `nx`/`nx` không tồn tại/nhà xe
+  `tam_dung` — 3 trường hợp này KHÔNG BAO GIỜ gọi tới `apDungThongTinNhaXe()` nên placeholder đứng
+  yên vĩnh viễn) — ngược hẳn tinh thần multi-tenant "không có default ngầm" đã áp dụng nghiêm ở
+  tầng API (`layNhaXe`, xem mục "Multi-tenant Giai đoạn 5"), chỉ là lỗ hổng còn sót lại ở tầng UI.
+  **Sửa**: `dat-ve.html` — `<h1 id="public-header-ten">` đổi từ `🚌 EaKar Xe Khách` sang RỖNG (bỏ
+  hẳn text/emoji tĩnh), chỉ có nội dung khi `apDungThongTinNhaXe()` chạy thành công với `nx` hợp lệ.
+  `sw-dat-ve.js` bump `CACHE_NAME` `v6` → `v7` (dọn cache HTML cũ còn placeholder tên eakar).
+  **Đã verify bằng Playwright thật trên production (2026-09-24), chụp ảnh cả 4 trạng thái, KHÔNG
+  trạng thái nào hiện tên "EaKar"**: (a) đang tải — chặn vĩnh viễn response
+  `api/cong-khai-lich-chay` (`page.route` không gọi `fulfill`/`continue`) để bắt đúng khoảnh khắc
+  trước khi JS ghi đè → h1 rỗng; (b) thiếu `nx` (`https://eakar-booking.vercel.app/`) → h1 rỗng,
+  `#chuyen-info-wrap` hiện "🚫 Link đặt vé không hợp lệ..."; (c) `nx` không tồn tại
+  (`?nx=khong-ton-tai-xyz`) → h1 rỗng, hiện "Nhà xe không tồn tại"; (d) nhà xe `tam_dung` — tạo tạm
+  `nha_xe` slug `test-tamdung` trạng thái `tam_dung` qua SQL, gọi `?nx=test-tamdung` → h1 rỗng,
+  hiện "Nhà xe tạm ngưng nhận đặt vé". Cả 4 ảnh chụp xác nhận bằng mắt: `.public-header` chỉ còn
+  logo-fallback trống + dòng phụ "Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương" (hardcode riêng eakar đã
+  biết từ trước, KHÔNG thuộc phạm vi sửa lần này — xem comment tại chỗ) — không còn chữ "EaKar" ở
+  đâu. Đã xoá `nha_xe` test (`test-tamdung`) ngay sau khi chụp xong — `select slug from nha_xe` chỉ
+  còn `eakar`. Deploy qua `vercel --prod --scope minhwhoa-makers-projects` trước khi test (đã verify
+  `curl` production trả đúng `<h1 id="public-header-ten"></h1>` rỗng trước khi chạy Playwright).
 
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 

@@ -486,16 +486,21 @@
 </head>
 <body>
     <div class="public-header">
-        <!-- Nhãn "🚌 EaKar Xe Khách" là placeholder trước khi nx resolve xong — initPage() ghi đè
-             bằng nha_xe.ten thật (từ response api/cong-khai-lich-chay.js) khi có nx hợp lệ. Tuyến
-             "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ, KHÔNG sửa
-             ở Giai đoạn 5 (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện sai.
-             #public-header-logo-wrap: logo 44px hoặc ô chữ cái đầu (fallback), điền bằng
+        <!-- h1 để RỖNG trước khi nx resolve xong (sửa 2026-09-24 — trước đó đặt cứng "🚌 EaKar Xe
+             Khách" làm placeholder, hiện lộ tên/thương hiệu nhà xe eakar cho MỌI khách kể cả những
+             người mở link nhà xe KHÁC hoặc link hỏng, trong khoảng chờ fetch/nếu fetch lỗi hẳn —
+             sai hoàn toàn tinh thần multi-tenant "không có default ngầm" đã áp dụng ở tầng API,
+             xem mục "Multi-tenant Giai đoạn 5"). `initPage()` ghi đè bằng nha_xe.ten thật (từ
+             response api/cong-khai-lich-chay.js) CHỈ khi có nx hợp lệ + nhà xe tồn tại/hoạt động;
+             thiếu nx/404/403 → nhánh lỗi thay hẳn nội dung #chuyen-info-wrap, h1 vẫn giữ rỗng.
+             Tuyến "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ,
+             KHÔNG sửa ở đợt này (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện
+             sai. #public-header-logo-wrap: logo 44px hoặc ô chữ cái đầu (fallback), điền bằng
              apDungThongTinNhaXe() — xem SPEC "Branding nhà xe". -->
         <div class="public-header-row">
             <div id="public-header-logo-wrap"></div>
             <div class="public-header-text">
-                <h1 id="public-header-ten">🚌 EaKar Xe Khách</h1>
+                <h1 id="public-header-ten"></h1>
                 <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
                 <a href="#" id="header-goi-nha-xe" class="header-goi-nha-xe">📞 Gọi nhà xe</a>
             </div>
