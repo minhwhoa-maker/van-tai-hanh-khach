@@ -1001,22 +1001,87 @@ cùng lúc với code — viết bù lại sau (2026-09-23, cùng ngày, lúc au
   cũ đã reset từ trước — `currentChuyen`/`ngayDiChon`/`selectedGiuongMap`/`soDoData`) — đóng luôn
   popup `#ngay-picker` nếu đang mở. KHÔNG đụng `noiXuatPhatTinh`/`diemDenTinh`/2 biến địa điểm —
   giữ đúng hành vi đã có từ đợt 16 (2 biến tỉnh độc lập với việc chọn ngày).
-- **Trạng thái test tổng thể tính năng này (2026-09-23, ghi lại sau khi bị hỏi thẳng và không tìm
-  ra bằng chứng nào)**: KHÔNG có Playwright test nào chạy qua, KHÔNG có SQL nào xác nhận 2
-  vé/2 chuyến sau 1 lượt đặt khứ hồi thật, KHÔNG có đối chiếu âm lịch tay, KHÔNG có test Back
-  Android trên thiết bị thật. Chỉ có: syntax-check `node -e new Function(...)` cho các khối
-  `<script>` (không lỗi cú pháp), và `curl` xác nhận production (`eakar-booking.vercel.app`) đang
-  chạy đúng code mới nhất sau mỗi lần deploy. **Trước khi tin tưởng tính năng này hoạt động đúng
-  trong sản xuất thật, cần chạy ít nhất**: 1 lượt đặt khứ hồi thật qua UI + query `ve`/`chuyen` xác
-  nhận đúng 2 dòng độc lập; test tap-range trên thiết bị Android thật (không chỉ đọc code); test
-  Back Android/gesture giữa lúc đang chọn range.
-- **Deploy** — commit gốc tính năng: `5920c4c` ("v5"). Fix bug tap-range: `ca11cfa`. Cả 2 đã deploy
-  production qua `vercel --prod --scope minhwhoa-makers-projects` (session viết code KHÔNG có git
-  credentials để `git push` — lỗi `fatal: could not read Username for 'https://github.com'` — nên
-  deploy trực tiếp không qua GitHub, đúng cách CLAUDE.md mục Commands đã ghi). **Kiểm tra lại
-  `git status`/`git log origin/main` trước khi tiếp tục sửa file này** — có khả năng repo local đi
-  trước `origin/main` (commit chưa được push từ máy có credentials), dễ bị đè mất nếu deploy từ máy
-  khác mà không pull trước.
+#### Bug thật: Back giữa chặng đi/chặng về làm mất trắng vé đã đặt (2026-09-24)
+
+**Báo cáo thật từ khách** (Minh Khoa, `0853370268`) — đặt khứ hồi 28/09 Đắk Lắk→Hưng Yên, giường
+T1-01+T1-04, mã `300N-9EKW`/`CB36-9M0Y`, nhưng `xem-ve.html` chỉ hiện ĐÚNG 1 chặng.
+
+- **Điều tra bằng SQL trước khi sửa gì (BẮT BUỘC theo yêu cầu, không đoán)** — `select ... from ve
+  join chuyen ... where sdt_khach = '0853370268'` cho thấy 2 vé báo cáo (`300N9EKW`/`CB369M0Y`)
+  CÙNG `chuyen_id` (`dadf47a9-...`), CÙNG `chieu='bac'`, tạo cách nhau 3 giây — đây là 2 GIƯỜNG của
+  ĐÚNG 1 CHẶNG (đặt nhóm), KHÔNG PHẢI 2 chặng khứ hồi như khách mô tả. `select ... from chuyen where
+  created_at between ...` xác nhận KHÔNG có `chuyen` nào tạo cho `chieu='nam'` gần mốc thời gian đó
+  — nghĩa là request đặt vé cho chặng VỀ CHƯA TỪNG được gửi lên server (không phải gửi rồi lỗi, vì
+  nếu vậy `chuyen` vẫn được tạo trước khi insert `ve` thất bại). → **Case B** (chặng về chưa từng
+  được đặt), không phải Case A/C (không phải lỗi build link hay lỗi `api/cong-khai-xem-ve.js`).
+- **Tái hiện bằng Playwright thật (không chỉ đọc code)** — dựng lại đúng luồng UI trên
+  `eakar-booking.vercel.app` (khứ hồi ON, chọn ngày đi/về, chọn tuyến, chọn giường, xác thực OTP
+  thật qua `dat_ve_otp` tra bằng SQL, đặt vé chặng đi) — **chặng về TỰ ĐỘNG advance đúng** (`dsChangDat`
+  2 phần tử, `changHienTaiIdx` tăng lên 1, route tự đảo `PYN→DLK`/`chieu` đổi `nam`, nhãn "Chặng 2/2
+  — Chiều về" hiện đúng, sơ đồ giường load lại đúng chuyến mới) — **luồng advance TỰ NÓ không có
+  bug**, loại trừ được nghi ngờ ban đầu về lỗi trong `batDauChang`/vòng lặp đặt-tuần-tự. Hoàn tất cả
+  2 chặng cho ra đúng 2 `ve`/2 `chuyen_id` độc lập, `api/cong-khai-xem-ve.js` trả đúng cả 2 chặng
+  (curl xác nhận) — xác nhận thêm KHÔNG PHẢI Case C.
+- **Nguyên nhân THẬT tìm được khi làm đúng bước 3 của spec (test bấm Back giữa 2 chặng)** — `popstate`
+  handler (xem bullet "Guard Back Android" phía trên) có nhánh `if (currentChuyen) {
+  doiChuyenKhac(); return }` — `currentChuyen` khác `null` SUỐT Bước 1-3 của CẢ 2 chặng (không chỉ
+  chặng đầu), nên bấm Back (nút cứng Android/vuốt gesture) bất kỳ lúc nào sau khi đã confirm chặng
+  đầu — KỂ CẢ khi đang đứng giữa chặng đi và chặng về (đã đặt xong chặng đi thật, đang ở màn "Chặng
+  2/2 — Chiều về" chờ chọn giường) — đều gọi thẳng `doiChuyenKhac()`, hàm này XOÁ SẠCH `dsChangDat`/
+  `changHienTaiIdx`/`ketQuaCacChang`/`veIdCacChang` VÀ đẩy UI về hẳn Bước 0, KHÔNG có cảnh báo/không
+  giữ lại gì. `veIdCacChang` là mảng DUY NHẤT giữ tham chiếu tới `ve.id` CỦA CHẶNG ĐI ĐÃ ĐẶT THẬT
+  TRONG DB — xoá mảng này không xoá `ve` (vẫn còn trong DB), nhưng khách MẤT TRẮNG cách biết mình đã
+  đặt được gì, mất luôn link "xem lại vé" mà lẽ ra phải có. **Tái hiện thành công bằng Playwright**
+  (`page.goBack()` ngay lúc đang ở "Chặng 2/2 — Chiều về", sau khi chặng đi ĐÃ có `ve` thật) — xác
+  nhận đúng: trước Back `veIdCacChang.length === 1`, sau Back `veIdCacChang.length === 0` và
+  `chuyen-info-wrap` quay về màn chọn ngày/tuyến Bước 0 — khớp 100% triệu chứng thật của khách (1
+  chặng có vé thật trong DB, không có gì cho khách thấy lại, không có chặng về nào được thử đặt).
+  **Kết luận**: khách nhiều khả năng đã vuốt gesture Back (thao tác 1 tay rất phổ biến trên Android)
+  ngay sau khi thấy màn "Chặng 2/2 — Chiều về", bị đẩy về Bước 0 mà không biết mình đã có 1 vé thật,
+  rồi không tiếp tục đặt lại (hoặc không nhận ra cần đặt lại) — không có gì trong DB cho thấy có nỗ
+  lực đặt chặng về lần thứ 2, khớp với giả thuyết này hơn là "khách chủ động bỏ dở".
+- **Sửa (2026-09-24, chỉ sửa đúng nguyên nhân đã chứng minh — KHÔNG đụng schema/`api/cong-khai-
+  xem-ve.js`)** — tách khối hiện biên nhận cuối (trước đó nằm thẳng trong `#btn-dat-ve`'s handler)
+  thành hàm riêng `hienBienNhanCuoi()` (dùng chung). `popstate` handler đổi nhánh `currentChuyen`
+  thành: `veIdCacChang.length > 0` (đã có ÍT NHẤT 1 vé thật) → gọi `hienBienNhanCuoi()` thay vì
+  `doiChuyenKhac()` — khách bấm Back giữa 2 chặng giờ THẤY NGAY biên nhận "Đặt vé thành công!" với
+  đúng thông tin/mã vé/link xem lại của (các) chặng ĐÃ đặt được, dù khứ hồi chưa trọn 2 chặng — điểm
+  DỪNG rõ ràng thay vì bị đẩy về Bước 0 im lặng. `veIdCacChang.length === 0` (CHƯA có vé nào, đang ở
+  Bước 1-3 của chặng ĐẦU TIÊN, chưa đặt được gì) → vẫn `doiChuyenKhac()` như cũ, không mất gì (an
+  toàn, không có gì để mất).
+- **Test lại sau khi sửa, bằng CHÍNH kịch bản Playwright đã tái hiện được bug (không chỉ đọc code)**
+  — deploy `vercel --prod`, chạy lại đúng luồng: đặt xong chặng đi thật → đang ở "Chặng 2/2 — Chiều
+  về" → `page.goBack()` → xác nhận `veIdCacChang` GIỮ NGUYÊN (`length === 1`, không còn bị xoá về
+  0), `#xac-nhan-box` hiện đúng "Đặt vé thành công!" kèm mã vé/nút "Sao chép link xem lại vé" (xem
+  ảnh chụp `repro7-sau-back.png` lúc làm) — đúng hành vi mong muốn.
+- **KHÔNG sửa trong đợt này (phát hiện phụ, KHÔNG phải nguyên nhân của báo cáo này)** — trong lúc
+  dựng lại kịch bản Playwright, có lúc bấm "Đặt vé" NGAY SAU KHI bấm "Xác nhận" mã OTP (trước khi
+  fetch `api/cong-khai-xac-thuc-otp` kịp trả lời) khiến `sdtDaXacThucOtp` CHƯA kịp set, nút "Đặt vé"
+  im lặng báo lỗi qua toast "Vui lòng xác thực số điện thoại trước khi đặt vé" rồi dừng (không có gì
+  gửi lên server) — đây là hành vi ĐÚNG THIẾT KẾ (chặn đúng lúc chưa xác thực xong), chỉ hơi dễ bị
+  bỏ lỡ nếu khách bấm quá nhanh trên mạng chậm. KHÔNG liên quan tới báo cáo của khách Minh Khoa
+  (khoảng cách giữa lúc `xac_thuc_luc` và lúc `ve` đầu tiên được tạo trong ca thật là ~6 giây, đủ
+  thời gian cho fetch xác thực hoàn tất) — ghi nhận lại để biết nếu sau này có báo cáo tương tự.
+- **Dọn dẹp**: toàn bộ `ve`/`chuyen`/`dat_ve_otp` test (SĐT `0977123456`…`0977123463`, 2 `chuyen`
+  test `16db69e8-...`/`967cd510-...`) đã xoá sạch sau khi xong — `select count(*) from ve where
+  sdt_khach like '09771234%'` → `0`.
+
+- **Trạng thái test tổng thể tính năng "khứ hồi" (cập nhật 2026-09-24, thay cho ghi chú "chưa test
+  gì" trước đó)**: ĐÃ CÓ Playwright test thật chạy qua (không chỉ đọc code) xác nhận: advance tự
+  động chặng đi→chặng về đúng; hoàn tất cả 2 chặng ra đúng 2 `ve`/2 `chuyen_id` độc lập (SQL +
+  `api/cong-khai-xem-ve.js` trả đúng cả 2 chặng); bug Back-giữa-2-chặng đã tái hiện VÀ xác nhận đã
+  sửa bằng cùng 1 kịch bản. **Vẫn CHƯA test**: tap-range chọn ngày trên thiết bị Android thật (chỉ
+  test qua headless Chrome giả lập 360×800, không phải cảm ứng thật), đối chiếu âm lịch tay ở mốc
+  ngày cụ thể, gesture Back thật (Playwright's `page.goBack()` mô phỏng đúng sự kiện `popstate` mà
+  code lắng nghe, nhưng chưa xác nhận vuốt gesture Android THẬT cũng phát sinh đúng sự kiện này ở
+  mọi phiên bản Android/trình duyệt).
+- **Deploy** — commit gốc tính năng: `5920c4c` ("v5"). Fix bug tap-range: `ca11cfa`. Fix bug mất vé
+  khi Back giữa 2 chặng: xem commit ngay sau đợt audit này. Tất cả đã deploy production qua `vercel
+  --prod --scope minhwhoa-makers-projects` (session viết code KHÔNG có git credentials để `git push`
+  — lỗi `fatal: could not read Username for 'https://github.com'` — nên deploy trực tiếp không qua
+  GitHub, đúng cách CLAUDE.md mục Commands đã ghi). **Kiểm tra lại `git status`/`git log origin/main`
+  trước khi tiếp tục sửa file này** — có khả năng repo local đi trước `origin/main` (commit chưa
+  được push từ máy có credentials), dễ bị đè mất nếu deploy từ máy khác mà không pull trước.
 
 ### Bảng giá theo tỉnh (2026-09-19, đợt 12)
 

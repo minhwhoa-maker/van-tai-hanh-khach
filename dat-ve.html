@@ -966,15 +966,26 @@
             }
 
             // Đã xong CHẶNG CUỐI (1 chặng bình thường, hoặc chặng về của khứ hồi) — hiện xác nhận
-            // tổng hợp tất cả các chặng đã đặt. XOÁ SẠCH #chuyen-info-wrap (bar "Chuyến đã chọn" +
-            // nút "Đổi ngày khởi hành") — sửa bug thật 2026-09-23: trước đó nút này vẫn còn nguyên
-            // trong DOM sau khi đặt vé xong, bấm vào mở lại toàn bộ picker Bước 0
-            // (`doiChuyenKhac`→`renderChonChuyenStep`) NGAY BÊN TRÊN biên nhận "Đặt vé thành
-            // công!" vẫn còn hiển thị — nhìn như "vé vừa đặt vẫn sửa được", dù thực chất mỗi lần
-            // "Đặt vé" luôn tạo `ve` MỚI (không update tại chỗ, API không hỗ trợ sửa vé qua
-            // dat-ve.html) nên vé cũ không hề bị đổi — chỉ là UI gây hiểu lầm. Đặt vé thêm chuyến
-            // khác sau khi đã xong giờ bắt buộc tải lại trang (khớp thông điệp "Vui lòng lưu lại
-            // thông tin này" — biên nhận này là ĐIỂM DỪNG, không phải màn hình có thể quay lại).
+            // tổng hợp tất cả các chặng đã đặt.
+            hienBienNhanCuoi()
+        })
+
+        // Hiện biên nhận cuối cùng — tách riêng (2026-09-24, xem SPEC "Lịch chọn ngày đặt vé" mục
+        // Back giữa 2 chặng) để dùng CHUNG được ở 2 nơi: (1) #btn-dat-ve khi đặt xong CHẶNG CUỐI
+        // bình thường (1 chặng, hoặc chặng về của khứ hồi); (2) `popstate` khi khách bấm Back GIỮA
+        // 2 chặng của khứ hồi (xem bullet đó) — LÚC ĐÓ chặng về CHƯA đặt xong nhưng chặng đi ĐÃ có
+        // `ve` thật trong DB (`veIdCacChang` khác rỗng), nên KHÔNG được coi như "chưa đặt gì" mà
+        // `doiChuyenKhac()` (xoá sạch, im lặng) sẽ ngầm định — phải cho khách thấy đúng những gì đã
+        // đặt được + link xem lại, dù chưa đủ cả khứ hồi. XOÁ SẠCH #chuyen-info-wrap (bar "Chuyến
+        // đã chọn" + nút "Đổi ngày khởi hành") — sửa bug thật 2026-09-23: trước đó nút này vẫn còn
+        // nguyên trong DOM sau khi đặt vé xong, bấm vào mở lại toàn bộ picker Bước 0
+        // (`doiChuyenKhac`→`renderChonChuyenStep`) NGAY BÊN TRÊN biên nhận "Đặt vé thành công!" vẫn
+        // còn hiển thị — nhìn như "vé vừa đặt vẫn sửa được", dù thực chất mỗi lần "Đặt vé" luôn tạo
+        // `ve` MỚI (không update tại chỗ, API không hỗ trợ sửa vé qua dat-ve.html) nên vé cũ không
+        // hề bị đổi — chỉ là UI gây hiểu lầm. Đặt vé thêm chuyến khác sau khi đã xong giờ bắt buộc
+        // tải lại trang (khớp thông điệp "Vui lòng lưu lại thông tin này" — biên nhận này là ĐIỂM
+        // DỪNG, không phải màn hình có thể quay lại).
+        function hienBienNhanCuoi() {
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
             document.getElementById('chuyen-info-wrap').innerHTML = ''
@@ -982,7 +993,7 @@
             capNhatLinkXemLaiVe()
             document.getElementById('xac-nhan-box').style.display = 'block'
             document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
-        })
+        }
 
         // Link xem lại vé (2026-09-23) — build từ TOÀN BỘ ve.id đặt thành công trong `veIdCacChang`
         // (cả 2 chặng nếu khứ hồi), trỏ tới xem-ve.html?id=...&id=... (bảo mật dựa vào UUID khó
@@ -1645,7 +1656,27 @@
         window.addEventListener('popstate', () => {
             if (!backGuardPushed) return
             backGuardPushed = false
-            if (currentChuyen) { doiChuyenKhac(); return }
+            if (currentChuyen) {
+                // Bug thật (2026-09-24, phát hiện qua báo cáo khách đặt khứ hồi chỉ thấy 1 chặng
+                // trên xem-ve.html) — bấm Back GIỮA chặng đi và chặng về của khứ hồi (đúng lúc
+                // `currentChuyen` đã trỏ sang chặng về nhưng khách chưa đặt xong) trước đây LUÔN
+                // gọi thẳng `doiChuyenKhac()`, xoá sạch `veIdCacChang`/`ketQuaCacChang` — MẤT
+                // TRẮNG tham chiếu tới `ve` chặng đi ĐÃ TẠO THẬT trong DB, đẩy khách về hẳn Bước 0
+                // mà không có gì cho biết họ đã đặt được 1 vé. Tái hiện được bằng Playwright: đặt
+                // xong chặng đi (ve thật, waitUntil-free — xem SQL/log trong CLAUDE.md), bấm
+                // `history.back()` ngay khi đang ở "Chặng 2/2 — Chiều về" → `veIdCacChang` rỗng lại,
+                // quay về Bước 0, không còn cách nào thấy lại vé chặng đi vừa đặt trừ khi tự nhớ
+                // đã đặt và tự đoán quay lại `xem-ve.html` — đúng khớp triệu chứng thật (DB chỉ có
+                // 1 chuyến/2 giường cùng chiều, không có chuyến chiều ngược nào được tạo).
+                // Sửa: CHỈ xoá sạch (`doiChuyenKhac`) khi CHƯA có `ve` nào thật sự tạo được
+                // (`veIdCacChang` rỗng — an toàn, không mất gì); đã có ít nhất 1 `ve` thật thì hiện
+                // LUÔN biên nhận (`hienBienNhanCuoi`, dùng chung với luồng đặt xong bình thường) —
+                // khách thấy đúng vé/mã vé/link xem lại đã có, dù khứ hồi chưa trọn 2 chặng, thay
+                // vì bị đẩy về Bước 0 im lặng.
+                if (veIdCacChang.length > 0) hienBienNhanCuoi()
+                else doiChuyenKhac()
+                return
+            }
             if (khuHoi && ngayVeChon) {
                 ngayVeChon = null
                 // Popup CÓ THỂ đã đóng từ trước (khách bấm ‹/Xác nhận trong popup rồi mới bấm
