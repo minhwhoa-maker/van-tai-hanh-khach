@@ -24,6 +24,7 @@
 // bằng chọn Tỉnh + Xã/Huyện") — thay bằng dia_diem_len_nhan/loai, dia_diem_xuong_nhan/loai (nhãn
 // tự do + 'xa'|'huyen', không phải FK nên không cần verify ownership).
 import { createClient } from '@supabase/supabase-js'
+import { waitUntil } from '@vercel/functions'
 import { docNx, layNhaXe, xacMinhThuocNhaXe, guiLoiNhaXe } from './_lib/nha-xe.js'
 
 // Giờ khởi hành mặc định cho `chuyen` tự tạo — đọc từ `nha_xe.gio_khoi_hanh_bac/nam` (cột DB
@@ -79,15 +80,26 @@ async function guiVeZalo(sdt, thongTinVe) {
     if (!accessToken || !templateId) {
         throw new Error('Template xác nhận vé chưa cấu hình (thiếu ZALO_OA_ACCESS_TOKEN/ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE)')
     }
-    const resp = await fetch('https://business.openapi.zalo.me/message/template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', access_token: accessToken },
-        body: JSON.stringify({
-            phone: sdt,
-            template_id: templateId,
-            template_data: thongTinVe
+    // Timeout 5s (AbortController) — gọi trong waitUntil() nên không còn chặn response trả về
+    // khách, nhưng vẫn cần chặn trên (không để treo vô hạn nếu Zalo không phản hồi) vì instance
+    // Fluid Compute vẫn phải giữ sống cho tới khi promise này xong.
+    const ac = new AbortController()
+    const timeoutId = setTimeout(() => ac.abort(), 5000)
+    let resp
+    try {
+        resp = await fetch('https://business.openapi.zalo.me/message/template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', access_token: accessToken },
+            body: JSON.stringify({
+                phone: sdt,
+                template_id: templateId,
+                template_data: thongTinVe
+            }),
+            signal: ac.signal
         })
-    })
+    } finally {
+        clearTimeout(timeoutId)
+    }
     const data = await resp.json()
     if (data.error && data.error !== 0) {
         throw new Error(`Zalo ZNS lỗi: ${data.message || data.error}`)
@@ -322,22 +334,32 @@ export default async function handler(req, res) {
     // ZNS xác nhận đặt vé (2026-09-23, xem SPEC "ZNS xác nhận đặt vé" CLAUDE.md) — BEST-EFFORT,
     // KHÔNG CHẶN việc đặt vé: `ve` đã tạo thành công là sự thật, gửi thông báo thất bại chỉ log,
     // KHÔNG rollback/KHÔNG trả lỗi cho khách (cùng nguyên tắc "tính năng phụ trợ không được chặn
-    // luồng chính" đã áp dụng cho AI/OCR SĐT). Guard `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE` NGOÀI try
-    // (không chỉ dựa vào guard trong `guiVeZalo`) để tránh tốn 2 query xây `thongTinVe`
+    // luồng chính" đã áp dụng cho AI/OCR SĐT). Guard `ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE` NGOÀI
+    // waitUntil (không chỉ dựa vào guard trong `guiVeZalo`) để tránh tốn 2 query xây `thongTinVe`
     // (`xayThongTinVeChoZns`) trên MỌI lượt đặt vé thật trong lúc env này còn để trống — hiện LUÔN
     // đúng nhánh này (chưa set, xem mục "TODO trước khi go-live"), tức tính năng CHƯA BẬT THẬT dù
     // code đã nối sẵn vào luồng.
+    //
+    // `waitUntil` (từ '@vercel/functions', đã có sẵn trong package.json cho middleware.js) thay vì
+    // `await` trực tiếp trước `res.json` — response trả về khách NGAY, không phải chờ round-trip
+    // Zalo (có thể vài trăm ms tới vài giây). KHÁC fire-and-forget thường (`guiVeZalo(...)` không
+    // await, không waitUntil) — promise đó có thể bị Vercel kill giữa chừng ngay sau khi handler
+    // gọi res.json()/res.end() vì function coi như đã xong việc; `waitUntil` báo cho runtime biết
+    // phải giữ instance sống cho tới khi promise bên trong resolve/reject, dù response đã trả.
+    // Promise tự try/catch bên trong — lỗi chỉ console.error, không throw ra ngoài waitUntil.
     if (process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE) {
-        try {
-            const thongTinVe = await xayThongTinVeChoZns(sbAdmin, {
-                chuyenId, tinhLenMa: tinh_len_ma, tinhXuongMa: tinh_xuong_ma,
-                tenKhach: tenSach, maGiuong, maVe: veCreated.ma_ve, hinhThuc: hinh_thuc_thanh_toan,
-                veId: veCreated.id
-            })
-            await guiVeZalo(sdtChuan, thongTinVe)
-        } catch (err) {
-            console.error('[guiVeZalo] Lỗi gửi ZNS xác nhận vé (best-effort, không chặn đặt vé):', err.message)
-        }
+        waitUntil((async () => {
+            try {
+                const thongTinVe = await xayThongTinVeChoZns(sbAdmin, {
+                    chuyenId, tinhLenMa: tinh_len_ma, tinhXuongMa: tinh_xuong_ma,
+                    tenKhach: tenSach, maGiuong, maVe: veCreated.ma_ve, hinhThuc: hinh_thuc_thanh_toan,
+                    veId: veCreated.id
+                })
+                await guiVeZalo(sdtChuan, thongTinVe)
+            } catch (err) {
+                console.error('[guiVeZalo] Lỗi gửi ZNS xác nhận vé (best-effort, không chặn đặt vé):', err.message)
+            }
+        })())
     }
 
     // Trả lại chuyen_id đã dùng (kể cả khi vừa tự tạo) — dat-ve.html cần giá trị này để các lượt

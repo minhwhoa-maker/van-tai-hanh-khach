@@ -1693,11 +1693,36 @@ hiện tại** (xem checklist "TODO trước khi go-live" đầu file).
   response trả về khách** — vé đã đặt thành công là sự thật độc lập với việc gửi thông báo có thành
   công hay không (cùng nguyên tắc "tính năng phụ trợ không được chặn luồng chính" đã áp dụng cho
   AI/OCR SĐT ở `hang.html`).
-- **Guard `if (process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE)` NGOÀI `try`, KHÔNG chỉ dựa vào guard
-  bên trong `guiVeZalo`** — tránh tốn 2 query xây `thongTinVe` (query `chuyen.khoi_hanh` + query
-  `tinh`) trên MỌI lượt đặt vé thật trong lúc env này còn để trống. Hiện LUÔN rơi vào nhánh bỏ qua
-  (env chưa set) — nghĩa là code đã nối sẵn vào luồng thật nhưng thực chất KHÔNG chạy gì thêm, đúng
-  tinh thần "dựng khung, chưa bật thật" của spec.
+- **Guard `if (process.env.ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE)` NGOÀI `waitUntil`, KHÔNG chỉ dựa vào
+  guard bên trong `guiVeZalo`** — tránh tốn 2 query xây `thongTinVe` (query `chuyen.khoi_hanh` +
+  query `tinh`) trên MỌI lượt đặt vé thật trong lúc env này còn để trống. Hiện LUÔN rơi vào nhánh bỏ
+  qua (env chưa set) — nghĩa là code đã nối sẵn vào luồng thật nhưng thực chất KHÔNG chạy gì thêm,
+  đúng tinh thần "dựng khung, chưa bật thật" của spec.
+- **Gọi qua `waitUntil()` (từ `@vercel/functions`, đã là dependency có sẵn cho `middleware.js`),
+  KHÔNG `await` trực tiếp trước `res.json` (sửa 2026-09-24)** — bản đầu tiên (`await` thẳng trước
+  response) KHÔNG PHẢI bug "promise bị Vercel kill" (đã await xong TRƯỚC khi gọi `res.json`, không
+  phải fire-and-forget), nhưng có 2 vấn đề khác: (1) mọi lượt đặt vé thật (sau khi bật) sẽ phải chờ
+  thêm round-trip Zalo (có thể vài trăm ms tới vài giây) trước khi khách thấy màn xác nhận; (2)
+  `fetch` gọi Zalo KHÔNG có timeout — Zalo treo thì cả request đặt vé treo theo. `waitUntil` giải
+  quyết (1) — trả response ngay, Vercel tự giữ function instance sống cho tới khi promise bên trong
+  xong (khác fire-and-forget thường `guiVeZalo(...)` không `await`/không `waitUntil` — promise đó
+  CÓ THỂ bị kill giữa chừng ngay sau `res.json()`/`res.end()` vì runtime coi request đã xong).
+  `guiVeZalo`'s `fetch` thêm `AbortController` timeout **5s** giải quyết (2) — vẫn cần dù đã
+  `waitUntil`, vì Fluid Compute instance vẫn phải giữ sống tới khi promise resolve/reject, treo vô
+  hạn vẫn tốn tài nguyên/tiền dù không chặn khách.
+  - **Test thật đã chạy (2026-09-24, deploy Preview riêng — KHÔNG dùng Production)**: thêm
+    `ZALO_OA_ACCESS_TOKEN=fake`/`ZALO_ZNS_TEMPLATE_ID_XAC_NHAN_VE=fake` CHỈ ở scope Preview, deploy
+    (`vercel`, không `--prod`), đặt 1 vé thật qua API của bản Preview đó: (1) response trả về NGAY
+    `{"ok":true,"ve_id":"081e5d45-...","ma_ve":"BX0ESJPP","chuyen_id":"..."}`, `ve` được tạo bình
+    thường; (2) `vercel logs` của bản Preview đó, VÀI GIÂY SAU khi response đã trả, có đúng dòng
+    `[guiVeZalo] Lỗi gửi ZNS xác nhận vé (best-effort, không chặn đặt vé): Zalo ZNS lỗi: Access
+    token invalid` — xác nhận promise chạy TỚI CÙNG (gọi thật tới Zalo, nhận lỗi token giả) SAU KHI
+    response đã trả về khách, đúng ý nghĩa `waitUntil` (không bị kill); (3) đặt vé thật lần 2 trên 1
+    bản Preview KHÁC (đã gỡ 2 env ZNS giả) → vẫn `200 {ok:true,...}`, `vercel logs` KHÔNG có dòng
+    `[guiVeZalo]` nào — guard ngoài `waitUntil` hoạt động đúng khi env chưa set. Đã xoá 2 env ZNS
+    giả lẫn `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` tạm thêm vào scope Preview (cần để Preview tự gọi
+    được Supabase thật — trước đó Preview scope KHÔNG có 2 biến này, chỉ Production có) ngay sau
+    khi test xong, và xoá sạch `ve`/`dat_ve_otp` test (`0911222999`/`0911222998`).
 - **Khứ hồi: gọi 2 LẦN riêng biệt** — mỗi chặng tự có `veCreated`/`chuyenId`/`tinh_len_ma`/
   `tinh_xuong_ma` riêng trong đúng 1 lượt gọi `api/cong-khai-dat-ve.js` (khứ hồi ở `dat-ve.html` =
   2 lượt gọi API độc lập nối tiếp, xem mục "Lịch chọn ngày đặt vé"), nên KHÔNG cần code gì thêm để
