@@ -1934,6 +1934,145 @@ làm), không đổi màu theme/CSS variables theo nhà xe, không đổi icon P
   còn `eakar`. Deploy qua `vercel --prod --scope minhwhoa-makers-projects` trước khi test (đã verify
   `curl` production trả đúng `<h1 id="public-header-ten"></h1>` rỗng trước khi chạy Playwright).
 
+### Onboard nhà xe mới (2026-09-24, đợt onboard "Thái Vương" — nhà xe thứ 2 sau `eakar`)
+
+**`thai-vuong` (Thái Vương) — trạng thái `tam_dung`, CHƯA public.** Bật khi sẵn sàng:
+```sql
+update nha_xe set trang_thai = 'hoat_dong' where slug = 'thai-vuong';
+```
+
+- **`scripts/onboard-nha-xe.sql`** — script seed `nha_xe`/`tuyen_tinh`/`giuong` cho 1 nhà xe mới,
+  1 transaction, idempotent (`on conflict do nothing`), MỌI insert đặt `nha_xe_id` TƯỜNG MINH (6 cột
+  `nha_xe_id` vẫn còn `DEFAULT` trỏ `eakar` từ Multi-tenant Giai đoạn 2, chưa `DROP DEFAULT` — xem
+  dưới — quên đặt tường minh ở bất kỳ chỗ nào là rò dữ liệu ÂM THẦM vào `eakar`, không có lỗi nào
+  báo). **Tái sử dụng cho nhà xe sau**: copy file, sửa khối biến ở đầu DO block (tên/slug/SĐT/logo/
+  giờ khởi hành/danh sách tỉnh/layout giường), chạy lại nguyên văn phần còn lại — KHÔNG tự đoán/copy
+  giá trị của nhà xe khác, luôn hỏi người yêu cầu onboard trước khi điền (xem checklist bên dưới).
+  Trạng thái seed LUÔN `tam_dung` — bật `hoat_dong` là bước RIÊNG, KHÔNG tự động.
+- **`scripts/gan-nguoi-dung-nha-xe.sql`** — gán 1 user (đã đăng nhập ÍT NHẤT 1 lần qua `login.html`)
+  vào 1 nhà xe qua `nguoi_dung_nha_xe`, tra `user_id` theo email trong `auth.users`. **CHƯA CHẠY cho
+  `thai-vuong`** — chưa có nhân viên nào đăng nhập lần đầu để tra `user_id`. `resolveNhaXeId`
+  (`shared.js`) đọc `nguoi_dung_nha_xe` KHÔNG có `ORDER BY` tường minh (`data[0]`, xem code) — user
+  thuộc NHIỀU nhà xe cùng lúc thì nhà xe nào được chọn là KHÔNG XÁC ĐỊNH. **Do đó KHÔNG gán tài
+  khoản owner (`minhwhoa@gmail.com`, hiện là admin `eakar`) vào `thai-vuong`** — sẽ tạo đúng tình
+  huống "thuộc nhiều nhà xe" mà `resolveNhaXeId` chưa xử lý đúng. Cần UI chọn nhà xe (Giai đoạn 6,
+  CHƯA LÀM) trước khi 1 user được gán vào ≥2 nhà xe cùng lúc một cách an toàn.
+
+**Checklist thông tin BẮT BUỘC hỏi người yêu cầu onboard trước khi seed — KHÔNG tự đoán/suy diễn từ
+`eakar`, kể cả khi trông "hợp lý"**: tên hiển thị; slug (regex `^[a-z0-9]+(-[a-z0-9]+)*$`, 2-40 ký
+tự — check `nha_xe_slug_format`); SĐT liên hệ (đúng 1 số, format `^0[0-9]{9,10}$` — check
+`nha_xe_sdt_lien_he_format`, cột chỉ lưu ĐÚNG 1 giá trị, KHÔNG phải mảng); logo — **PHẢI verify
+bằng `curl` trả 200 vào đúng URL TRƯỚC khi set `logo_url`, KHÔNG tin lời xác nhận "đã upload" suông
+— xem ca thật dưới đây**; giờ khởi hành 2 chiều (`HH:MM`, KHÔNG copy `07:00`/`02:00` của `eakar`
+trừ khi người yêu cầu tự xác nhận rõ ràng đó đúng là giờ của nhà xe mới); danh sách mã tỉnh dọc
+tuyến + `thu_tu` (unique theo `(nha_xe_id, thu_tu)`, KHÔNG unique toàn hệ thống — tái dùng nguyên
+`thu_tu` gốc của `tinh_tuyen`/`eakar` cho cùng mã tỉnh là AN TOÀN, không đụng độ giữa các nhà xe);
+`gia_moc` LUÔN `null` lúc seed — không bao giờ copy giá của nhà xe khác; số tầng + layout giường
+từng hàng/tầng (xem mục "UI/schema giả định 2 tầng" ngay dưới trước khi hỏi, vì DB/UI hiện KHÔNG hỗ
+trợ khác 2 tầng); có `DROP DEFAULT` 6 cột `nha_xe_id` trong đợt này hay để dành.
+
+- **Ca thật gặp lúc onboard `thai-vuong` — "đã upload" nhưng thực ra CHƯA**: người yêu cầu xác nhận
+  logo "Đã upload rồi", nhưng `curl` vào URL + query trực tiếp `storage.objects` cho thấy bucket
+  `nha-xe-logo` HOÀN TOÀN TRỐNG (0 file, cả 2 khả năng tên file `thai-vuong.png`/`thai-vuong-logo.png`
+  đều 404) — không phải lỗi hệ thống, chỉ là xác nhận bằng lời không khớp thực tế thao tác. Đã seed
+  `logo_url = null` (fallback chữ cái đầu "T"), KHÔNG tự đặt URL suy đoán. **Bài học: LUÔN `curl -o
+  /dev/null -w '%{http_code}'` (hoặc query `storage.objects`) xác nhận file thật sự tồn tại TRƯỚC
+  khi set `logo_url`, không tin lời xác nhận "đã upload" — 1 dòng `curl` rẻ hơn nhiều so với để
+  `logo_url` trỏ vào ảnh vỡ trên production.**
+- **`thai-vuong.gio_khoi_hanh_bac`/`gio_khoi_hanh_nam` = `07:00`/`02:00`, TRÙNG HỆT `eakar`** —
+  người yêu cầu được hỏi tường minh 2 lần (không cho `07:00`/`02:00` làm option có sẵn, chỉ đưa các
+  giờ khác + để họ tự gõ "Khác") và tự gõ đúng 2 giá trị này ở cả 2 câu — xác nhận đây là câu trả
+  lời THẬT của người yêu cầu (không phải Claude Code tự copy/mặc định), dù trùng ngẫu nhiên với
+  `eakar`. Ghi chú lại phòng trường hợp nhìn thấy sự trùng hợp này sau này và nghi ngờ có sai sót
+  copy-paste — đã kiểm chứng không phải vậy.
+- **Layout giường `thai-vuong` cũng XÁC NHẬN GIỐNG HỆT `eakar`** (44 giường, hàng 1-5 ở cột 1,3,5;
+  hàng 6 ở cột 1,5; hàng 7 ở cột 1-5 liền) — người yêu cầu tự xác nhận qua câu hỏi nêu rõ toàn bộ
+  layout eakar rồi hỏi "giống hệt hay khác", không phải Claude Code mặc định copy khi không hỏi.
+
+**UI/schema giả định CỨNG đúng 2 tầng giường — KHÔNG hỗ trợ khác** (phát hiện lúc audit BƯỚC 0,
+trước khi seed): `khach.html`/`dat-ve.html` đều có ĐÚNG 2 `.tang-col` cố định trong HTML + gọi cứng
+`renderMotTang(1, ...)`/`renderMotTang(2, ...)` (không sinh động theo dữ liệu). `giuong.tang` có
+CHECK constraint `giuong_tang_check: tang = ANY (ARRAY[1, 2])` — tầng thứ 3 trở lên bị DB chặn thẳng,
+không phải giới hạn UI đơn thuần. Nhà xe seed 1 tầng vẫn hiển thị được (cột tầng 2 luôn trống, không
+lỗi) nhưng chưa có layout tối ưu riêng cho trường hợp đó — `thai-vuong` xác nhận 2 tầng nên không
+gặp vấn đề này, nhưng PHẢI hỏi số tầng của nhà xe TIẾP THEO trước khi seed, không giả định 2 tầng.
+
+**Hardcode riêng `eakar` còn sót — rà lại lúc onboard `thai-vuong` (grep `DLK|HDG|KHH|"Đắk Lắk"|
+"Hải Dương"|eakar` trên `dat-ve.html`/`xem-ve.html`/`khach.html`/`hang.html`/`api/cong-khai-*.js`/
+`api/manifest-dat-ve.js`)** — phân loại theo mức ảnh hưởng thật:
+- **`api/cong-khai-lich-chay.js:233-234`** — `bac.ten`/`nam.ten` (nhãn hiện trên ô lịch chọn ngày)
+  HARDCODE CỨNG `'Đắk Lắk → Hải Dương'`/`'Hải Dương → Đắk Lắk'`, không đọc theo tuyến thật của nhà
+  xe đang resolve. **Với `thai-vuong` KHÔNG lộ ra ngoài** vì tuyến của họ CŨNG bắt đầu `DLK` kết thúc
+  `HDG` (trùng ngẫu nhiên với `eakar`, dù điểm dừng giữa khác hẳn) — nhãn hiện ra vẫn đúng dù code
+  không hề biết tới `thai-vuong`. **Đây VẪN LÀ BLOCKER THẬT cho nhà xe thứ 3 có tuyến khác 2 đầu
+  DLK/HDG** — PHẢI sửa trước khi onboard 1 nhà xe có điểm đầu/cuối khác, chưa sửa ở đợt này (ngoài
+  phạm vi, chỉ ghi nhận).
+- **`hang.html:153-154,469-470,473`** — nhãn "Ra Bắc (Đắk Lắk → Hải Dương)"/"Vào Nam..." + filter
+  `t.ma !== 'DLK'` cứng — CHỈ ảnh hưởng module hàng hoá crew nội bộ (`hang.html`/`manifest-hang.html`),
+  KHÔNG đụng tới luồng đặt vé (`dat-ve.html`/`khach.html`) đã test ở đợt này. `thai-vuong` hiện CHƯA
+  có kế hoạch dùng module hàng hoá (chỉ test đặt vé) — chưa phải blocker cho đợt onboard này, nhưng
+  SẼ LÀ blocker thật nếu sau này `thai-vuong` (hoặc nhà xe khác) cần dùng `hang.html`.
+- **`khach.html:646,1387` / `dat-ve.html:1343`** — filter `t.ma !== 'KHH'` (loại Khánh Hòa khỏi
+  danh sách tỉnh chọn) — VÔ HẠI với mọi nhà xe không có `KHH` trong `tuyen_tinh` của mình (filter
+  chạy trên danh sách ĐÃ được API lọc theo `nha_xe_id`, KHH không có sẵn trong đó thì filter là
+  no-op) — không phải blocker.
+- **`dat-ve.html:679` (comment lịch sử)** — không phải hardcode thật, chỉ là dòng comment nhắc lại
+  quyết định cũ ("từng mặc định Đắk Lắk/Hải Dương, đã bỏ 2026-09-18") — code hiện tại
+  `noiXuatPhatTinh = null`, không set cứng gì. Đã đọc lại xác nhận không phải bug.
+- **`dat-ve.html:504`** — dòng phụ header `"Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương"` — đã ghi nhận
+  từ đợt sửa placeholder h1 trước (xem mục "Chưa sửa" ở đó), VẪN CÒN NGUYÊN, ngoài phạm vi đợt này.
+
+**Test đã chạy thật cho `thai-vuong` (2026-09-24, không chỉ đọc code — chuyển tạm `hoat_dong` lúc
+test, trả lại `tam_dung` ngay sau khi xong)**:
+- **A. Đếm dòng theo `nha_xe_id`** — `thai-vuong`: `giuong=44`, `tuyen_tinh=8` (đúng layout/tuyến
+  seed); `eakar` GIỮ NGUYÊN đúng baseline chụp trước khi seed (`giuong=44, tuyen_tinh=18, diem=25,
+  chuyen=14, kien=75, ve=23, diem_khach=5`) — không lệch 1 dòng nào sau toàn bộ seed + test + dọn.
+- **B. `curl` `nx=thai-vuong` không lẫn `nx=eakar`**: `cong-khai-lich-chay` trả đúng `nha_xe.ten`/
+  `sdt_lien_he`/8 tỉnh đúng thứ tự `thu_tu`; `cong-khai-so-do` (không `chuyen_id`) trả đúng 44
+  giường `T1-01..T1-22`/`T2-01..T2-22` (không phải giường của `eakar`); `cong-khai-diem-khach` trả
+  đúng 8 tỉnh, `gia_moc` đều `null`.
+- **C. Chéo tenant** — POST `cong-khai-dat-ve` với `nx=thai-vuong` + `chuyen_id` của `eakar` → `404
+  "Không tìm thấy bản ghi trong bảng chuyen"` (test SAU khi xác thực OTP thật cho SĐT test, vì
+  route check OTP TRƯỚC check ownership — gọi khi chưa xác thực chỉ ra `403` OTP, không phản ánh
+  đúng nhánh cross-tenant); ngược lại `nx=eakar` + `giuong_id` của `thai-vuong` → `404 "Không tìm
+  thấy bản ghi trong bảng giuong"`; `cong-khai-xem-ve` trộn 1 `ve.id` thật của `eakar` + 1 của
+  `thai-vuong` → `400 "Link không hợp lệ — các vé không thuộc cùng 1 nhà xe"`.
+- **D. Đặt vé thật qua UI** (Playwright, `?nx=thai-vuong`, SĐT test `0977900010`, OTP thật qua
+  `OTP_TEST_MODE` tra `dat_ve_otp` bằng SQL) — khứ hồi ĐẦY ĐỦ 2 chặng (DLK→HTI, HTI→DLK) thành công,
+  2 `ve` khác `chuyen_id`, cả 2 SQL xác nhận `nha_xe_id` đúng `thai-vuong`, `tinh_len_ma`/
+  `tinh_xuong_ma` (`DLK`/`HTI`) nằm trong 8 tỉnh tuyến, `gia = null` (đúng vì `gia_moc` chưa có giá
+  nào); đặt với `tinh_len_ma='QNG'` (ngoài tuyến 8 tỉnh) → `400 "Tỉnh không hợp lệ"`; `xem-ve.html`
+  render đúng branding "Thái Vương" (logo fallback "T"), cả 2 chặng, dòng "Giá: liên hệ nhà xe" cho
+  cả 2 vé (khớp `gia = null`), không lỗi console.
+- **E. RLS** — tạo tạm 1 `auth.users` (insert SQL trực tiếp, KHÔNG qua OAuth thật) + gán CHỈ vào
+  `nguoi_dung_nha_xe` của `thai-vuong` (không đụng `eakar`) — simulate `set local role authenticated`
+  + `set_config('request.jwt.claims', ...)`: đọc `kien`/`ve`/`chuyen`/`giuong` của `eakar` → **0
+  dòng** cho cả 4 bảng; `UPDATE` thẳng `kien.ghi_chu` của `eakar` → **0 dòng bị đổi** (verify lại
+  bằng `SELECT` riêng, không có dòng nào mang giá trị test); chiều ngược lại, user thật `eakar`
+  (owner `minhwhoa@gmail.com`, ĐANG CÓ SẴN quyền, không tạo mới) đọc `giuong`/`tuyen_tinh`/`ve` của
+  `thai-vuong` → **0 dòng** cả 3 bảng. Đã xoá sạch `auth.users`/`nguoi_dung_nha_xe` test ngay sau.
+- **F. Ảnh chụp Playwright 360×800** — header `thai-vuong` VỚI logo ngang thật (đặt TẠM
+  `logo_url = 'https://placehold.co/300x80/...'` — placeholder ngoài, KHÔNG phải logo thật của
+  Thái Vương vì chưa có file — để verify CSS khung ngang hoạt động đúng, xoá lại `null` NGAY SAU
+  khi chụp xong) ở CẢ `dat-ve.html` (`.public-header-logo`) lẫn `xem-ve.html` (`.icon-box.has-logo`)
+  — logo hiện cao 40px, rộng tự co, không tràn ngang (`scrollWidth === clientWidth === 360` cả 2
+  trang); header `eakar` (không logo) vẫn đúng fallback ô vuông 44px chữ cái đầu "E", không đổi.
+- **G. `DROP DEFAULT`** — người yêu cầu chọn "Không" (giữ nguyên default trỏ `eakar` cho 6 cột
+  `nha_xe_id`) — **KHÔNG chạy** `ALTER COLUMN ... DROP DEFAULT` ở đợt này. Vẫn là nợ kỹ thuật treo
+  từ Multi-tenant Giai đoạn 2 — cân nhắc lại khi có nhà xe thứ 3 hoặc khi tự tin code không còn chỗ
+  nào quên đặt `nha_xe_id` tường minh.
+- Đã dọn TOÀN BỘ data test sau khi xong: 2 `ve`/2 `chuyen`/`dat_ve_otp` (SĐT `0977900xxx`), 1
+  `auth.users`/`nguoi_dung_nha_xe` test cho RLS — **giữ nguyên** dòng seed thật của `thai-vuong`
+  (`nha_xe`/8 `tuyen_tinh`/44 `giuong`), `eakar` không đổi 1 dòng nào so với baseline 0f.
+
+**Chưa test / chưa làm cho `thai-vuong`**: gán `nguoi_dung_nha_xe` thật (chờ nhân viên đăng nhập
+lần đầu, xem `scripts/gan-nguoi-dung-nha-xe.sql`); upload logo thật (bucket `nha-xe-logo` vẫn trống
+— `logo_url` đang `null`, dùng fallback "T"); test qua `khach.html` (crew đặt vé nội bộ cho
+`thai-vuong` — chỉ test qua `dat-ve.html` công khai ở đợt này, chưa test crew tự đăng nhập vào đúng
+tenant `thai-vuong` vì chưa gán `nguoi_dung_nha_xe`); `DROP DEFAULT` (xem mục G); sửa hardcode
+`bac.ten`/`nam.ten` ở `api/cong-khai-lich-chay.js` (chỉ là nợ, chưa ảnh hưởng `thai-vuong` do trùng
+tuyến ngẫu nhiên với `eakar` — xem mục hardcode ở trên).
+
 ### Bỏ `diem_khach`, thay bằng chọn Tỉnh + Xã/Huyện (2026-09-22)
 
 Áp dụng cho `dat-ve.html` (khách tự đặt online) + `khach.html` (crew đặt vé nội bộ). **KHÔNG áp

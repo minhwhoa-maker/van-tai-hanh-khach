@@ -21,7 +21,9 @@
 // nên không cần thêm gì riêng cho ảnh logo dù đổi domain sau này.
 // v7 (2026-09-24, sửa placeholder header lộ tên eakar): h1 đổi từ đặt cứng "🚌 EaKar Xe Khách"
 // sang rỗng trước khi nx resolve — bump để dọn cache HTML cũ vẫn còn placeholder tên eakar cũ.
-const CACHE_NAME = 'eakar-dat-ve-v7';
+// v8 (2026-09-24, Onboard Thái Vương): logo header đổi từ ô vuông 44px sang khung NGANG (height
+// 40px, width auto, max-width 160px) — bump để dọn cache HTML cũ còn CSS logo vuông.
+const CACHE_NAME = 'eakar-dat-ve-v8';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',

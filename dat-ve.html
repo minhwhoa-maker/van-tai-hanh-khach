@@ -61,11 +61,17 @@
            nhà xe" trong CLAUDE.md. Row flex thay vì text-align:center thuần vì logo cần đứng cạnh
            tên, không phải xếp trên/dưới. */
         .public-header-row { display: flex; align-items: center; gap: 10px; justify-content: center; }
-        .public-header-logo, .public-header-logo-fallback {
-            width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+        /* Logo ngang (2026-09-24, Onboard Thái Vương) — logo thật đổi từ ô vuông 44px sang khung
+           NGANG (height cố định 40px, width tự co theo tỉ lệ ảnh thật, chặn max-width 160px để
+           không đẩy tên/nút gọi tràn ngang ở 360px — xem SPEC "Branding nhà xe" CLAUDE.md). Fallback
+           (thiếu logo_url/onerror) GIỮ NGUYÊN ô vuông 44px chữ cái đầu — không đổi, không tách kích
+           thước theo yêu cầu "không đổi chỗ khác". */
+        .public-header-logo {
+            height: 40px; width: auto; max-width: 160px; border-radius: 6px;
+            object-fit: contain; background: #fff; flex-shrink: 0;
         }
-        .public-header-logo { object-fit: contain; background: #fff; }
         .public-header-logo-fallback {
+            width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
             background: rgba(255, 255, 255, 0.22); display: flex; align-items: center;
             justify-content: center; font-size: 19px; font-weight: 800;
         }
@@ -495,7 +501,8 @@
              thiếu nx/404/403 → nhánh lỗi thay hẳn nội dung #chuyen-info-wrap, h1 vẫn giữ rỗng.
              Tuyến "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ,
              KHÔNG sửa ở đợt này (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện
-             sai. #public-header-logo-wrap: logo 44px hoặc ô chữ cái đầu (fallback), điền bằng
+             sai. #public-header-logo-wrap: logo ngang cao 40px (rộng tự co, tối đa 160px) hoặc ô
+             chữ cái đầu 44px vuông (fallback), điền bằng
              apDungThongTinNhaXe() — xem SPEC "Branding nhà xe". -->
         <div class="public-header-row">
             <div id="public-header-logo-wrap"></div>

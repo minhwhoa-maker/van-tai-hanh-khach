@@ -41,10 +41,13 @@
             width: 44px; height: 44px; border-radius: 11px; background: var(--accent);
             display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
-        /* Logo nhà xe (2026-09-24) — object-fit:contain trong đúng ô 44px của .icon-box, nền trắng
-           vì logo có thể có nền trong suốt. Fallback (thiếu logo_url/onerror) = ô chữ cái đầu tên,
-           dùng CHÍNH .icon-box (nền --accent có sẵn), không cần class riêng. */
-        .xv-header .icon-box img { width: 44px; height: 44px; border-radius: 11px; object-fit: contain; background: #fff; }
+        /* Logo nhà xe (2026-09-24, đổi sang khung NGANG lúc Onboard Thái Vương) — .icon-box.has-logo
+           bỏ kích thước/nền vuông cố định của fallback, nhường cho <img> tự quyết kích thước (height
+           40px cố định, width tự co theo tỉ lệ ảnh thật, chặn max-width 160px tránh tràn ngang ở
+           360px). Fallback (thiếu logo_url/onerror) KHÔNG có class này — vẫn ô vuông 44px + nền
+           --accent + chữ cái đầu như cũ, không đổi. */
+        .xv-header .icon-box.has-logo { width: auto; height: auto; border-radius: 0; background: none; }
+        .xv-header .icon-box img { height: 40px; width: auto; max-width: 160px; border-radius: 6px; object-fit: contain; background: #fff; }
         .xv-header .icon-box .fallback-chu { font-size: 18px; font-weight: 800; color: #fff; }
         .xv-header .ten { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; overflow-wrap: break-word; word-break: break-word; }
         .xv-header .sub { font-size: 12.5px; color: var(--muted2); margin-top: 1px; }
@@ -360,6 +363,7 @@
 
             const iconBox = document.getElementById('header-icon')
             function ganFallbackChu() {
+                iconBox.classList.remove('has-logo')
                 iconBox.innerHTML = ''
                 const span = document.createElement('span')
                 span.className = 'fallback-chu'
@@ -371,6 +375,7 @@
                 img.setAttribute('alt', nhaXe.ten)
                 img.addEventListener('error', ganFallbackChu)
                 img.src = nhaXe.logo_url
+                iconBox.classList.add('has-logo')
                 iconBox.innerHTML = ''
                 iconBox.appendChild(img)
             } else {
