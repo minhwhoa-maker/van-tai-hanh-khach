@@ -499,16 +499,20 @@
              xem mục "Multi-tenant Giai đoạn 5"). `initPage()` ghi đè bằng nha_xe.ten thật (từ
              response api/cong-khai-lich-chay.js) CHỈ khi có nx hợp lệ + nhà xe tồn tại/hoạt động;
              thiếu nx/404/403 → nhánh lỗi thay hẳn nội dung #chuyen-info-wrap, h1 vẫn giữ rỗng.
-             Tuyến "Đắk Lắk ↔ Hải Dương" ở dòng phụ VẪN CÒN HARDCODE riêng eakar — ghi nhận nợ,
-             KHÔNG sửa ở đợt này (xem mục "KHÔNG LÀM" trong CLAUDE.md), nhà xe khác tuyến sẽ hiện
-             sai. #public-header-logo-wrap: logo ngang cao 40px (rộng tự co, tối đa 160px) hoặc ô
+             Emoji 🚌 ĐÃ BỎ khỏi h1 (2026-09-25) — chữ cái đầu tên nhà xe làm fallback ở
+             #public-header-logo-wrap đã đủ vai trò "icon", emoji cố định trong h1 không cần thiết
+             và trông lạc quẻ với logo thật khi nhà xe có logo riêng. Dòng phụ (#public-header-sub)
+             KHÔNG còn hardcode "Đắk Lắk ↔ Hải Dương" (đã sửa cùng đợt) — tự tính từ tỉnh đầu/cuối
+             theo thu_tu của tuyen_tinh nhà xe đang xem (xem apDungThongTinNhaXe), rỗng/thiếu dữ
+             liệu thì ẩn hẳn dòng, không hiện chuỗi cứng của nhà xe khác.
+             #public-header-logo-wrap: logo ngang cao 40px (rộng tự co, tối đa 160px) hoặc ô
              chữ cái đầu 44px vuông (fallback), điền bằng
              apDungThongTinNhaXe() — xem SPEC "Branding nhà xe". -->
         <div class="public-header-row">
             <div id="public-header-logo-wrap"></div>
             <div class="public-header-text">
                 <h1 id="public-header-ten"></h1>
-                <div class="sub">Đặt vé giường nằm — Đắk Lắk ↔ Hải Dương</div>
+                <div class="sub" id="public-header-sub" style="display:none;"></div>
                 <a href="#" id="header-goi-nha-xe" class="header-goi-nha-xe">📞 Gọi nhà xe</a>
             </div>
         </div>
@@ -1802,8 +1806,25 @@
 
         function apDungThongTinNhaXe(nhaXe) {
             if (!nhaXe) return
-            document.getElementById('public-header-ten').textContent = '🚌 ' + nhaXe.ten
+            document.getElementById('public-header-ten').textContent = nhaXe.ten
             document.title = nhaXe.ten + ' — Đặt vé'
+
+            // Dòng phụ "Đặt vé giường nằm — <tỉnh đầu> ↔ <tỉnh cuối>" — tự tính từ tuyến của ĐÚNG
+            // nhà xe đang xem (tinhList đã tải từ api/cong-khai-diem-khach.js trước khi hàm này
+            // chạy, xem initPage), KHÔNG hardcode "Đắk Lắk ↔ Hải Dương" nữa (sai với nhà xe tuyến
+            // khác). Thiếu dữ liệu (tinhList rỗng, hoặc chỉ 1 tỉnh) → ẩn hẳn dòng, không hiện gì
+            // thay thế — tránh chuỗi cứng/sai lặp lại lỗi cũ.
+            const subEl = document.getElementById('public-header-sub')
+            const tinhSapXep = (tinhList || []).slice().sort((a, b) => (a.thu_tu ?? 0) - (b.thu_tu ?? 0))
+            if (tinhSapXep.length >= 2) {
+                const dau = tinhSapXep[0]
+                const cuoi = tinhSapXep[tinhSapXep.length - 1]
+                subEl.textContent = `Đặt vé giường nằm — ${dau.ten} ↔ ${cuoi.ten}`
+                subEl.style.display = 'block'
+            } else {
+                subEl.textContent = ''
+                subEl.style.display = 'none'
+            }
 
             const logoWrap = document.getElementById('public-header-logo-wrap')
             logoWrap.innerHTML = ''

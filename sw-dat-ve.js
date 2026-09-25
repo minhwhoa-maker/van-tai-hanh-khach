@@ -23,7 +23,10 @@
 // sang rỗng trước khi nx resolve — bump để dọn cache HTML cũ vẫn còn placeholder tên eakar cũ.
 // v8 (2026-09-24, Onboard Thái Vương): logo header đổi từ ô vuông 44px sang khung NGANG (height
 // 40px, width auto, max-width 160px) — bump để dọn cache HTML cũ còn CSS logo vuông.
-const CACHE_NAME = 'eakar-dat-ve-v8';
+// v9 (2026-09-25, sửa nhỏ header): bỏ emoji 🚌 khỏi h1; dòng phụ dưới tên nhà xe đổi từ hardcode
+// "Đắk Lắk ↔ Hải Dương" sang tự tính tỉnh đầu/cuối theo thu_tu của tuyen_tinh nhà xe đang xem (ẩn
+// nếu thiếu dữ liệu) — bump để dọn cache HTML cũ còn hardcode/emoji cũ.
+const CACHE_NAME = 'eakar-dat-ve-v9';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',
