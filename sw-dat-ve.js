@@ -26,7 +26,12 @@
 // v9 (2026-09-25, sửa nhỏ header): bỏ emoji 🚌 khỏi h1; dòng phụ dưới tên nhà xe đổi từ hardcode
 // "Đắk Lắk ↔ Hải Dương" sang tự tính tỉnh đầu/cuối theo thu_tu của tuyen_tinh nhà xe đang xem (ẩn
 // nếu thiếu dữ liệu) — bump để dọn cache HTML cũ còn hardcode/emoji cũ.
-const CACHE_NAME = 'eakar-dat-ve-v9';
+// v10 (2026-09-25, thiết kế lại #xac-nhan-box theo mockup Design canvas): markup/CSS/JS màn "Đặt
+// vé thành công" đổi hoàn toàn (thẻ trắng bo góc từng chặng, font Be Vietnam Pro/JetBrains Mono
+// riêng khối này, nút sao chép mã vé từng giường, thẻ "chưa đặt" cho chặng dở dang khi Back giữa
+// khứ hồi) — bump để dọn cache HTML cũ còn markup/JS bản trước (`ketQuaCacChang` đổi từ mảng chuỗi
+// sang mảng object, code cũ đọc sai kiểu dữ liệu nếu lẫn cache).
+const CACHE_NAME = 'eakar-dat-ve-v10';
 const STATIC_ASSETS = [
     './dat-ve.html',
     './shared.js',

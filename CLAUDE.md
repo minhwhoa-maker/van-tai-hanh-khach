@@ -1934,6 +1934,99 @@ làm), không đổi màu theme/CSS variables theo nhà xe, không đổi icon P
   còn `eakar`. Deploy qua `vercel --prod --scope minhwhoa-makers-projects` trước khi test (đã verify
   `curl` production trả đúng `<h1 id="public-header-ten"></h1>` rỗng trước khi chạy Playwright).
 
+### `#xac-nhan-box` — màn "Đặt vé thành công" thiết kế lại theo mockup (2026-09-25)
+
+Viết lại hoàn toàn markup/CSS/JS của `#xac-nhan-box` trong `dat-ve.html` theo 1 mockup Design canvas
+(tham chiếu hình thức/cấu trúc, KHÔNG phải code sản xuất — dữ liệu trong đó là ví dụ tĩnh) —
+**CHỈ sửa `#xac-nhan-box` + phần JS build dữ liệu cho nó**, không đụng OTP block/sơ đồ giường/form
+liên hệ/header (đã làm ở nhiệm vụ branding trước).
+
+- **`ketQuaCacChang` đổi từ mảng CHUỖI đã ghép sẵn sang mảng OBJECT sparse** — index = vị trí trong
+  `dsChangDat` (KHÔNG push nối đuôi như bản cũ), mỗi phần tử: `{ nhan, coNhan, hoanThanh, ngayText,
+  khachText, thanhToan, giuongs:[{ma,maVe}], soGiuong }` khi đã đặt xong, hoặc `{ nhan, coNhan,
+  hoanThanh:false, ngayText }` khi khách Back giữa chừng trước khi đặt xong chặng đó. Ghi tại ĐÚNG
+  chỉ số `changHienTaiIdx` trong `#btn-dat-ve`'s handler (thay vì `.push()`) — cho phép `popstate`
+  GHI ĐÈ đúng vị trí khi khách quay lại đặt tiếp (`tiepTucChangConLai`), không tạo dòng trùng.
+  `maVe` trong `giuongs` LƯU RAW (không dấu gạch) — format hiển thị `XXXX-XXXX` (`ghepMaVe()`) và
+  sao chép (`saoChepMaVe()`) đều dùng đúng giá trị raw này, cùng convention `xem-ve.html`.
+  `thanhCong` (mảng tạm trong vòng lặp đặt từng giường) gộp `{ma, maVe}` NGAY khi 1 giường thành
+  công (thay vì 2 mảng song song `thanhCong`/`maVeThanhCong` như bản cũ) — tránh lệch chỉ số nếu 1
+  giường nào đó thiếu `ma_ve`.
+- **Markup**: mỗi phần tử `ketQuaCacChang` → 1 `.xnv-card` (thẻ trắng bo góc, dựng qua
+  `renderXnvCard(entry, idx)`) — nhãn "Chiều đi/về" (`.xnv-pill`, chỉ khi `coNhan`), hàng ngày giờ/
+  khách/thanh toán (icon SVG inline, copy path từ mockup, KHÔNG emoji), khối "Giường đã đặt · N"
+  liệt kê từng `{mã giường, mã vé + nút sao chép}`. Icon/nhãn tĩnh gán qua `innerHTML` (chuỗi cố
+  định), MỌI giá trị động (`ngayText`/`khachText`/`thanhToan`/`ma`/`maVe` — đến từ input khách gõ
+  hoặc server) gán riêng bằng `textContent` SAU KHI khung đã dựng — KHÔNG bao giờ nội suy trực tiếp
+  vào chuỗi HTML (đã test XSS-style qua tên chứa `<b>`/`onerror`, xem "Test đã chạy" bên dưới).
+- **Font Be Vietnam Pro/JetBrains Mono SCOPE qua class `.xac-nhan-v2`** bọc ngoài `#xac-nhan-box` —
+  `dat-ve.html` trước đó CHƯA load font này ở đâu (chỉ `xem-ve.html` có, port riêng đợt trước) —
+  thêm `<link>` Google Fonts trong `<head>`, KHÔNG đổi `font-family` phần còn lại của trang (vẫn
+  `system-ui`).
+- **Nút "Sao chép mã vé" từng giường** (`saoChepMaVe(maVe)`) — TÁI DÙNG nguyên pattern clipboard/
+  fallback `execCommand('copy')` đã có ở nút "Sao chép link xem lại vé" (viết hàm riêng nhưng COPY
+  logic, không phải gọi chung 1 hàm — cùng cách `xem-ve.html`'s `ganCopyListeners` độc lập, không
+  chia sẻ code giữa 2 file theo convention dự án). Nút "Gọi nhà xe" (đã có từ branding trước) GIỮ
+  NGUYÊN id/hàm `ganGoiNhaXe()`, chỉ đổi vị trí (dưới CTA copy-link/chia-sẻ, theo mockup) + icon SVG
+  thay emoji `📞`. `capNhatLinkXemLaiVe()` đổi ĐÚNG 1 giá trị (`'block'` → `'flex'`) để khớp
+  `display:flex` của `.xnv-cta-secondary` khi hiện nút "Chia sẻ" — không đổi logic ẩn/hiện.
+- **Thẻ "chặng chưa đặt" (Back giữa 2 chặng khứ hồi trước khi đặt xong chặng sau)** — KHÔNG có
+  trong mockup gốc (mockup chỉ vẽ trạng thái đã đặt xong cả 2 chặng), tự thiết kế thêm: dải cảnh
+  báo `.xnv-incomplete-banner` (dùng `var(--warning)` đã sẵn có trong app, không bịa màu mới) với
+  tiêu đề `"<Chiều về>: chưa đặt"` + ngày của chặng đó, và nút `.xnv-resume-btn` "Tiếp tục đặt chiều
+  về" gọi `tiepTucChangConLai(idx)` → `batDauChang(idx)` (TÁI DÙNG nguyên hàm dựng lại sơ đồ giường/
+  form/OTP của chặng đó, KHÔNG bắt đặt lại từ đầu chặng đã xong — chặng trước vẫn nguyên trong
+  `ketQuaCacChang`/`veIdCacChang`, không bị đụng). Placeholder này được TẠO trong `popstate` handler
+  (nhánh Back giữa `currentChuyen` khứ hồi, xem bullet "Bug thật: Back giữa chặng đi/chặng về" ở
+  trên) — chỉ tạo nếu chặng hiện tại CHƯA có kết quả thật (`ketQuaCacChang[changHienTaiIdx]` chưa
+  `hoanThanh`), tránh ghi đè kết quả thật bằng placeholder rỗng nếu hàm bị gọi lại sau khi đã xong.
+  **Trả lời câu hỏi còn để ngỏ từ đợt sửa bug trước ("biên nhận có phân biệt được với 1 chiều bình
+  thường không, có ghi rõ chặng chưa đặt không, có cách quay lại không")**: CÓ — biên nhận giờ hiện
+  RÕ thẻ cảnh báo riêng biệt (khác hẳn hình thức thẻ đã đặt xong), có ghi rõ tên chặng + "chưa đặt",
+  và có nút bấm quay lại ĐÚNG chặng đó (không cần đặt lại từ đầu, không cần nhớ URL/thao tác gì).
+- **Test đã chạy thật (2026-09-25, Playwright trên `eakar-booking.vercel.app` production, dùng
+  `OTP_TEST_MODE` gửi/xác thực OTP thật qua API + tra `dat_ve_otp` bằng SQL — KHÔNG bật ZNS/SMS
+  thật)** — cả 7 kịch bản BƯỚC 3 đều PASS, có ảnh chụp:
+  1. Đặt 1 chiều, 1 giường — thẻ hiện đúng, `xem-ve.html?id=...` mở đúng vé (curl xác nhận), nút
+     "Sao chép link xem lại vé" hoạt động (toast "Đã sao chép link").
+  2. Đặt 1 chiều 2 giường, 1 giường bị 409 (pre-book qua API TRƯỚC khi bấm "Đặt vé" trong trình
+     duyệt, mô phỏng đúng race condition thật) — thẻ CHỈ liệt kê giường thành công, toast đỏ
+     "1 giường không đặt được: T1-XX" hiện đồng thời, giường đã đặt được không bị mất. **Phát hiện
+     lúc test (không phải bug — latency thật)**: mỗi giường trong vòng lặp tuần tự mất ~2s (gọi API
+     production thật), nên polling/wait trong test phải đủ dài (~5-9s cho 2 giường), không phải
+     dấu hiệu lỗi treo.
+  3. Khứ hồi trọn vẹn (không Back) — 2 thẻ đúng thứ tự đi/về (nhãn "CHIỀU ĐI"/"CHIỀU VỀ" + icon
+     swap), 2 `ve_id`/2 `chuyen_id` khác nhau, link `xem-ve.html` gồm đủ cả 2 `id`.
+  4. Khứ hồi, bấm Back (`page.goBack()`) ngay sau khi đặt xong chặng đi, đang đứng ở sơ đồ giường
+     chặng về (chưa chọn gì) — thẻ chặng đi hiện đầy đủ, thẻ chặng về hiện đúng dải "Chiều về: chưa
+     đặt" + nút "Tiếp tục đặt chiều về"; SQL xác nhận vé chặng đi vẫn `trang_thai='da_dat'`, không
+     mất. Test thêm: bấm nút "Tiếp tục đặt chiều về" → sơ đồ giường chặng về mở lại đúng, chọn
+     giường + đặt xong → biên nhận cuối hiện ĐỦ 2 thẻ hoàn thành (chặng đi giữ nguyên dữ liệu cũ,
+     chặng về ghi đè đúng vị trí, không tạo thẻ trùng).
+  5. Nút "Chia sẻ" — Case A (headless Chrome mặc định KHÔNG có `navigator.share`) → ẩn
+     (`display:none`); Case B (giả lập `navigator.share` tồn tại qua `addInitScript`) → hiện
+     (`display:flex`, căn giữa icon+text đúng).
+  6. Nút "Gọi nhà xe" — ẩn khi `sdt_lien_he=null` (mặc định `eakar` lúc test); tạm
+     `UPDATE nha_xe SET sdt_lien_he='0912345678'` → hiện đúng dưới CTA, `href="tel:0912345678"` —
+     trả lại `null` ngay sau khi chụp ảnh xong.
+  7. Responsive 360px/390px (Playwright, không phải resize DevTools) — `scrollWidth === clientWidth`
+     cả 2 kích thước (không tràn ngang); nút chạm (`.xnv-giuong-copy`/`.xnv-cta-primary`) đo được
+     `height ≥ 44px` qua `getBoundingClientRect()`.
+  - Đã dọn sạch toàn bộ data test (SĐT `0977911001`…`0977911017`/`0977911099`, 2 `chuyen` tự tạo
+    hoàn toàn bởi test) sau khi xong — `select count(*) from ve where sdt_khach like '0977911%'` →
+    `0`. **Chuyến `dadf47a9-...` (2026-09-28, `bac`) đã có sẵn 2 vé THẬT của khách Minh Khoa
+    `0853370268` từ trước — CHỈ xoá đúng 2 vé test chèn thêm vào chuyến đó, KHÔNG xoá chuyến, KHÔNG
+    đụng 2 vé thật.**
+- **Chưa test được** (ngoài khả năng môi trường phiên làm việc này): Clipboard API thật trên thiết
+  bị di động thật (code copy dùng lại nguyên pattern đã kiểm chứng ở `dat-ve.html`/`xem-ve.html`
+  trước đó, không tự verify riêng lần này); gesture Back thật trên Android (`page.goBack()` mô
+  phỏng đúng sự kiện `popstate`, chưa xác nhận vuốt gesture thật trên mọi phiên bản Android/trình
+  duyệt — cùng giới hạn đã ghi nhận ở mục "Bug thật: Back giữa chặng đi/chặng về" phía trên).
+- **Deploy**: `vercel --prod --scope minhwhoa-makers-projects` trước khi test (đã verify qua
+  `curl`/Playwright chạy trên production, không phải preview). `sw-dat-ve.js` bump `CACHE_NAME`
+  `v9` → `v10` (dọn cache HTML cũ còn markup/JS bản trước — `ketQuaCacChang` đổi kiểu dữ liệu,
+  code cũ đọc nhầm kiểu nếu lẫn cache).
+
 ### Onboard nhà xe mới (2026-09-24, đợt onboard "Thái Vương" — nhà xe thứ 2 sau `eakar`)
 
 **`thai-vuong` (Thái Vương) — trạng thái `tam_dung`, CHƯA public.** Bật khi sẵn sàng:

@@ -23,6 +23,13 @@
          thêm link manifest nào, màn lỗi không được phép cài thành app. Xem SPEC "Multi-tenant Giai
          đoạn 5" trong CLAUDE.md (lịch sử "already installed" ở đợt 15 vẫn còn giá trị tham khảo). -->
     <link rel="stylesheet" href="style.css">
+    <!-- Be Vietnam Pro/JetBrains Mono (2026-09-25) — CHỈ dùng cho #xac-nhan-box (màn "Đặt vé thành
+         công", thiết kế lại theo mockup Design canvas, xem SPEC "#xac-nhan-box" CLAUDE.md). SCOPE
+         qua class .xac-nhan-v2 bọc ngoài, KHÔNG đổi font-family phần còn lại của trang (vẫn
+         system-ui). Trước đợt này dat-ve.html chưa load font này ở đâu — chỉ xem-ve.html có (đã
+         port theo mockup riêng, 2026-09-24). Không có CSP riêng nào chặn nguồn ngoài nên không cần
+         whitelist gì thêm (đối chiếu cùng ghi chú đã có ở xem-ve.html). -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap">
     <style>
         /* Trang CÔNG KHAI cho khách — KHÔNG requireSession/renderSideMenu/hamburger, khác hẳn 5
            trang crew nội bộ. Phần CSS sơ đồ giường (.tang-cols/.giuong-icon/.chu-thich-giuong...)
@@ -441,26 +448,89 @@
             display: none; margin-top: 8px; padding: 8px 12px; border-radius: var(--radius-sm);
             background: var(--success-light); color: var(--success); font-size: 13px; font-weight: 700;
         }
-        .xac-nhan-box {
-            display: none; margin: 24px 16px; padding: 24px 16px; text-align: center;
-            background: var(--success-light); border: 1.5px solid var(--success); border-radius: var(--radius-sm);
+        /* #xac-nhan-box — màn "Đặt vé thành công" (thiết kế lại 2026-09-25 theo mockup Design
+           canvas, xem SPEC "#xac-nhan-box" CLAUDE.md). `.xac-nhan-box` giữ mỗi việc ẩn/hiện gốc
+           (JS toggle `style.display` trực tiếp qua id, xem hienBienNhanCuoi/doiChuyenKhac) — toàn
+           bộ hình thức chuyển sang `.xac-nhan-v2` (cùng phần tử, 2 class), scope font Be Vietnam
+           Pro/JetBrains Mono CHỈ trong khối này. */
+        .xac-nhan-box { display: none; }
+        .xac-nhan-v2 {
+            margin: 0; padding: 26px 16px 30px; background: #F6F3EC;
+            font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
         }
-        .xac-nhan-box .icon { font-size: 40px; }
-        .xac-nhan-box h3 { color: var(--success); margin: 8px 0 4px; }
-        .xac-nhan-box p { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
-        /* Div (không phải <p>) vì khứ hồi hiện 2 dòng tóm tắt (đi + về) qua innerHTML nhiều <div>
-           con — lồng <div> trong <p> là HTML không hợp lệ, browser tự đóng thẻ <p> sớm. */
-        .xac-nhan-chi-tiet { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
-        .xac-nhan-chi-tiet div { margin: 4px 0; }
-        /* Nút sao chép/chia sẻ link xem lại vé (2026-09-23) — cùng style outline với .btn-gui-otp
-           (viền primary, nền trắng) thay vì .btn-dat-ve (nền đặc) để không cạnh tranh thị giác với
-           icon ✅/tiêu đề thành công phía trên. */
-        .xac-nhan-link-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
-        .btn-xem-lai-ve {
-            width: 100%; padding: 11px; border: 1.5px solid var(--success);
-            border-radius: var(--radius-sm); background: #fff; color: var(--success); font-size: 14px;
-            font-weight: 700; cursor: pointer; font-family: inherit;
+        .xac-nhan-v2 .mono, .xnv-giuong-mave { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+        .xnv-success { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; margin-bottom: 22px; }
+        .xnv-success-icon {
+            width: 60px; height: 60px; border-radius: 50%; background: #2F7D4F;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
         }
+        .xnv-success-title { font-size: 22px; font-weight: 800; color: #1C1B18; letter-spacing: -0.2px; }
+        .xnv-success-sub { font-size: 13.5px; color: #83796A; line-height: 1.5; margin-top: 4px; }
+        /* Danh sách chặng — mỗi ketQuaCacChang[i] -> 1 thẻ, xem renderXnvCard() */
+        .xnv-cards { display: flex; flex-direction: column; gap: 16px; margin-bottom: 20px; }
+        .xnv-card {
+            background: #ffffff; border: 1px solid #E9E2D3; border-radius: 16px; padding: 18px;
+            display: flex; flex-direction: column; gap: 14px;
+            box-shadow: 0 1px 2px rgba(28,27,24,0.04);
+        }
+        .xnv-pill {
+            display: flex; align-items: center; gap: 6px; align-self: flex-start;
+            padding: 5px 10px; border-radius: 999px; background: #EEF1F8; color: #0D1B4C;
+        }
+        .xnv-pill-icon { display: flex; }
+        .xnv-pill-text { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+        .xnv-row { display: flex; align-items: center; gap: 10px; }
+        .xnv-row-icon { display: flex; flex-shrink: 0; }
+        .xnv-ngay { font-size: 15.5px; font-weight: 600; color: #1C1B18; }
+        .xnv-khach { font-size: 14.5px; color: #1C1B18; font-weight: 500; }
+        .xnv-divider { height: 1px; background: #EFE8DA; }
+        .xnv-giuong-wrap { display: flex; flex-direction: column; gap: 10px; }
+        .xnv-giuong-header { display: flex; align-items: center; gap: 8px; }
+        .xnv-giuong-label { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #83796A; }
+        .xnv-giuong-list { display: flex; flex-direction: column; gap: 10px; }
+        .xnv-giuong-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            background: #FAF7F0; border-radius: 10px; padding: 10px 12px;
+        }
+        .xnv-giuong-ma { font-size: 14px; font-weight: 700; color: #1C1B18; }
+        .xnv-giuong-copy {
+            display: flex; align-items: center; gap: 7px; border: none; background: transparent;
+            padding: 8px 6px; cursor: pointer; border-radius: 6px; min-height: 44px; font-family: inherit;
+        }
+        .xnv-giuong-mave { font-size: 13.5px; font-weight: 600; color: #0D1B4C; letter-spacing: 0.5px; }
+        /* Thẻ "chặng chưa đặt" (Back giữa 2 chặng khứ hồi trước khi đặt xong chặng sau, xem
+           popstate/BƯỚC 2 mục 0f) — KHÔNG có trong mockup gốc (mockup chỉ vẽ trạng thái đã đặt
+           xong cả 2 chặng), tự thiết kế thêm: dùng var(--warning) đã sẵn có trong app (nhất quán
+           với cảnh báo khác trong dự án) thay vì bịa màu mới ngoài mockup. */
+        .xnv-incomplete-banner {
+            display: flex; align-items: flex-start; gap: 10px;
+            background: #FDF2E3; border: 1px solid #F0D9AE; border-radius: 12px; padding: 12px 14px;
+        }
+        .xnv-incomplete-icon { flex-shrink: 0; margin-top: 1px; }
+        .xnv-incomplete-title { font-size: 14.5px; font-weight: 700; color: #8a5a12; }
+        .xnv-incomplete-sub { font-size: 13px; color: #9c7a3f; margin-top: 2px; }
+        .xnv-resume-btn {
+            width: 100%; padding: 12px; border: 1.5px solid var(--warning); border-radius: 12px;
+            background: #fff; color: #8a5a12; font-size: 14.5px; font-weight: 700; cursor: pointer;
+            font-family: inherit; min-height: 44px;
+        }
+        .xnv-cta { display: flex; flex-direction: column; gap: 10px; }
+        .xnv-cta-primary, .xnv-cta-secondary {
+            display: flex; align-items: center; justify-content: center; gap: 9px;
+            border-radius: 12px; padding: 14px; font-size: 15px; font-weight: 700;
+            cursor: pointer; font-family: inherit; min-height: 44px; width: 100%;
+        }
+        .xnv-cta-primary { background: #0D1B4C; color: #ffffff; border: none; }
+        .xnv-cta-secondary { background: #ffffff; color: #0D1B4C; border: 1.5px solid #D8CFBD; }
+        /* Nút "Gọi nhà xe" — TÁI DÙNG nguyên id/hàm ganGoiNhaXe() đã có (branding nhà xe, đợt
+           trước), chỉ đổi vị trí (dưới CTA, theo mockup) + hình thức icon SVG thay emoji. Không
+           đụng `.otp-goi-nha-xe`/`.xac-nhan-goi-nha-xe` gốc (dùng chung ở khối OTP, KHÔNG được sửa
+           đợt này) — override chỉ áp dụng trong scope `.xac-nhan-v2` (specificity cao hơn). */
+        .xac-nhan-v2 .xac-nhan-goi-nha-xe { margin: 0; padding-top: 14px; }
+        .xnv-support-inner { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
+        .xnv-support-inner svg { flex-shrink: 0; }
+        .xnv-support-inner span { font-size: 13px; color: #83796A; font-weight: 500; }
+        .xac-nhan-v2 .xac-nhan-goi-nha-xe a { color: var(--primary); font-weight: 700; text-decoration: underline; }
 
         /* Tablet (2026-09-21) — nới cột 480px (khoá cứng ở đầu file) lên 640px, CHỈ thêm rule
            mới, không sửa rule 480px gốc (vẫn áp dụng cho mobile/phone-landscape dưới breakpoint
@@ -625,15 +695,36 @@
         <button type="button" class="btn-dat-ve" id="btn-dat-ve">Đặt vé</button>
     </div>
 
-    <div class="xac-nhan-box" id="xac-nhan-box">
-        <div class="icon">✅</div>
-        <h3>Đặt vé thành công!</h3>
-        <div id="xac-nhan-chi-tiet" class="xac-nhan-chi-tiet"></div>
-        <p>Lưu lại link bên dưới để xem lại thông tin vé bất cứ lúc nào. Cần hỗ trợ, gọi cho nhà xe.</p>
-        <div class="xac-nhan-goi-nha-xe" id="xac-nhan-goi-nha-xe">📞 <a href="#" id="xac-nhan-goi-nha-xe-link">Gọi nhà xe</a></div>
-        <div class="xac-nhan-link-actions">
-            <button type="button" class="btn-xem-lai-ve" id="btn-copy-link">🔗 Sao chép link xem lại vé</button>
-            <button type="button" class="btn-xem-lai-ve" id="btn-share-link" style="display:none;">📤 Chia sẻ</button>
+    <!-- Thiết kế lại 2026-09-25 theo mockup Design canvas — xem SPEC "#xac-nhan-box" CLAUDE.md.
+         Toàn bộ text người-dùng-gõ/dữ-liệu-server (ngày/khách/thanh toán/mã giường/mã vé) gán bằng
+         textContent trong renderXnvCard(), KHÔNG innerHTML — markup tĩnh dưới đây chỉ chứa icon
+         SVG/nhãn cố định. -->
+    <div class="xac-nhan-box xac-nhan-v2" id="xac-nhan-box">
+        <div class="xnv-success">
+            <div class="xnv-success-icon">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+            </div>
+            <div>
+                <div class="xnv-success-title">Đặt vé thành công!</div>
+                <div class="xnv-success-sub">Lưu lại link bên dưới để xem lại vé bất cứ lúc nào</div>
+            </div>
+        </div>
+        <div id="xac-nhan-chi-tiet" class="xnv-cards"></div>
+        <div class="xnv-cta">
+            <button type="button" class="xnv-cta-primary" id="btn-copy-link">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 15l6-6"></path><path d="M11 6l1-1a4 4 0 1 1 6 6l-1 1"></path><path d="M13 18l-1 1a4 4 0 1 1-6-6l1-1"></path></svg>
+                Sao chép link xem lại vé
+            </button>
+            <button type="button" class="xnv-cta-secondary" id="btn-share-link" style="display:none;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0D1B4C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"></circle><circle cx="6" cy="12" r="2.5"></circle><circle cx="18" cy="19" r="2.5"></circle><path d="M8.3 10.7l7.4-4.2M8.3 13.3l7.4 4.2"></path></svg>
+                Chia sẻ
+            </button>
+        </div>
+        <div class="xac-nhan-goi-nha-xe" id="xac-nhan-goi-nha-xe">
+            <span class="xnv-support-inner">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#83796A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h3l2 5-2 1a11 11 0 0 0 5 5l1-2 5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z"></path></svg>
+                <span>Cần hỗ trợ? <a href="#" id="xac-nhan-goi-nha-xe-link">Gọi nhà xe</a></span>
+            </span>
         </div>
     </div>
 
@@ -916,9 +1007,8 @@
             btn.disabled = true
             // Đặt TUẦN TỰ từng giường (không Promise.all) — đơn giản, dễ biết đúng giường nào lỗi
             // để báo rõ, số lượng mỗi lần chọn thường nhỏ (vài giường) nên không đáng lo tốc độ.
-            const thanhCong = []
+            const thanhCong = []   // [{ma, maVe}] — xem BƯỚC 1 "Đổi cấu trúc dữ liệu"
             const thatBai = []
-            const maVeThanhCong = []
             for (const g of dsGiuong) {
                 btn.textContent = `Đang đặt vé... (${thanhCong.length + thatBai.length + 1}/${dsGiuong.length})`
                 try {
@@ -952,9 +1042,14 @@
                     const data = await res.json()
                     if (!res.ok) { thatBai.push({ g, error: data.error || 'Lỗi đặt vé' }) }
                     else {
-                        thanhCong.push(g)
+                        // Gộp {ma, maVe} NGAY tại đây (thay vì 2 mảng song song thanhCong/
+                        // maVeThanhCong như bản cũ) — tránh lệch chỉ số nếu 1 giường nào đó thiếu
+                        // ma_ve (server luôn trả, nhưng không dựa vào giả định đó để giữ đúng cặp).
+                        // maVe LƯU RAW (không dấu gạch) — format hiển thị XXXX-XXXX chỉ tính lúc
+                        // render (renderXnvCard/ghepMaVe), sao chép cũng dùng đúng giá trị raw này
+                        // (cùng convention xem-ve.html, xem BƯỚC 0g).
+                        thanhCong.push({ ma: g.ma, maVe: data.ma_ve || null })
                         if (data.ve_id) veIdCacChang.push(data.ve_id)
-                        if (data.ma_ve) maVeThanhCong.push(data.ma_ve)
                         if (data.chuyen_id && !currentChuyen.chuyen_id) currentChuyen.chuyen_id = data.chuyen_id
                     }
                 } catch (err) {
@@ -981,18 +1076,20 @@
             // trong nhóm bị trùng.
             selectedGiuongMap.clear()
             capNhatGiaVeBar()
-            const maThanhCong = thanhCong.map(g => g.ma).join(', ')
-            const nhanChang = dsChangDat.length > 1 ? (dsChangDat[changHienTaiIdx].vaiTro === 'di' ? 'Chiều đi' : 'Chiều về') + ' — ' : ''
-            // Mã vé (2026-09-23, xem SPEC "Mã vé ngắn") — chia 4-4 bằng dấu gạch CHỈ ĐỂ DỄ ĐỌC,
-            // không phải 1 phần giá trị lưu DB. Nhiều giường trong cùng chặng → liệt kê đủ mã.
-            const maVeHtml = maVeThanhCong.length
-                ? ' — Mã vé: ' + maVeThanhCong.map(m => `${m.slice(0, 4)}-${m.slice(4)}`).join(', ')
-                : ''
-            ketQuaCacChang.push(
-                `${nhanChang}${nhanNgayLabel(currentChuyen.ngay, currentChuyen.lunarDay, currentChuyen.lunarMonth)}: Giường ${maThanhCong} — ${ten} — ${sdt}` +
-                (hinhThuc === 'chuyen_khoan_truoc' ? ' — Chờ nhà xe xác nhận chuyển khoản' : ' — Thanh toán tiền mặt lúc lên xe') +
-                maVeHtml
-            )
+            // Ghi kết quả chặng này vào ĐÚNG chỉ số `changHienTaiIdx` trong `ketQuaCacChang`
+            // (mảng sparse song song `dsChangDat`, KHÔNG push nối đuôi như bản cũ) — cho phép
+            // `popstate` (Back giữa 2 chặng, xem bullet đó) GHI ĐÈ đúng vị trí này bằng kết quả
+            // thật khi khách quay lại đặt tiếp (tiepTucChangConLai), không tạo dòng trùng lặp.
+            ketQuaCacChang[changHienTaiIdx] = {
+                nhan: dsChangDat.length > 1 ? (dsChangDat[changHienTaiIdx].vaiTro === 'di' ? 'Chiều đi' : 'Chiều về') : null,
+                coNhan: dsChangDat.length > 1,
+                hoanThanh: true,
+                ngayText: nhanNgayLabel(currentChuyen.ngay, currentChuyen.lunarDay, currentChuyen.lunarMonth),
+                khachText: `${ten} · ${sdt}`,
+                thanhToan: hinhThuc === 'chuyen_khoan_truoc' ? 'Chờ nhà xe xác nhận chuyển khoản' : 'Tiền mặt lúc lên xe',
+                giuongs: thanhCong,
+                soGiuong: thanhCong.length
+            }
             if (thatBai.length) {
                 showToast(`${thatBai.length} giường không đặt được: ${thatBai.map(x => x.g.ma).join(', ')}`, 'error')
             }
@@ -1037,10 +1134,134 @@
             document.getElementById('so-do-wrap').style.display = 'none'
             document.getElementById('dat-ve-form').style.display = 'none'
             document.getElementById('chuyen-info-wrap').innerHTML = ''
-            document.getElementById('xac-nhan-chi-tiet').innerHTML = ketQuaCacChang.map(s => `<div>${s}</div>`).join('')
+            const wrap = document.getElementById('xac-nhan-chi-tiet')
+            wrap.innerHTML = ''
+            // `ketQuaCacChang` là mảng sparse (index = vị trí trong dsChangDat) — forEach tự bỏ
+            // qua chỉ số trống (chặng chưa tới lượt đặt), chỉ hiện những chặng ĐÃ có kết quả (xong
+            // hoặc dở dang do Back giữa chừng, xem BƯỚC 1/renderXnvCard).
+            ketQuaCacChang.forEach((entry, idx) => { if (entry) wrap.appendChild(renderXnvCard(entry, idx)) })
             capNhatLinkXemLaiVe()
             document.getElementById('xac-nhan-box').style.display = 'block'
             document.getElementById('xac-nhan-box').scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+
+        // Icon SVG tĩnh dùng trong renderXnvCard — copy path/style từ mockup Design canvas (xem
+        // SPEC "#xac-nhan-box" CLAUDE.md), KHÔNG emoji.
+        const XNV_ICON_SWAP = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3"></path><path d="M20 17H7l3 3"></path></svg>'
+        const XNV_ICON_CALENDAR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#0D1B4C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg>'
+        const XNV_ICON_USER = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#83796A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"></path></svg>'
+        const XNV_ICON_WALLET = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#83796A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3"></path><path d="M3 7v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H5"></path><circle cx="16" cy="14" r="1.5"></circle></svg>'
+        const XNV_ICON_BED = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#83796A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17h20M4 17v-5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v1M13 12a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v5M4 17v3M20 17v3"></path></svg>'
+        const XNV_ICON_COPY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#0D1B4C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>'
+        // Cảnh báo "chặng chưa đặt" — KHÔNG có trong mockup (tự thêm, xem CSS .xnv-incomplete-*).
+        const XNV_ICON_WARNING = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#8a5a12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L2.5 18a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>'
+
+        // Chia 4-4 bằng dấu gạch CHỈ ĐỂ DỄ ĐỌC lúc hiện — giá trị lưu/so sánh/sao chép LUÔN dùng
+        // bản raw không gạch (cùng convention xem-ve.html, xem BƯỚC 0g).
+        function ghepMaVe(maVe) { return maVe ? `${maVe.slice(0, 4)}-${maVe.slice(4)}` : '' }
+
+        // Dựng 1 thẻ chặng — nhận `entry` (ketQuaCacChang[idx]) + `idx` (dùng cho nút "Tiếp tục
+        // đặt" của thẻ dở dang). Icon/nhãn tĩnh gán qua innerHTML (chuỗi cố định, không chứa dữ
+        // liệu động), MỌI giá trị động (ngày/khách/thanh toán/mã giường/mã vé — đến từ input
+        // khách gõ hoặc server) gán riêng bằng textContent SAU KHI innerHTML đã dựng khung, KHÔNG
+        // bao giờ nội suy trực tiếp vào chuỗi HTML.
+        function renderXnvCard(entry, idx) {
+            const card = document.createElement('div')
+            card.className = 'xnv-card'
+
+            if (entry.hoanThanh === false) {
+                card.innerHTML = `
+                    ${entry.coNhan ? `<div class="xnv-pill"><span class="xnv-pill-icon">${XNV_ICON_SWAP}</span><span class="xnv-pill-text" data-slot="nhan"></span></div>` : ''}
+                    <div class="xnv-incomplete-banner">
+                        <span class="xnv-incomplete-icon">${XNV_ICON_WARNING}</span>
+                        <div>
+                            <div class="xnv-incomplete-title" data-slot="tieu-de"></div>
+                            <div class="xnv-incomplete-sub" data-slot="ngay"></div>
+                        </div>
+                    </div>
+                    <button type="button" class="xnv-resume-btn" data-slot="resume"></button>
+                `
+                if (entry.coNhan) card.querySelector('[data-slot="nhan"]').textContent = entry.nhan
+                card.querySelector('[data-slot="tieu-de"]').textContent = `${entry.nhan || 'Chặng này'}: chưa đặt`
+                card.querySelector('[data-slot="ngay"]').textContent = entry.ngayText || ''
+                const resumeBtn = card.querySelector('[data-slot="resume"]')
+                resumeBtn.textContent = `Tiếp tục đặt ${entry.nhan ? entry.nhan.toLowerCase() : 'chặng này'}`
+                resumeBtn.addEventListener('click', () => tiepTucChangConLai(idx))
+                return card
+            }
+
+            card.innerHTML = `
+                ${entry.coNhan ? `<div class="xnv-pill"><span class="xnv-pill-icon">${XNV_ICON_SWAP}</span><span class="xnv-pill-text" data-slot="nhan"></span></div>` : ''}
+                <div class="xnv-row"><span class="xnv-row-icon">${XNV_ICON_CALENDAR}</span><span class="xnv-ngay" data-slot="ngay"></span></div>
+                <div class="xnv-divider"></div>
+                <div class="xnv-row"><span class="xnv-row-icon">${XNV_ICON_USER}</span><span class="xnv-khach" data-slot="khach"></span></div>
+                <div class="xnv-row"><span class="xnv-row-icon">${XNV_ICON_WALLET}</span><span class="xnv-khach" data-slot="thanh-toan"></span></div>
+                <div class="xnv-divider"></div>
+                <div class="xnv-giuong-wrap">
+                    <div class="xnv-giuong-header"><span class="xnv-row-icon">${XNV_ICON_BED}</span><span class="xnv-giuong-label" data-slot="giuong-label"></span></div>
+                    <div class="xnv-giuong-list" data-slot="giuong-list"></div>
+                </div>
+            `
+            if (entry.coNhan) card.querySelector('[data-slot="nhan"]').textContent = entry.nhan
+            card.querySelector('[data-slot="ngay"]').textContent = entry.ngayText
+            card.querySelector('[data-slot="khach"]').textContent = entry.khachText
+            card.querySelector('[data-slot="thanh-toan"]').textContent = entry.thanhToan
+            card.querySelector('[data-slot="giuong-label"]').textContent = `Giường đã đặt · ${entry.soGiuong}`
+
+            const listEl = card.querySelector('[data-slot="giuong-list"]')
+            entry.giuongs.forEach(g => {
+                const row = document.createElement('div')
+                row.className = 'xnv-giuong-row'
+                row.innerHTML = `
+                    <span class="xnv-giuong-ma" data-slot="ma"></span>
+                    <button type="button" class="xnv-giuong-copy" aria-label="Sao chép mã vé">
+                        <span class="mono xnv-giuong-mave" data-slot="mave"></span>
+                        ${XNV_ICON_COPY}
+                    </button>
+                `
+                row.querySelector('[data-slot="ma"]').textContent = g.ma
+                row.querySelector('[data-slot="mave"]').textContent = ghepMaVe(g.maVe)
+                row.querySelector('.xnv-giuong-copy').addEventListener('click', () => saoChepMaVe(g.maVe))
+                listEl.appendChild(row)
+            })
+            return card
+        }
+
+        // Quay lại đặt tiếp 1 chặng còn dở dang (thẻ hoanThanh:false) — TÁI DÙNG nguyên
+        // `batDauChang(idx)` đã có (route/sơ đồ giường/form/OTP dựng lại y hệt lúc mới bắt đầu
+        // chặng đó, tên/SĐT/xác thực OTP vẫn giữ nguyên vì không bị reset ở đâu khác) — KHÔNG bắt
+        // đặt lại từ đầu chặng đã xong (chặng đi vẫn còn nguyên trong `ketQuaCacChang`/
+        // `veIdCacChang`, không đụng tới). Xem BƯỚC 0f/2 trong SPEC "#xac-nhan-box" CLAUDE.md để
+        // biết vì sao chọn cách này (thay vì bắt đặt lại từ đầu hoặc chỉ hiện thông báo suông).
+        function tiepTucChangConLai(idx) {
+            document.getElementById('xac-nhan-box').style.display = 'none'
+            changHienTaiIdx = idx
+            batDauChang(idx)
+        }
+
+        // Sao chép mã vé RAW (không gạch) của 1 giường — TÁI DÙNG đúng pattern clipboard/fallback
+        // execCommand đã có ở nút "Sao chép link xem lại vé" (0c) và ở xem-ve.html (0g), không
+        // viết hàm mới trùng logic khác đi chỉ khác chuỗi copy.
+        async function saoChepMaVe(maVe) {
+            if (!maVe) return
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(maVe)
+                } else {
+                    const ta = document.createElement('textarea')
+                    ta.value = maVe
+                    ta.style.position = 'fixed'
+                    ta.style.opacity = '0'
+                    document.body.appendChild(ta)
+                    ta.focus()
+                    ta.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(ta)
+                }
+                showToast('Đã sao chép mã vé', 'success')
+            } catch (err) {
+                showToast('Không sao chép được', 'error')
+            }
         }
 
         // Link xem lại vé (2026-09-23) — build từ TOÀN BỘ ve.id đặt thành công trong `veIdCacChang`
@@ -1053,7 +1274,9 @@
             return `${location.origin}/xem-ve.html?${qs}`
         }
         function capNhatLinkXemLaiVe() {
-            document.getElementById('btn-share-link').style.display = (typeof navigator.share === 'function') ? 'block' : 'none'
+            // 'flex' (không phải 'block' như bản cũ) — khớp `display:flex` của `.xnv-cta-secondary`
+            // (căn icon+text giữa nút), đổi giá trị DUY NHẤT dòng này, logic ẩn/hiện giữ nguyên.
+            document.getElementById('btn-share-link').style.display = (typeof navigator.share === 'function') ? 'flex' : 'none'
         }
         // Sao chép — ưu tiên Clipboard API, fallback execCommand('copy') cho WebView cũ/không hỗ
         // trợ (thường gặp trên PWA Android đời cũ chưa cấp quyền clipboard mặc định).
@@ -1429,7 +1652,12 @@
         // liên kết gì ở tầng DB.
         let dsChangDat = []        // [{vaiTro:'di'|'ve', ngay, lunarDay, lunarMonth, chieu, chuyen_id, tinhXuatPhat, tinhDiemDen, diaDiemXuatPhat, diaDiemDiemDen}]
         let changHienTaiIdx = 0
-        let ketQuaCacChang = []    // dòng tóm tắt từng chặng đã đặt xong, gộp lại hiện ở xac-nhan-box cuối cùng
+        // Mảng SPARSE, index = vị trí trong dsChangDat (KHÔNG push nối đuôi — đổi 2026-09-25, xem
+        // SPEC "#xac-nhan-box" CLAUDE.md BƯỚC 1) — mỗi phần tử: { nhan, coNhan, hoanThanh,
+        // ngayText, khachText, thanhToan, giuongs:[{ma,maVe}], soGiuong } khi đã đặt xong, hoặc
+        // { nhan, coNhan, hoanThanh:false, ngayText } khi khách Back giữa chừng trước khi đặt
+        // xong chặng đó (xem popstate). Render qua renderXnvCard(), gộp lại hiện ở #xac-nhan-box.
+        let ketQuaCacChang = []
         // ve.id của MỌI vé đặt thành công xuyên suốt cả phiên (kể cả khứ hồi 2 chặng) — dùng build
         // link "xem-ve.html?id=...&id=..." ở biên nhận cuối cùng (2026-09-23, xem SPEC "Xem lại vé
         // đã đặt" CLAUDE.md). Cùng vòng đời reset với `ketQuaCacChang` (đầu `xacNhanChonChieu`/
@@ -1721,8 +1949,30 @@
                 // LUÔN biên nhận (`hienBienNhanCuoi`, dùng chung với luồng đặt xong bình thường) —
                 // khách thấy đúng vé/mã vé/link xem lại đã có, dù khứ hồi chưa trọn 2 chặng, thay
                 // vì bị đẩy về Bước 0 im lặng.
-                if (veIdCacChang.length > 0) hienBienNhanCuoi()
-                else doiChuyenKhac()
+                // (2026-09-25, xem SPEC "#xac-nhan-box" BƯỚC 0f/2) — trả lời câu hỏi còn để ngỏ từ
+                // đợt sửa bug trước: biên nhận lúc này GIỜ ĐÃ phân biệt được với biên nhận 1 chiều
+                // bình thường — chặng chưa đặt hiện thành 1 thẻ cảnh báo riêng "<Chiều về>: chưa
+                // đặt" (KHÔNG bị nhầm với chặng đã xong, xem renderXnvCard nhánh `hoanThanh===false`)
+                // kèm nút "Tiếp tục đặt chiều về" đưa khách quay LẠI ĐÚNG chặng còn dở (
+                // tiepTucChangConLai → batDauChang(changHienTaiIdx)), KHÔNG bắt đặt lại từ đầu
+                // (chặng đi đã xong không bị đụng tới). Chỉ tạo placeholder nếu chặng hiện tại
+                // CHƯA có kết quả thật (đề phòng gọi lại hàm này khi chặng đã hoàn thành — không
+                // ghi đè kết quả thật bằng placeholder rỗng).
+                if (veIdCacChang.length > 0) {
+                    const changConLai = dsChangDat[changHienTaiIdx]
+                    const daXongChangNay = ketQuaCacChang[changHienTaiIdx] && ketQuaCacChang[changHienTaiIdx].hoanThanh
+                    if (changConLai && !daXongChangNay) {
+                        ketQuaCacChang[changHienTaiIdx] = {
+                            nhan: dsChangDat.length > 1 ? (changConLai.vaiTro === 'di' ? 'Chiều đi' : 'Chiều về') : null,
+                            coNhan: dsChangDat.length > 1,
+                            hoanThanh: false,
+                            ngayText: nhanNgayLabel(changConLai.ngay, changConLai.lunarDay, changConLai.lunarMonth)
+                        }
+                    }
+                    hienBienNhanCuoi()
+                } else {
+                    doiChuyenKhac()
+                }
                 return
             }
             if (khuHoi && ngayVeChon) {
